@@ -1,0 +1,29 @@
+# A small, polished notes app — used by scripts/demo_build.py to demonstrate the
+# loop end-to-end and to produce a real, runnable artifact for screenshots.
+
+name: notes-app
+kind: frontend
+language: html/css/js
+
+description: |
+  A clean single-page "Quick Notes" app (index.html, styles.css, app.js).
+  Add a note, check it off, delete it; persist to localStorage. Cohesive design
+  system via CSS custom properties; light + dark; responsive; accessible.
+
+constraints:
+  - "No frameworks; plain HTML/CSS/JS."
+  - "No runtime network requests."
+
+verification:
+  - name: files
+    command: "test -f index.html && test -f styles.css && test -f app.js"
+  - name: structure
+    command: >
+      python3 -c "import re; h=open('index.html').read();
+      assert h.count('<h1')==1 and 'name=\"viewport\"' in h;
+      assert 'styles.css' in h and 'app.js' in h;
+      assert re.search(r'<(header|main|footer)[ >]', h); print('structure ok')"
+  - name: design-system
+    command: >
+      python3 -c "c=open('styles.css').read();
+      assert '--' in c and 'var(' in c and '@media' in c; print('design-system ok')"

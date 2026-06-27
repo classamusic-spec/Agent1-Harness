@@ -3,60 +3,66 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Agent1-Harness — Build Console</title>
+  <title>Agent1-Harness</title>
   <link rel="stylesheet" href="/static/styles.css" />
 </head>
 <body>
   <header class="topbar">
     <div class="brand">
       <span class="dot" aria-hidden="true"></span>
-      <h1>Agent1-Harness</h1>
+      <div>
+        <h1>Agent1-Harness</h1>
+        <p class="tagline">Build apps from a spec — verified, reviewed, self-improving.</p>
+      </div>
     </div>
-    <span class="tag" id="health">connecting…</span>
+    <span class="pill" id="health">connecting…</span>
   </header>
 
   <main class="layout">
-    <section class="panel" aria-labelledby="cfg-h">
+    <section class="card" aria-labelledby="cfg-h">
       <h2 id="cfg-h">Build</h2>
 
       <label for="spec">Spec</label>
-      <select id="spec"></select>
+      <div class="select-wrap">
+        <select id="spec" aria-describedby="spec-hint"></select>
+      </div>
+      <p class="hint" id="spec-hint">Choose what to build. The kind selects the design/engineering persona.</p>
 
       <label for="workspace">Workspace</label>
-      <input id="workspace" type="text" placeholder="workspaces/&lt;spec&gt;" />
+      <input id="workspace" type="text" placeholder="workspaces/<spec>" />
 
       <fieldset>
         <legend>Engine</legend>
-        <div class="row">
-          <label class="radio"><input type="radio" name="engine" value="anthropic" checked /> Claude</label>
-          <label class="radio"><input type="radio" name="engine" value="local" /> Local LLM</label>
+        <div class="segmented" role="radiogroup" aria-label="Engine">
+          <label><input type="radio" name="engine" value="anthropic" checked /><span>Claude</span></label>
+          <label><input type="radio" name="engine" value="local" /><span>Local LLM</span></label>
         </div>
         <label for="model">Model</label>
-        <input id="model" type="text" placeholder="claude-opus-4-8 / qwen2.5-coder" />
-        <label for="baseurl" class="local-only">Base URL</label>
-        <input id="baseurl" class="local-only" type="text" placeholder="http://localhost:11434/v1" />
+        <input id="model" type="text" placeholder="claude-opus-4-8  ·  qwen2.5-coder" />
+        <label for="baseurl">Base URL <span class="muted">(local)</span></label>
+        <input id="baseurl" type="text" placeholder="http://localhost:11434/v1" />
       </fieldset>
 
       <fieldset>
         <legend>Gates &amp; learning</legend>
-        <label class="check"><input type="checkbox" id="review" /> Reviewer / Sentry gate</label>
-        <div class="row local-review">
-          <label class="radio"><input type="radio" name="focus" value="quality" checked /> Quality</label>
-          <label class="radio"><input type="radio" name="focus" value="bugs" /> Bug hunt</label>
+        <label class="toggle"><input type="checkbox" id="review" /> <span>Reviewer / Sentry gate</span></label>
+        <div class="segmented small" role="radiogroup" aria-label="Review focus">
+          <label><input type="radio" name="focus" value="quality" checked /><span>Quality</span></label>
+          <label><input type="radio" name="focus" value="bugs" /><span>Bug hunt</span></label>
         </div>
-        <label class="check"><input type="checkbox" id="learn" /> Learn from past builds</label>
-        <label class="check"><input type="checkbox" id="checkonly" /> Verify only (no model)</label>
+        <label class="toggle"><input type="checkbox" id="learn" /> <span>Learn from past builds</span></label>
+        <label class="toggle"><input type="checkbox" id="checkonly" /> <span>Verify only (no model)</span></label>
       </fieldset>
 
       <button id="run" class="primary">Build</button>
     </section>
 
-    <section class="panel log-panel" aria-labelledby="log-h">
+    <section class="card log-card" aria-labelledby="log-h">
       <div class="log-head">
         <h2 id="log-h">Log</h2>
         <span class="badge" id="status" data-state="idle">idle</span>
       </div>
-      <pre id="log" class="log" tabindex="0" aria-live="polite"></pre>
+      <pre id="log" class="log" tabindex="0" aria-live="polite" data-empty="Logs will appear here once a build starts."></pre>
     </section>
   </main>
 
