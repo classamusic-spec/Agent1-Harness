@@ -1,0 +1,53 @@
+# Example frontend spec: a polished, accessible landing page.
+# Showcases the front-end design persona (kind: frontend).
+#
+#   appbuilder specs/landing-page.yaml -w workspaces/landing
+#   appbuilder specs/landing-page.yaml -w workspaces/landing \
+#       --engine local --model qwen2.5-coder
+
+name: landing-page
+kind: frontend
+language: html/css/js
+
+description: |
+  A single-page marketing site for a fictional product called "Lumen", a focus
+  timer app. Static files only: index.html, styles.css, and (optionally) app.js.
+
+  Sections, in order:
+    - A sticky header with the product name and nav links (Features, Pricing).
+    - A hero with a headline, subhead, and a primary call-to-action button.
+    - A features section with three feature cards.
+    - A simple footer.
+
+  Design intent:
+    - Establish a cohesive design system with CSS custom properties (color,
+      spacing, type scale, radius). Support a dark-mode-friendly palette.
+    - Distinctive, intentional visual style — NOT generic Inter-on-white with a
+      purple gradient. Pick a real aesthetic and commit to it.
+    - Fully responsive (mobile-first). Accessible: semantic landmarks, a single
+      h1, labelled controls, visible focus states, WCAG AA contrast.
+    - Tasteful transitions; respect prefers-reduced-motion.
+
+constraints:
+  - "No build step and no frameworks — plain HTML/CSS/JS."
+  - "No external network requests at runtime (self-contained; system fonts ok)."
+
+verification:
+  - name: files
+    command: "test -f index.html && test -f styles.css"
+  - name: structure
+    command: >
+      python3 -c "import re; h=open('index.html').read();
+      assert '<title' in h, 'missing <title>';
+      assert 'name=\"viewport\"' in h, 'missing responsive viewport meta';
+      assert re.search(r'<h1[ >]', h), 'missing <h1>';
+      assert h.count('<h1') == 1, 'there must be exactly one <h1>';
+      assert 'styles.css' in h, 'styles.css not linked';
+      assert re.search(r'<(header|main|footer)[ >]', h), 'missing semantic landmarks';
+      print('structure ok')"
+  - name: design-system
+    command: >
+      python3 -c "c=open('styles.css').read();
+      assert '--' in c and 'var(' in c, 'expected CSS custom properties (design tokens)';
+      assert '@media' in c, 'expected responsive @media queries';
+      print('design-system ok')"

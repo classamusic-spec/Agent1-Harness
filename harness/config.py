@@ -1,29 +1,47 @@
-"""Harness configuration and bounded-autonomy limits."""
+"""Harness configuration, engine selection, and bounded-autonomy limits."""
 
 from __future__ import annotations
 
+import os
 from dataclasses import dataclass, field
 
-# Default model for the build agent. The Claude Agent SDK accepts full model IDs
-# as well as the short aliases "opus" / "sonnet" / "haiku". We default to the
-# most capable model for code generation; override with --model.
+# Default model for the Anthropic engine. The Claude Agent SDK accepts full
+# model IDs as well as the short aliases "opus" / "sonnet" / "haiku".
 DEFAULT_MODEL = "claude-opus-4-8"
 
-# Built-in SDK tools the agent is allowed to use while building an app. These
-# are scoped to the workspace via `cwd` and further gated by the permission
-# callback (see harness.permissions). The custom verification tool is added
-# separately by name at runtime.
+# Default endpoint for the local engine (Ollama). LM Studio uses :1234, vLLM
+# and llama.cpp vary — override with --base-url.
+DEFAULT_LOCAL_BASE_URL = "http://localhost:11434/v1"
+
+# Built-in SDK tools the Anthropic engine may use. Scoped to the workspace via
+# `cwd` and gated by the permission callback. The custom verify tool is added
+# by name at runtime.
 DEFAULT_ALLOWED_TOOLS = ["Read", "Write", "Edit", "Bash", "Glob", "Grep"]
+
+
+@dataclass
+class EngineConfig:
+    """Which model backend to use and how to reach it."""
+
+    provider: str = "anthropic"  # "anthropic" | "local"
+    model: str = DEFAULT_MODEL
+    base_url: str | None = None  # local only
+    # Env var to read the API key from. Local servers usually ignore it; the
+    # OpenAI client just needs a non-empty string.
+    api_key_env: str = "ANTHROPIC_API_KEY"
+    temperature: float = 0.2
+
+    def resolved_api_key(self) -> str:
+        return os.environ.get(self.api_key_env) or "local"
 
 
 @dataclass
 class HarnessConfig:
     workspace: str
-    model: str = DEFAULT_MODEL
-    # Bounded autonomy: how many repair rounds after the initial build attempt.
+    engine: EngineConfig = field(default_factory=EngineConfig)
+    # Bounded autonomy: repair rounds after the initial build attempt.
     max_repairs: int = 4
-    # Per-turn cap on agentic turns inside the SDK loop.
+    # Cap on agentic turns within a single engine.send() call.
     max_turns: int = 80
     allowed_tools: list[str] = field(default_factory=lambda: list(DEFAULT_ALLOWED_TOOLS))
-    # Whether to halt the verification suite at the first hard failure.
     stop_on_failure: bool = True

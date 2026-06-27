@@ -24,6 +24,9 @@ class Spec:
     name: str
     description: str
     language: str = "unspecified"
+    # Drives which specialist persona(s) the agent adopts:
+    # frontend | backend | fullstack | cli | api | library
+    kind: str = "fullstack"
     constraints: list[str] = field(default_factory=list)
     checks: list[Check] = field(default_factory=list)
 
@@ -72,6 +75,7 @@ def parse_spec(data: dict, *, cwd: str | None = None) -> Spec:
         name=name,
         description=description,
         language=str(data.get("language", "unspecified")),
+        kind=str(data.get("kind", "fullstack")),
         constraints=[str(c) for c in constraints],
         checks=checks,
     )

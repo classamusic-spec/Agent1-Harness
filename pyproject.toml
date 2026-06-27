@@ -14,7 +14,9 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-dev = ["pytest>=7.0"]
+# Local-LLM engine (Ollama / LM Studio / vLLM / llama.cpp — any OpenAI-compatible server)
+local = ["openai>=1.0"]
+dev = ["pytest>=7.0", "openai>=1.0"]
 
 [project.scripts]
 appbuilder = "harness.cli:main"

@@ -66,6 +66,22 @@ def _within(path: str, root: str) -> bool:
         return False
 
 
+def is_within(path: str, root: str) -> bool:
+    """Public: True if `path` resolves to inside `root` (or is `root` itself)."""
+    return _within(path, root)
+
+
+def screen_command(command: str) -> str | None:
+    """Public: return a denial reason if `command` matches a dangerous pattern, else None."""
+    for rx in _DANGEROUS_RE:
+        if rx.search(command):
+            return (
+                f"command blocked by safety policy (matched {rx.pattern!r}). "
+                "Stay inside the workspace and avoid destructive or networked commands."
+            )
+    return None
+
+
 def make_permission_callback(workspace: str) -> Callable[..., Any]:
     """Return an async `can_use_tool(tool_name, tool_input, context)` callback."""
 
