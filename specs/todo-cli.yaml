@@ -1,0 +1,39 @@
+# Example build spec: a small command-line to-do application.
+#
+# Run it with:
+#   appbuilder specs/todo-cli.yaml --workspace workspaces/todo-cli
+#
+# The `verification` suite is the contract the agent must satisfy. The harness
+# runs these commands (in the workspace) and only declares success when they pass.
+
+name: todo-cli
+language: python
+
+description: |
+  A single-file command-line to-do list manager named `todo.py`.
+
+  It stores tasks as JSON in a file `tasks.json` in the current directory and
+  supports these subcommands:
+
+    - `add "<text>"`        add a new task, print its id
+    - `list`                print all tasks as "<id>: [ ] text" or "[x]" if done
+    - `done <id>`           mark a task complete
+    - `rm <id>`             delete a task
+
+  Use only the Python standard library (argparse, json). Handle a missing or
+  empty tasks.json gracefully. Exit non-zero with a clear message on bad input
+  (e.g. unknown id).
+
+  Also create `test_todo.py` with pytest tests covering add, list, done, and rm,
+  using a temporary working directory so tests do not touch real files.
+
+constraints:
+  - "Python standard library only (plus pytest for tests)."
+  - "No network access."
+  - "All state lives in tasks.json in the working directory."
+
+verification:
+  - name: compile
+    command: "python -m compileall -q todo.py test_todo.py"
+  - name: tests
+    command: "python -m pytest -q"
