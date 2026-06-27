@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Agent1-Harness — Build Console</title>
+  <link rel="stylesheet" href="/static/styles.css" />
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <span class="dot" aria-hidden="true"></span>
+      <h1>Agent1-Harness</h1>
+    </div>
+    <span class="tag" id="health">connecting…</span>
+  </header>
+
+  <main class="layout">
+    <section class="panel" aria-labelledby="cfg-h">
+      <h2 id="cfg-h">Build</h2>
+
+      <label for="spec">Spec</label>
+      <select id="spec"></select>
+
+      <label for="workspace">Workspace</label>
+      <input id="workspace" type="text" placeholder="workspaces/&lt;spec&gt;" />
+
+      <fieldset>
+        <legend>Engine</legend>
+        <div class="row">
+          <label class="radio"><input type="radio" name="engine" value="anthropic" checked /> Claude</label>
+          <label class="radio"><input type="radio" name="engine" value="local" /> Local LLM</label>
+        </div>
+        <label for="model">Model</label>
+        <input id="model" type="text" placeholder="claude-opus-4-8 / qwen2.5-coder" />
+        <label for="baseurl" class="local-only">Base URL</label>
+        <input id="baseurl" class="local-only" type="text" placeholder="http://localhost:11434/v1" />
+      </fieldset>
+
+      <fieldset>
+        <legend>Gates &amp; learning</legend>
+        <label class="check"><input type="checkbox" id="review" /> Reviewer / Sentry gate</label>
+        <div class="row local-review">
+          <label class="radio"><input type="radio" name="focus" value="quality" checked /> Quality</label>
+          <label class="radio"><input type="radio" name="focus" value="bugs" /> Bug hunt</label>
+        </div>
+        <label class="check"><input type="checkbox" id="learn" /> Learn from past builds</label>
+        <label class="check"><input type="checkbox" id="checkonly" /> Verify only (no model)</label>
+      </fieldset>
+
+      <button id="run" class="primary">Build</button>
+    </section>
+
+    <section class="panel log-panel" aria-labelledby="log-h">
+      <div class="log-head">
+        <h2 id="log-h">Log</h2>
+        <span class="badge" id="status" data-state="idle">idle</span>
+      </div>
+      <pre id="log" class="log" tabindex="0" aria-live="polite"></pre>
+    </section>
+  </main>
+
+  <script src="/static/app.js"></script>
+</body>
+</html>

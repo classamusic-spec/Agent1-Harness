@@ -1,155 +1,140 @@
 # Agent1-Harness
 
-An **agent harness that builds applications from a spec** — a master front-end UI
+An **agent that builds applications from a spec** — a master front-end UI
 designer and a rigorous backend engineer — that runs on **Claude or your own
-local LLM**.
-
-You write a short YAML spec (what to build + how it's verified). The harness
-drives the model through a deterministic loop until the app actually builds and
-its tests pass:
+local LLM**, improves itself by **learning from its mistakes**, and gates every
+build behind **deterministic verification + an independent reviewer/sentry**.
 
 ```
-spec ──▶ implement ──▶ VERIFY ──▶ (repair ──▶ VERIFY)* ──▶ done
-                          │
-                          └── build / typecheck / lint / tests must pass
+            ┌─────────────────────────  the loop  ─────────────────────────┐
+spec ─▶ implement ─▶ VERIFY (build/test/lint) ─▶ REVIEW (quality | bug-hunt) ─▶ done
+   ▲          │              │ red                      │ rejected                 │
+   │          └──────────────┘  repair                  └── repair ────────────────┘
+ lessons  ◀───────────────────────  record what went wrong  ◀──────────────────────┘
+(injected next build)
 ```
 
-The model writes the code; **the harness decides when it's done** — "done" means
-the verification commands exit zero, not that the model said so.
+The model writes the code; **the harness decides when it's done** — green checks
+*and* reviewer approval, not the model's say-so. Everything runs in an isolated
+workspace.
 
-## Two things this adds
+## What's inside
 
-### 1. Specialist expertise (design + backend)
+| Capability | Module | Notes |
+|---|---|---|
+| **Verification gate** | `harness/verifier.py` | Runs build/test/lint; structured pass/fail. LLM-free, unit-tested. |
+| **Reviewer / Sentry gate** | `harness/review.py` | Independent fresh-context agent returns a JSON verdict. `quality` reviewer or `bugs` (Sentry-style) hunter. Approval is **deterministic**: no blocker/major findings. |
+| **Learn from itself** | `harness/memory.py` | Distills failures + reviewer findings into lessons (JSONL), injected into future builds. |
+| **The loop** | `harness/agent.py` | Engine-agnostic: implement → verify → review → repair, bounded by repair budgets; records lessons. |
+| **Isolation** | `harness/isolation.py` | `directory` (default) or `worktree` (a git worktree off a base repo). |
+| **Engines** | `harness/engines/` | `anthropic` (Claude Agent SDK) or `local` (any OpenAI-compatible server). |
+| **Personas** | `harness/personas.py` | Specialist system prompts by `kind`: frontend design, backend rigor, **React/React Native**, **SwiftUI (Apple-level)**. |
+| **Web console** | `harness/server.py` + `webui/` | Clean, accessible UI to launch builds and watch logs live. Stdlib only. |
+| **Design checks** | `checks/` | Headless Playwright + axe-core + Lighthouse, wired as verification commands. |
 
-The agent's system prompt is composed from a shared engineering core plus
-discipline-specific personas, selected by the spec's `kind`:
+## Self-improving loop, in one command
 
-| `kind` | Persona |
-|---|---|
-| `frontend` | master front-end UI/UX designer (design system, typography & spacing scales, semantic tokens, responsive, WCAG AA a11y, tasteful motion, no generic "AI" aesthetics) |
-| `backend` / `cli` / `api` / `library` | rigorous backend engineer (clear architecture, validation at boundaries, specific errors, security basics, tests) |
-| `fullstack` (default) | both |
+```bash
+# Build with Claude, sentry bug-hunt gate, and learning enabled
+export ANTHROPIC_API_KEY=sk-ant-...
+appbuilder specs/todo-cli.yaml -w workspaces/todo \
+    --review --review-focus bugs --learn
 
-The personas live in `harness/personas.py`. Crucially, design quality is also
-**verifiable**: the example frontend spec checks for design tokens, responsive
-`@media` queries, a single `<h1>`, semantic landmarks, and a viewport meta — so
-"looks designed" isn't left to vibes.
+# Same loop on a local model via Ollama
+appbuilder specs/landing-page.yaml -w workspaces/landing \
+    --engine local --base-url http://localhost:11434/v1 --model qwen2.5-coder \
+    --review --learn
 
-### 2. Plug in your local LLM
+# Isolate the build in a git worktree off the current repo
+appbuilder specs/todo-cli.yaml -w /tmp/wt --isolation worktree --base-repo . --cleanup
 
-The harness has a pluggable **engine** layer (`harness/engines/`):
+# No model, no key — just run the verification gate
+appbuilder specs/web-dashboard.yaml -w workspaces/dash --check-only
+```
 
-- **`anthropic`** (default) — drives the Claude Agent SDK with its built-in tools.
-- **`local`** — our own tool-calling loop against any **OpenAI-compatible**
-  server: Ollama, LM Studio, vLLM, llama.cpp's server, text-generation-webui.
+Flags: `--engine {anthropic,local}`, `--model`, `--base-url`, `--review`,
+`--review-focus {quality,bugs}`, `--reviewer-model`, `--learn`, `--memory PATH`,
+`--isolation {directory,worktree}`, `--base-repo`, `--cleanup`,
+`--max-repairs`, `--max-turns`, `--check-only`, `--no-echo`.
 
-The deterministic verification gate and the personas are **identical** across
-engines — only the model behind the loop changes. For the local engine we
-implement a workspace-confined toolbox (`read_file` / `write_file` / `edit_file`
-/ `list_dir` / `search` / `run_bash` / `verify`) and hand the model OpenAI
-function-tool schemas.
+## Web console
 
-> The local model must support OpenAI-style tool calling. Capable code models
-> (e.g. Qwen2.5-Coder, Llama 3.1+, DeepSeek-Coder) work well; very small models
-> are unreliable at multi-step tool use.
+```bash
+appbuilder-web            # http://127.0.0.1:8765
+```
 
-## Robustness (the design)
+Pick a spec, choose engine/model, toggle the reviewer/sentry gate and learning,
+and watch the build stream live (SSE). The UI itself dogfoods the design
+persona — a cohesive token system, dark theme, keyboard focus, reduced-motion.
 
-| Principle | Where it lives |
-|---|---|
-| **Verification gate, not vibes** — green checks required, run deterministically between turns | `harness/verifier.py`, loop in `harness/agent.py` |
-| **Engine-agnostic core** — same gate + personas for Claude or local | `harness/engines/`, `harness/personas.py` |
-| **Isolation** — the agent works only inside an ephemeral workspace dir | `cwd` + `harness/permissions.py` + `harness/localtools.py` |
-| **Tight tools** — focused allowlist; shell commands screened identically on both engines | `harness/permissions.py` (`screen_command`) |
-| **Bounded autonomy** — capped repair rounds and agentic turns | `HarnessConfig` |
-| **Reviewable output** — work lands in a workspace you can diff; never pushed | `.gitignore`, `git push` blocked |
+## Native targets — React Native & SwiftUI
+
+The persona for `kind: react-native` enforces typed components, design tokens,
+native feel, and a11y; `kind: swiftui` enforces HIG, VoiceOver/Dynamic Type,
+light+dark, and idiomatic state. Example specs: `specs/react-native-app.yaml`,
+`specs/swiftui-app.yaml`.
+
+> Quality is only as strong as the verification you give it. Make the gate real:
+> React/RN → `tsc --noEmit`, `eslint`, `vitest`/`jest`; SwiftUI → `swift test`
+> or `xcodebuild test`. **SwiftUI builds require a macOS/Xcode toolchain**, and
+> React Native builds require Node — those commands won't run on a bare Linux
+> box; the harness logic is the same everywhere, only the toolchain differs.
+
+## Design as a hard gate
+
+`specs/landing-page.yaml` verifies design tokens, responsive `@media`, semantic
+landmarks, and a single `<h1>` with stdlib Python (runs anywhere). For richer
+checks, `specs/web-dashboard.yaml` wires the `checks/` scripts:
+
+```yaml
+verification:
+  - name: a11y
+    command: "node ../../checks/a11y_audit.mjs index.html"   # axe-core, fails on critical/serious
+  - name: lighthouse
+    command: "node ../../checks/lighthouse_audit.mjs index.html"   # score budgets
+```
+
+See `checks/README.md` (needs Node + Chromium).
+
+## Robustness model
+
+- **Deterministic gate, not vibes** — verification runs between turns; the agent can't self-declare success.
+- **Independent second opinion** — the reviewer/sentry runs in a *fresh* engine context and reads the code itself.
+- **Bounded autonomy** — separate repair budgets for verification and review; capped agentic turns.
+- **Isolation** — builds land in an ephemeral dir or a throwaway git worktree; `git push` is blocked inside the sandbox.
+- **Reviewable output** — work is a diff you inspect; nothing is pushed.
+
+## Setup & tests
+
+```bash
+pip install -e .            # Claude engine
+pip install -e ".[local]"   # + local-LLM engine (openai client)
+pip install -e ".[dev]"     # + tests
+pytest                      # 54 offline tests; no API key, no network
+```
+
+The trust-critical pieces (verifier, spec, isolation, memory, review parsing,
+the loop via a fake engine, the web helpers) are fully unit-tested offline. The
+two live model paths need a key or a local server to exercise end-to-end.
 
 ## Layout
 
 ```
 harness/
-  verifier.py     # verification gate — runs commands, structured results (no LLM)
-  spec.py         # load/validate the YAML spec, incl. `kind` (no LLM)
-  personas.py     # specialist system prompts (frontend design / backend rigor)
-  prompts.py      # build + repair prompts
-  permissions.py  # sandbox: confine writes, screen dangerous commands
-  localtools.py   # workspace-confined toolbox for the local engine
-  tools.py        # custom `verify` MCP tool for the Anthropic engine
-  config.py       # EngineConfig + limits
-  engines/
-    base.py            # Engine interface + factory
-    anthropic_engine.py
-    local_engine.py    # OpenAI-compatible tool-calling loop
-  agent.py        # engine-agnostic orchestrator loop
-  cli.py          # `appbuilder` entry point
-specs/            # todo-cli.yaml (cli), landing-page.yaml (frontend)
-tests/            # offline tests for verifier, spec, localtools, personas
+  verifier.py spec.py personas.py prompts.py        # spec + gates + prompts (LLM-free core)
+  memory.py review.py isolation.py                   # learning, reviewer gate, isolation
+  permissions.py localtools.py tools.py             # sandbox + tools
+  config.py agent.py cli.py server.py               # config, the loop, CLIs, web console
+  engines/ base.py anthropic_engine.py local_engine.py
+webui/        index.html styles.css app.js          # clean build console
+specs/        todo-cli, landing-page, web-dashboard, react-native-app, swiftui-app
+checks/       a11y_audit.mjs lighthouse_audit.mjs   # design gate templates
+tests/        verifier, spec, localtools, personas, isolation, memory, review, loop, server
 ```
 
-## Setup
+## Next steps
 
-```bash
-pip install -e .            # Claude engine only
-pip install -e ".[local]"   # add the local-LLM engine (openai client)
-pip install -e ".[dev]"     # for the tests
-```
-
-Python 3.10+.
-
-## Usage
-
-```bash
-# Build with Claude (default)
-export ANTHROPIC_API_KEY=sk-ant-...
-appbuilder specs/landing-page.yaml -w workspaces/landing
-
-# Build with a local model via Ollama
-appbuilder specs/landing-page.yaml -w workspaces/landing \
-    --engine local --base-url http://localhost:11434/v1 --model qwen2.5-coder
-
-# LM Studio instead (default port differs)
-appbuilder specs/todo-cli.yaml -w workspaces/todo \
-    --engine local --base-url http://localhost:1234/v1 --model your-model
-
-# Just run the verification suite (no model, no key)
-appbuilder specs/landing-page.yaml -w workspaces/landing --check-only
-```
-
-Flags: `--engine {anthropic,local}`, `--model`, `--base-url`, `--api-key-env`,
-`--temperature`, `--max-repairs`, `--max-turns`, `--check-only`, `--no-echo`.
-Exit code is `0` on pass, non-zero otherwise — CI-friendly.
-
-## Writing a spec
-
-```yaml
-name: my-app
-kind: frontend          # frontend | backend | fullstack | cli | api | library
-language: html/css/js
-description: |
-  Plain-language description of what to build.
-constraints:
-  - "No frameworks; plain HTML/CSS/JS."
-verification:
-  - name: files
-    command: "test -f index.html"
-  - name: structure
-    command: "python3 -c \"assert 'var(' in open('styles.css').read()\""
-```
-
-Make `verification` the real contract — and for frontend work, encode design
-expectations there (tokens, responsiveness, a11y) so the gate enforces them.
-
-## Tests
-
-```bash
-pytest        # 30 offline tests: verifier, spec, localtools, personas
-```
-
-## Limitations / next steps
-
-- The Anthropic and local loops are exercised live with a key/server; the
-  trust-critical deterministic core is fully unit-tested offline.
-- Local tool-calling reliability depends on the model — prefer strong code models.
-- Next: container/worktree isolation per build; richer design checks (headless
-  Playwright/Lighthouse, axe a11y) wired as verification commands; a reviewer
-  agent as a second gate; cost/time budgets surfaced from engine usage.
+- Container isolation (Docker) in addition to worktrees.
+- A reflection step that asks the model to summarize its own lessons (richer than the mechanical distillation).
+- Persisted plan artifacts and per-file staleness checks.
+- Cost/time budgets surfaced from engine usage and enforced in the loop.

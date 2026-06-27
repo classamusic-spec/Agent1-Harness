@@ -26,9 +26,13 @@ class Engine(abc.ABC):
     async def send(self, prompt: str, *, echo: bool = True) -> str: ...
 
 
-def make_engine(spec: Spec, config: HarnessConfig) -> Engine:
-    """Construct the engine selected by `config.engine.provider`."""
-    sys_prompt = system_prompt(spec.kind)
+def make_engine(spec: Spec, config: HarnessConfig, *, system_prompt_override: str | None = None) -> Engine:
+    """Construct the engine selected by `config.engine.provider`.
+
+    `system_prompt_override` lets callers (e.g. the reviewer gate) swap the
+    persona for a fresh-context engine instance.
+    """
+    sys_prompt = system_prompt_override or system_prompt(spec.kind)
     provider = config.engine.provider
 
     if provider == "anthropic":

@@ -1,0 +1,37 @@
+# Web app with REAL design checks wired as verification: headless Playwright,
+# axe-core accessibility, and Lighthouse performance/a11y budgets.
+#
+# NOTE: these checks need Node.js + a Chromium (Playwright is preinstalled in
+# many CI images). Run `npm ci` in ./checks first. They are the "design gate"
+# that makes "amazing front-end" verifiable, not just prompted.
+
+name: analytics-dashboard
+kind: frontend
+language: html/css/js
+
+description: |
+  A single-page analytics dashboard (static: index.html, styles.css, app.js).
+
+  - A responsive grid of metric cards and one chart (canvas or inline SVG; no
+    chart library required).
+  - A cohesive design system via CSS custom properties; light + dark.
+  - Fully accessible (semantic landmarks, labelled controls, focus states,
+    WCAG AA contrast) and responsive (mobile-first).
+  - Render entirely client-side from a small embedded JSON dataset (no network).
+
+constraints:
+  - "No frameworks; plain HTML/CSS/JS."
+  - "No runtime network requests."
+
+verification:
+  - name: structure
+    command: >
+      python3 -c "import re; h=open('index.html').read();
+      assert h.count('<h1')==1 and 'name=\"viewport\"' in h and 'styles.css' in h;
+      assert re.search(r'<(header|main|footer)[ >]', h); print('structure ok')"
+  # Real design checks (need Node + Chromium). Point them at the built index.html.
+  - name: a11y
+    command: "node ../../checks/a11y_audit.mjs index.html"
+  - name: lighthouse
+    command: "node ../../checks/lighthouse_audit.mjs index.html"
+    allow_failure: true

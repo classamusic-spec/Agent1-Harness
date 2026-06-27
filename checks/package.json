@@ -1,0 +1,16 @@
+{
+  "name": "agent1-harness-checks",
+  "private": true,
+  "type": "module",
+  "description": "Headless design/accessibility/performance checks used as harness verification commands.",
+  "scripts": {
+    "a11y": "node a11y_audit.mjs",
+    "lighthouse": "node lighthouse_audit.mjs"
+  },
+  "dependencies": {
+    "@axe-core/playwright": "^4.10.0",
+    "chrome-launcher": "^1.1.2",
+    "lighthouse": "^12.0.0",
+    "playwright": "^1.48.0"
+  }
+}

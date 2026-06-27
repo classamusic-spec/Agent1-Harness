@@ -1,0 +1,37 @@
+# React Native (Expo) native app spec.
+#
+# NOTE: verification needs Node.js + the project's npm deps. Treat the commands
+# as the contract; run on a machine with Node. The `kind: react-native` persona
+# enforces typed components, design tokens, native feel, and accessibility.
+
+name: habit-tracker-rn
+kind: react-native
+language: typescript
+
+description: |
+  An Expo + React Native (TypeScript) habit tracker.
+
+  Features:
+    - A list of habits with a daily check-off toggle and a streak count.
+    - Add / delete a habit. Persist to AsyncStorage.
+    - A themed design system (tokens for color/spacing/typography) and a small
+      shared component library. Native feel: safe-area, smooth toggles, haptics.
+    - Accessibility: accessible roles/labels, Dynamic Type, sufficient contrast.
+    - Loading, empty, and error states.
+
+  TypeScript throughout. Components small and well-typed. No state-management
+  library beyond React hooks unless clearly justified.
+
+constraints:
+  - "TypeScript strict mode."
+  - "No backend; persist locally with AsyncStorage."
+
+verification:
+  # Requires `npm ci` first. Adjust scripts to match the generated package.json.
+  - name: typecheck
+    command: "npx tsc --noEmit"
+  - name: lint
+    command: "npx eslint . --max-warnings=0"
+    allow_failure: true
+  - name: tests
+    command: "npm test --silent"

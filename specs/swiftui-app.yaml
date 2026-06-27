@@ -1,0 +1,35 @@
+# SwiftUI native app spec (Apple-level quality bar).
+#
+# NOTE: the verification commands need a macOS toolchain (Swift / Xcode). On
+# Linux they won't run — use this spec on a Mac, or swap in `swift build` for a
+# pure SwiftPM package. The `kind: swiftui` persona enforces HIG, accessibility
+# (VoiceOver, Dynamic Type), light/dark, and idiomatic state management.
+
+name: focus-timer-swiftui
+kind: swiftui
+language: swift
+
+description: |
+  A SwiftUI focus-timer app, structured as a Swift package + app target.
+
+  Features:
+    - A start/pause/reset timer with selectable durations (15 / 25 / 50 min).
+    - A clean, native UI: large dial, SF Symbols, system materials, light+dark.
+    - Persist the last-selected duration with @AppStorage.
+    - Full accessibility: labels/traits/values, Dynamic Type to the largest
+      sizes, VoiceOver-navigable, Reduce Motion respected.
+    - SwiftUI Previews for the main views and unit tests for the timer model.
+
+  Use idiomatic SwiftUI (value-type model, @Observable/@State, unidirectional
+  data flow). No third-party dependencies.
+
+constraints:
+  - "Idiomatic SwiftUI; no third-party packages."
+  - "Light and dark appearance must both be correct via semantic colors."
+
+verification:
+  # Requires macOS/Xcode. For a SwiftPM-only package, `swift build && swift test`.
+  - name: build
+    command: "swift build"
+  - name: tests
+    command: "swift test"

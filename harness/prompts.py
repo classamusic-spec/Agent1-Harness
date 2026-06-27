@@ -32,6 +32,25 @@ def build_prompt(spec: Spec) -> str:
     )
 
 
+def with_lessons(prompt: str, lessons: str) -> str:
+    """Prepend prior-build lessons to a prompt, if any."""
+    return f"{lessons}\n\n{prompt}" if lessons else prompt
+
+
+def review_repair_prompt(verdict, attempt: int, max_attempts: int) -> str:
+    lines = []
+    for f in verdict.findings:
+        loc = f" [{f.location}]" if f.location else ""
+        lines.append(f"- ({f.severity}) {f.title}{loc}: {f.detail}")
+    findings = "\n".join(lines) or "(no structured findings provided)"
+    return (
+        f"An independent reviewer rejected the build (review fix {attempt}/{max_attempts}). "
+        f"Summary: {verdict.summary}\n\nAddress these findings, fixing the blocker/major "
+        f"items first:\n{findings}\n\n"
+        "Make the changes, then ensure the verification suite still passes."
+    )
+
+
 def repair_prompt(report: VerificationReport, attempt: int, max_attempts: int) -> str:
     return (
         f"Verification failed (repair attempt {attempt}/{max_attempts}). "

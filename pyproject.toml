@@ -20,6 +20,7 @@ dev = ["pytest>=7.0", "openai>=1.0"]
 
 [project.scripts]
 appbuilder = "harness.cli:main"
+appbuilder-web = "harness.server:main"
 
 [tool.setuptools.packages.find]
 include = ["harness*"]

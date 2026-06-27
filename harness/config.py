@@ -45,3 +45,27 @@ class HarnessConfig:
     max_turns: int = 80
     allowed_tools: list[str] = field(default_factory=lambda: list(DEFAULT_ALLOWED_TOOLS))
     stop_on_failure: bool = True
+
+    # Isolation: "directory" (default) or "worktree" (git worktree off base_repo).
+    isolation: str = "directory"
+    base_repo: str | None = None
+    keep_workspace: bool = True
+
+    # Reviewer / Sentry second gate.
+    enable_review: bool = False
+    review_focus: str = "quality"  # "quality" | "bugs"
+    reviewer_model: str | None = None  # defaults to the builder model
+
+    # Learning memory.
+    learn: bool = False
+    memory_path: str | None = None  # JSONL lesson store
+
+    def reviewer_engine(self) -> EngineConfig:
+        """Engine config for the reviewer (same backend, optional model override)."""
+        return EngineConfig(
+            provider=self.engine.provider,
+            model=self.reviewer_model or self.engine.model,
+            base_url=self.engine.base_url,
+            api_key_env=self.engine.api_key_env,
+            temperature=self.engine.temperature,
+        )

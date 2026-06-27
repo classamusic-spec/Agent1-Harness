@@ -45,6 +45,19 @@ def _parse_args(argv: list[str]) -> argparse.Namespace:
     p.add_argument("--temperature", type=float, default=0.2, help="Sampling temperature (local engine)")
     p.add_argument("--max-repairs", type=int, default=4, help="Repair rounds after the first attempt")
     p.add_argument("--max-turns", type=int, default=80, help="Max agentic turns per engine call")
+    # Isolation
+    p.add_argument("--isolation", choices=["directory", "worktree"], default="directory",
+                   help="Per-build isolation mode (default: directory)")
+    p.add_argument("--base-repo", default=None, help="Base git repo for --isolation worktree")
+    p.add_argument("--cleanup", action="store_true", help="Remove a worktree workspace when done")
+    # Reviewer / Sentry gate
+    p.add_argument("--review", action="store_true", help="Enable the reviewer/sentry second gate")
+    p.add_argument("--review-focus", choices=["quality", "bugs"], default="quality",
+                   help="Reviewer focus: code quality or Sentry-style bug hunting")
+    p.add_argument("--reviewer-model", default=None, help="Model for the reviewer (default: builder model)")
+    # Learning memory
+    p.add_argument("--learn", action="store_true", help="Record and reuse lessons from past builds")
+    p.add_argument("--memory", default=None, help="Path to the JSONL lesson store (implies --learn)")
     p.add_argument("--check-only", action="store_true",
                    help="Skip the agent; only run the verification suite against the workspace.")
     p.add_argument("--no-echo", action="store_true", help="Do not stream the agent transcript to stdout")
@@ -108,23 +121,44 @@ def main(argv: list[str] | None = None) -> int:
 
     from harness.agent import build  # lazy: keeps --check-only free of SDK deps
 
+    memory_path = args.memory
+    learn = args.learn or bool(memory_path)
+    if learn and not memory_path:
+        memory_path = os.path.join(os.path.dirname(workspace) or ".", ".appbuilder_lessons.jsonl")
+
     config = HarnessConfig(
         workspace=workspace,
         engine=engine,
         max_repairs=args.max_repairs,
         max_turns=args.max_turns,
+        isolation=args.isolation,
+        base_repo=args.base_repo,
+        keep_workspace=not args.cleanup,
+        enable_review=args.review,
+        review_focus=args.review_focus,
+        reviewer_model=args.reviewer_model,
+        learn=learn,
+        memory_path=memory_path,
     )
 
-    print(f"engine: {engine.provider} | model: {engine.model or '(unset)'} | kind: {spec.kind}")
+    gates = "verify" + ("+review:" + args.review_focus if args.review else "")
+    print(f"engine: {engine.provider} | model: {engine.model or '(unset)'} | kind: {spec.kind} | "
+          f"isolation: {args.isolation} | gates: {gates}")
     result = asyncio.run(build(spec, config, echo=not args.no_echo))
 
     print("\n" + "=" * 40)
-    print(f"BUILD {'SUCCEEDED' if result.ok else 'FAILED'} after {result.attempts} attempt(s)")
+    print(f"BUILD {'SUCCEEDED' if result.ok else 'FAILED'} after {result.rounds} round(s)")
     if result.report and not result.ok:
         print("\nRemaining failures:")
         for f in result.report.failures:
             print(f"  - {f.name} (exit {f.returncode})")
-    print(f"Workspace: {workspace}")
+    if result.verdict and not result.verdict.approved:
+        print("\nReviewer findings:")
+        for f in result.verdict.blocking:
+            print(f"  - ({f.severity}) {f.title}")
+    if learn:
+        print(f"Lessons recorded this build: {result.lessons_learned}")
+    print(f"Workspace: {result.workspace or workspace}")
     return 0 if result.ok else 1
 
 
