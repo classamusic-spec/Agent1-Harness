@@ -64,6 +64,11 @@ def _extract_json(text: str) -> dict | None:
     return None
 
 
+def extract_json(text: str) -> dict | None:
+    """Public: pull the first JSON object out of model text (shared helper)."""
+    return _extract_json(text)
+
+
 def parse_verdict(text: str) -> ReviewVerdict:
     obj = _extract_json(text)
     if obj is None:

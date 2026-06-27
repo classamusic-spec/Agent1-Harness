@@ -108,6 +108,34 @@ def test_review_gate_rejects_then_approves(tmp_path):
     assert result.rounds == 2
 
 
+def test_stalls_when_no_progress(tmp_path):
+    spec = _spec()
+    cfg = _config(tmp_path / "ws", max_repairs=5, stall_limit=2)
+    builder = FakeEngine(str(tmp_path / "ws"), [_noop, _noop, _noop])  # never fixes it
+    result = asyncio.run(build(spec, cfg, echo=False, builder_factory=lambda s, c: builder))
+    assert not result.ok
+    assert result.stop_reason == "stalled"
+    assert result.rounds == 2  # bailed early instead of using all 5 repairs
+
+
+def test_timeout_budget(tmp_path):
+    spec = _spec()
+    cfg = _config(tmp_path / "ws", max_repairs=5, deadline_seconds=0.0)
+    builder = FakeEngine(str(tmp_path / "ws"), [_noop, _noop])
+    result = asyncio.run(build(spec, cfg, echo=False, builder_factory=lambda s, c: builder))
+    assert not result.ok
+    assert result.stop_reason == "timeout"
+
+
+def test_progress_tracked(tmp_path):
+    spec = _spec()
+    cfg = _config(tmp_path / "ws", max_repairs=2)
+    builder = FakeEngine(str(tmp_path / "ws"), [_noop, _writer("ok")])
+    result = asyncio.run(build(spec, cfg, echo=False, builder_factory=lambda s, c: builder))
+    assert result.progress == [1, 0]  # one failing check, then zero
+    assert result.stop_reason == "verified"
+
+
 def test_learning_records_lessons(tmp_path):
     mem = tmp_path / "lessons.jsonl"
     spec = _spec()

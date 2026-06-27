@@ -58,6 +58,13 @@ def _parse_args(argv: list[str]) -> argparse.Namespace:
     # Learning memory
     p.add_argument("--learn", action="store_true", help="Record and reuse lessons from past builds")
     p.add_argument("--memory", default=None, help="Path to the JSONL lesson store (implies --learn)")
+    p.add_argument("--no-reflect", action="store_true",
+                   help="Disable model-driven reflection (use mechanical lessons only)")
+    # Loop convergence guards
+    p.add_argument("--stall-limit", type=int, default=3,
+                   help="Stop after N consecutive identical failing rounds (default: 3)")
+    p.add_argument("--deadline", type=float, default=None,
+                   help="Overall wall-clock budget in seconds (default: unlimited)")
     p.add_argument("--check-only", action="store_true",
                    help="Skip the agent; only run the verification suite against the workspace.")
     p.add_argument("--no-echo", action="store_true", help="Do not stream the agent transcript to stdout")
@@ -139,6 +146,9 @@ def main(argv: list[str] | None = None) -> int:
         reviewer_model=args.reviewer_model,
         learn=learn,
         memory_path=memory_path,
+        reflect=not args.no_reflect,
+        stall_limit=args.stall_limit,
+        deadline_seconds=args.deadline,
     )
 
     gates = "verify" + ("+review:" + args.review_focus if args.review else "")
@@ -147,7 +157,10 @@ def main(argv: list[str] | None = None) -> int:
     result = asyncio.run(build(spec, config, echo=not args.no_echo))
 
     print("\n" + "=" * 40)
-    print(f"BUILD {'SUCCEEDED' if result.ok else 'FAILED'} after {result.rounds} round(s)")
+    print(f"BUILD {'SUCCEEDED' if result.ok else 'FAILED'} ({result.stop_reason}) "
+          f"after {result.rounds} round(s)")
+    if result.progress:
+        print(f"Failing checks per round: {result.progress}")
     if result.report and not result.ok:
         print("\nRemaining failures:")
         for f in result.report.failures:

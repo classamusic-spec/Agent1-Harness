@@ -59,6 +59,11 @@ class HarnessConfig:
     # Learning memory.
     learn: bool = False
     memory_path: str | None = None  # JSONL lesson store
+    reflect: bool = True  # when learning, ask the model to distill reusable lessons
+
+    # Loop convergence guards.
+    stall_limit: int = 3  # stop after N consecutive identical failing rounds
+    deadline_seconds: float | None = None  # overall wall-clock budget (None = unlimited)
 
     def reviewer_engine(self) -> EngineConfig:
         """Engine config for the reviewer (same backend, optional model override)."""
