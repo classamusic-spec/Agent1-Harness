@@ -229,8 +229,25 @@ async def build(
         for c in spec.checks:
             c.cwd = ws
 
+        # Scaffold: start from a known-good base. It owns the run command + checks.
+        scaffold_note = ""
+        if config.scaffold:
+            from harness import scaffolds
+            from harness.verifier import Check
+            sc = scaffolds.apply(config.scaffold, ws)
+            if sc:
+                scaffold_note = sc.note
+                if not spec.run:
+                    spec.run = sc.run
+                spec.checks = [Check(name=c["name"], command=c["command"], cwd=ws,
+                                     needs_server=bool(c.get("needs_server")),
+                                     allow_failure=bool(c.get("allow_failure")))
+                               for c in sc.checks]
+                if echo:
+                    print(_banner(f"scaffold: {sc.label}  (run: {sc.run})"), flush=True)
+
         # Test-first: derive the verification suite from the spec before building.
-        if config.test_first:
+        if config.test_first and not config.scaffold:
             planner = planner_factory(spec, run_config)
             async with planner:
                 proposed = await propose_checks(planner, spec, echo=echo)
@@ -302,7 +319,7 @@ async def build(
 
         async with builder:
             transcript.append(await builder.send(
-                with_lessons(build_prompt(spec, design_brief), lessons_text), echo=echo))
+                with_lessons(build_prompt(spec, design_brief, scaffold_note), lessons_text), echo=echo))
             cur_snap = snapshot(ws)
 
             if not spec.has_verification:

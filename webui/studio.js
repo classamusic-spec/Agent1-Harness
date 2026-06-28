@@ -64,6 +64,27 @@
     };
   }
 
+  let scaffolds = [];
+  async function loadScaffolds() {
+    if (scaffolds.length) return;
+    try {
+      const r = await (await fetch("/api/scaffolds")).json();
+      scaffolds = r.scaffolds || [];
+      const sel = $("#st-scaffold");
+      for (const s of scaffolds) {
+        const o = document.createElement("option");
+        o.value = s.name;
+        o.textContent = s.label + (s.needs ? ` (needs ${s.needs})` : "");
+        sel.appendChild(o);
+      }
+    } catch {}
+  }
+  function onScaffoldChange() {
+    const s = scaffolds.find((x) => x.name === $("#st-scaffold").value);
+    $("#st-scaffold-hint").textContent = s ? `run: ${s.run}` : "";
+    if (s && $("#st-kind")) $("#st-kind").value = s.kind;
+  }
+
   function onEngineChange() {
     const sel = $("#st-engine").value;
     const local = sel.startsWith("local");
@@ -87,9 +108,11 @@
   function reloadPreview() {
     if (!project) return;
     clearConsole();
-    if (serverRunning) {
-      $("#st-preview").src = `/preview/${encodeURIComponent(project)}/?t=${Date.now()}`;
-      $("#st-open").href = `/preview/${encodeURIComponent(project)}/`;
+    if (serverRunning && runPort) {
+      // Point at the app's own origin so absolute API calls (/api/...) work.
+      const origin = `http://${location.hostname}:${runPort}`;
+      $("#st-preview").src = `${origin}/?t=${Date.now()}`;
+      $("#st-open").href = `${origin}/`;
     } else {
       $("#st-preview").src = `/artifact/${encodeURIComponent(project)}/index.html?__dev=1&t=${Date.now()}`;
       $("#st-open").href = `/artifact/${encodeURIComponent(project)}/index.html`;
@@ -99,6 +122,7 @@
 
   // --- live dev server (full-stack preview) --------------------------------
   let serverRunning = false;
+  let runPort = null;
   let runtimeTimer = null;
   let runLogSince = 0;
   function setRunStatus(state, text) {
@@ -110,9 +134,11 @@
       const s = await (await fetch(`/api/runtime/status?dir=${encodeURIComponent(project)}`)).json();
       serverRunning = !!s.running;
       if (s.running) {
+        runPort = s.info.port;
         $("#st-run-cmd").value = s.info.command;
         $("#st-run-btn").textContent = "Stop server";
         setRunStatus(s.info.status === "ready" ? "ready" : "run", s.info.status + " :" + s.info.port);
+        reloadPreview();
         startRuntimePoll();
       } else {
         $("#st-run-btn").textContent = "Run server";
@@ -137,7 +163,7 @@
         body: JSON.stringify({ workspace: project, command }),
       })).json();
       if (r.error) { setRunStatus("off", r.error); $("#st-run-btn").disabled = false; return; }
-      serverRunning = true; runLogSince = 0;
+      serverRunning = true; runLogSince = 0; runPort = r.info.port;
       $("#st-run-cmd").value = r.info.command; $("#st-run-btn").textContent = "Stop server";
       reloadPreview(); startRuntimePoll();
     } catch { setRunStatus("off", "start failed"); }
@@ -309,7 +335,7 @@
     } else {
       url = "/api/builds";
       body = { prompt, name: ($("#st-name").value || "app").trim(), kind: $("#st-kind").value,
-               run_command: runCmd, ...eng, ...ref };
+               scaffold: ($("#st-scaffold").value || null), run_command: runCmd, ...eng, ...ref };
     }
     try {
       const j = await (await fetch(url, {
@@ -465,6 +491,7 @@
 
   function wire() {
     $("#st-engine").addEventListener("change", onEngineChange);
+    $("#st-scaffold").addEventListener("change", onScaffoldChange);
     $("#st-send").addEventListener("click", send);
     $("#st-stop").addEventListener("click", stop);
     $("#st-project").addEventListener("change", (e) => {
@@ -494,6 +521,7 @@
   async function show() {
     if (!wired) { wire(); wired = true; }
     onEngineChange();
+    loadScaffolds();
     const names = await populateProjects();
     // Deep-link support: /?tab=studio&proj=<name>&dev=mobile
     const qs = new URLSearchParams(location.search);

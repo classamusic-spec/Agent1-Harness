@@ -1,0 +1,10 @@
+name: notes-api
+kind: fullstack
+language: html-css-js
+description: 'Build a Notes app on this stdlib scaffold. Extend server.py with a full CRUD
+  JSON API under /api/notes (GET list, POST create {title,body}, DELETE /api/notes/<id>),
+  persisted in data.json. Replace the frontend in ./public with a clean notes UI: a form to
+  add a note (title + body), a list of notes as cards with a delete button, empty state, and
+  live refresh. Keep it dependency-free (stdlib + vanilla JS). console.log key events.'
+run: python server.py
+scaffold: python-api

@@ -30,6 +30,7 @@ class Spec:
     constraints: list[str] = field(default_factory=list)
     checks: list[Check] = field(default_factory=list)
     run: str | None = None  # dev-server command for server-backed checks / preview
+    scaffold: str | None = None  # start from a known-good base (harness/scaffolds.py)
 
     @property
     def has_verification(self) -> bool:
@@ -81,6 +82,7 @@ def parse_spec(data: dict, *, cwd: str | None = None) -> Spec:
         constraints=[str(c) for c in constraints],
         checks=checks,
         run=(str(data["run"]).strip() if data.get("run") else None),
+        scaffold=(str(data["scaffold"]).strip() if data.get("scaffold") else None),
     )
 
 
@@ -93,6 +95,7 @@ def spec_to_dict(spec: Spec) -> dict:
         "language": spec.language,
         "constraints": list(spec.constraints),
         "run": spec.run,
+        "scaffold": spec.scaffold,
         "verification": [
             {"name": c.name, "command": c.command, "timeout": c.timeout,
              "allow_failure": c.allow_failure, "needs_server": c.needs_server}

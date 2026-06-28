@@ -20,14 +20,18 @@ def _checks_block(spec: Spec) -> str:
     return f"\nThe verification suite that must pass:\n{bullets}\n"
 
 
-def build_prompt(spec: Spec, design_brief: str = "") -> str:
+def build_prompt(spec: Spec, design_brief: str = "", scaffold_note: str = "") -> str:
     brief = (f"\nReference design to match (study this closely and reproduce its look "
              f"and feel):\n{design_brief}\n") if design_brief else ""
+    scaffold = (f"\nStarting point: {scaffold_note}\nBuild ON this base — keep its structure, "
+                f"conventions, and run command; edit and extend the existing files rather than "
+                f"replacing them.\n") if scaffold_note else ""
     return (
         f"Build the following application: **{spec.name}**\n"
         f"Target language/stack: {spec.language}\n\n"
         f"Specification:\n{spec.description}\n"
         f"{_constraints_block(spec)}"
+        f"{scaffold}"
         f"{brief}"
         f"{_checks_block(spec)}\n"
         "Implement the application now in the current directory, then run the "

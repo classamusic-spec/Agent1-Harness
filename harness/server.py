@@ -30,6 +30,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import parse_qs, urlparse
 
+from harness import scaffolds
 from harness.runtime import RuntimeManager, detect_command
 
 import yaml
@@ -144,6 +145,8 @@ def save_spec(specs_dir: str, data: dict) -> str:
     if data.get("run"):
         doc["run"] = str(data["run"]).strip()
 
+    if data.get("scaffold"):
+        doc["scaffold"] = str(data["scaffold"]).strip()
     parse_spec(doc)  # raises SpecError if invalid
     Path(specs_dir).mkdir(parents=True, exist_ok=True)
     path = os.path.join(specs_dir, f"{_slug(doc['name'])}.yaml")
@@ -411,14 +414,16 @@ class Console:
             # Freeform (Studio): a natural-language prompt with no spec file —
             # synthesize and persist a spec so the project is first-class.
             if not params.get("spec") and params.get("prompt"):
+                sc = scaffolds.get(params.get("scaffold") or "")
                 params["spec"] = save_spec(self.specs_dir, {
                     "name": params.get("name") or "app",
-                    "kind": params.get("kind") or "frontend",
+                    "kind": sc.kind if sc else (params.get("kind") or "frontend"),
                     "language": params.get("language") or "html-css-js",
                     "description": params["prompt"],
-                    "run": params.get("run_command") or None,
-                    "verification": params.get("verification")
-                    or _default_checks(params.get("kind") or "frontend"),
+                    "run": params.get("run_command") or (sc.run if sc else None),
+                    "scaffold": sc.name if sc else None,
+                    "verification": [] if sc else (
+                        params.get("verification") or _default_checks(params.get("kind") or "frontend")),
                 })
             spec_path = params["spec"]
             workspace = os.path.abspath(
@@ -547,14 +552,17 @@ class Console:
         spec = load_spec(params["spec"], cwd=job.workspace)
         # Persist a Studio marker so conversational iterate / Run tests know the
         # project's persona, gate, and engine without the original spec file.
-        run_cmd = params.get("run_command") or spec.run or None
+        sc = scaffolds.get(spec.scaffold or "")
+        run_cmd = params.get("run_command") or spec.run or (sc.run if sc else None)
+        meta_checks = sc.checks if sc else [_check_to_dict(c) for c in spec.checks]
         write_studio_meta(job.workspace, {
             "kind": spec.kind,
             "engine": params.get("engine", "anthropic"),
             "model": params.get("model") or "",
             "base_url": params.get("base_url"),
             "run": run_cmd,
-            "checks": [_check_to_dict(c) for c in spec.checks],
+            "scaffold": spec.scaffold,
+            "checks": meta_checks,
         })
         if params.get("check_only"):
             report = run_tests(job.workspace, [_check_to_dict(c) for c in spec.checks])
@@ -587,6 +595,7 @@ class Console:
             deadline_seconds=params.get("deadline"),
             checkpoint_path=cp_path,
             run_command=run_cmd,
+            scaffold=spec.scaffold,
         )
         job.token_budget = params.get("token_budget")
         job.deadline = params.get("deadline")
@@ -654,6 +663,8 @@ def make_handler(console: Console):
                     return self._json({"error": str(e)}, 400)
             if path == "/api/artifacts":
                 return self._json({"artifacts": list_artifacts(console.workspaces_dir)})
+            if path == "/api/scaffolds":
+                return self._json({"scaffolds": scaffolds.list_scaffolds()})
             if path == "/api/current":
                 j = console.current
                 return self._json({"job": j.id if j else None,

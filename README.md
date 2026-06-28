@@ -118,6 +118,7 @@ hand-quality HTML/CSS/JS, no libraries:
 | **Live run controls** | `harness/control.py` | **Pause** or **Cancel** a running build from the console; the loop stops at the next round boundary. Pause leaves a checkpoint, so it's resumable. |
 | **3D Office** | `webui/office.js` (three.js) | A futuristic Office tab: an agent character works at a desk beside an **AI rig** whose fans spin and GPU cards glow cyan while a model runs. Animates with build state (idle / building / passed / failed), driven live by `/api/current`. three.js is vendored for offline use. |
 | **CI** | `.github/workflows/ci.yml` | Runs the full test suite on Python 3.10–3.12 on every push and PR. |
+| **Scaffolds** | `harness/scaffolds.py` | Start from a known-good base instead of cold: `static` (vanilla SPA), `python-api` (stdlib full-stack: JSON API + frontend, zero deps), `vite-react` (Vite+React+TS), `fastapi` (FastAPI+SQLite). The scaffold sets the run command + verification; the agent edits a working, runnable app. `--scaffold` / Studio "Start from". |
 | **Runtime (live full-stack preview)** | `harness/runtime.py` | Runs the project's real dev server (`npm run dev`, `uvicorn`, or a static server — auto-detected), allocates a port, health-checks it, and **reverse-proxies the Studio preview to it** (same-origin, so the devtools console works on the live app). Server stdout/stderr stream into the console. One live server at a time; `--preview`-style controls in Studio (Run / Stop). |
 | **Studio (live preview)** | `harness/server.py` + `webui/studio.js` | A Replit/Lovable-style surface: describe an app → it builds → **live preview** (Desktop / Mobile device frame, reload, open) with a **Run tests** chip; then **chat to iterate** (`/api/iterate` runs one engine turn on the workspace and re-verifies). A **project switcher** jumps between built apps, a **Stop** button cancels a run, and **version history + diffs** (`harness/versions.py`) snapshot every turn so you can review the colorized diff and **Restore** any version. Freeform prompts become first-class specs. |
 | **Engines** | `harness/engines/` | `anthropic` (Claude Agent SDK), `local` (any OpenAI-compatible server — GLM / MiniMax / Qwen / …), or **`claude-cli`** — drives your installed, authenticated **Claude Code CLI** as the builder (no API key/SDK needed). |
@@ -205,6 +206,26 @@ appbuilder specs/landing-page.yaml -w workspaces/landing --engine claude-cli
 appbuilder specs/landing-page.yaml -w workspaces/landing \
     --engine local --base-url http://localhost:11434/v1 --model glm-4
 ```
+
+### Start from a scaffold
+
+Cold-generating a whole app is error-prone; **scaffolds** give the agent a working,
+runnable base to edit. Pick one in Studio ("Start from") or `--scaffold`:
+
+| Scaffold | Stack | Runs offline |
+|---|---|---|
+| `static` | Vanilla HTML/CSS/JS SPA (no build) | ✅ |
+| `python-api` | Stdlib full-stack: JSON API + frontend, file storage, **zero deps** | ✅ |
+| `vite-react` | Vite + React + TypeScript | needs `npm i` |
+| `fastapi` | FastAPI + SQLite | needs `pip i` |
+
+The scaffold owns the run command + verification, so the full-stack gate has a real
+toolchain immediately. Verified here: from the `python-api` scaffold + one prompt, the
+Claude Code engine built a **Notes app with a real `/api/notes` CRUD** (GET/POST/DELETE,
+JSON-file storage) and a frontend — and the server-backed gate passed
+(`✓ compiles · ✓ api health · ✓ app responds`):
+
+![Scaffold-built full-stack notes app, live](docs/screenshots/studio-scaffold.png)
 
 ### The gate runs the real app
 

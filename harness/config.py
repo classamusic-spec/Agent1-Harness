@@ -95,6 +95,8 @@ class HarnessConfig:
     coder_multimodal: bool = False
     # Dev-server command for server-backed checks / live preview (auto-detected if None).
     run_command: str | None = None
+    # Start from a known-good scaffold (see harness/scaffolds.py) instead of cold.
+    scaffold: str | None = None
     # Visual-diff refinement: after a build, screenshot it, ask the vision model how
     # it differs from the reference, and repair — up to max_visual_repairs times.
     visual_check: bool = False

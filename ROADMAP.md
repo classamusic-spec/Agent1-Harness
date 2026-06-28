@@ -4,6 +4,10 @@ Where the agent is strong today, and the highest-leverage things to add next.
 Ordered by impact-to-effort.
 
 ## Today (done)
+- **Scaffolds** — start from a known-good base (`static`, `python-api` stdlib
+  full-stack, `vite-react`, `fastapi`) that owns its run command + checks, so the
+  agent edits a working app and the full-stack gate has a real toolchain.
+  `harness/scaffolds.py`, `--scaffold` / Studio "Start from".
 - **Real full-stack verification** — stack-aware default checks (node:
   install/build/`tsc`/eslint/tests; python: install/`pytest`; static) plus
   **server-backed checks** (`needs_server`): boot the dev server, substitute
@@ -75,8 +79,6 @@ Ordered by impact-to-effort.
 - Design-check templates (Playwright/axe/Lighthouse).
 
 ## Next — full-stack (building on the runtime)
-- **Scaffolds** — known-good starters (Vite+React+TS, FastAPI/Express+SQLite) so
-  the agent edits a working base instead of generating cold.
 - **Milestone planner** — decompose into schema → API → UI → integration, verify
   each milestone before the next.
 - **Data layer** — ORM + migrations (generate/apply/seed) + `.env`/secrets.
