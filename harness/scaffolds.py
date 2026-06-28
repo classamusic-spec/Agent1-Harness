@@ -210,6 +210,191 @@ ul{list-style:none;padding:0;margin:18px 0}li{padding:10px 12px;border-bottom:1p
 """
 
 # --------------------------------------------------------------------------- #
+#  python-db — stdlib full-stack with a SQLite data layer + migrations
+# --------------------------------------------------------------------------- #
+_PYDB_SERVER = '''"""Zero-dependency full-stack server with a SQLite data layer.
+Serves the frontend in ./public + a JSON API under /api backed by SQLite.
+DB path and secret come from the environment (.env); stdlib only."""
+import json, os, sqlite3
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from urllib.parse import urlparse
+
+ROOT = os.path.dirname(os.path.abspath(__file__))
+PUBLIC = os.path.join(ROOT, "public")
+
+
+def db_path():
+    p = os.environ.get("DATABASE_URL", "app.db")
+    return p if os.path.isabs(p) else os.path.join(ROOT, p)
+
+
+def connect():
+    c = sqlite3.connect(db_path())
+    c.row_factory = sqlite3.Row
+    return c
+
+
+class H(BaseHTTPRequestHandler):
+    def log_message(self, *a):  # quiet
+        pass
+
+    def _json(self, obj, code=200):
+        body = json.dumps(obj).encode()
+        self.send_response(code)
+        self.send_header("Content-Type", "application/json")
+        self.send_header("Content-Length", str(len(body)))
+        self.end_headers()
+        self.wfile.write(body)
+
+    def do_GET(self):
+        path = urlparse(self.path).path
+        if path == "/api/health":
+            return self._json({"ok": True})
+        if path == "/api/notes":
+            with connect() as c:
+                rows = c.execute("SELECT id, body, created_at FROM notes ORDER BY id DESC").fetchall()
+            return self._json([dict(r) for r in rows])
+        return self._static(path)
+
+    def do_POST(self):
+        if urlparse(self.path).path == "/api/notes":
+            n = int(self.headers.get("Content-Length", 0))
+            try:
+                payload = json.loads(self.rfile.read(n) or b"{}")
+            except Exception:
+                return self._json({"error": "bad json"}, 400)
+            body = str(payload.get("body", "")).strip()
+            if not body:
+                return self._json({"error": "body required"}, 400)
+            with connect() as c:
+                cur = c.execute("INSERT INTO notes (body) VALUES (?)", (body,))
+                row = c.execute("SELECT id, body, created_at FROM notes WHERE id=?",
+                                (cur.lastrowid,)).fetchone()
+            return self._json(dict(row), 201)
+        return self._json({"error": "not found"}, 404)
+
+    def _static(self, path):
+        rel = "index.html" if path in ("/", "") else path.lstrip("/")
+        target = os.path.normpath(os.path.join(PUBLIC, rel))
+        if not target.startswith(PUBLIC) or not os.path.isfile(target):
+            return self._json({"error": "not found"}, 404)
+        ctype = {".html": "text/html", ".css": "text/css", ".js": "text/javascript",
+                 ".json": "application/json"}.get(os.path.splitext(target)[1], "text/plain")
+        data = open(target, "rb").read()
+        self.send_response(200)
+        self.send_header("Content-Type", ctype)
+        self.send_header("Content-Length", str(len(data)))
+        self.end_headers()
+        self.wfile.write(data)
+
+
+if __name__ == "__main__":
+    port = int(os.environ.get("PORT", "8000"))
+    print(f"db={db_path()}  serving on http://127.0.0.1:{port}")
+    ThreadingHTTPServer(("127.0.0.1", port), H).serve_forever()
+'''
+
+_PYDB_MIGRATE = '''"""Self-contained SQLite migration runner — applies migrations/*.sql in order,
+idempotently, tracking applied files in a schema_migrations table. Stdlib only.
+Usage: python migrate.py   (DB path from $DATABASE_URL, default app.db)."""
+import glob, os, sqlite3, sys
+
+ROOT = os.path.dirname(os.path.abspath(__file__))
+
+
+def db_path():
+    p = os.environ.get("DATABASE_URL", "app.db")
+    return p if os.path.isabs(p) else os.path.join(ROOT, p)
+
+
+def main():
+    conn = sqlite3.connect(db_path())
+    conn.execute("CREATE TABLE IF NOT EXISTS schema_migrations "
+                 "(name TEXT PRIMARY KEY, applied_at TEXT NOT NULL DEFAULT (datetime('now')))")
+    done = {r[0] for r in conn.execute("SELECT name FROM schema_migrations")}
+    applied = []
+    for path in sorted(glob.glob(os.path.join(ROOT, "migrations", "*.sql"))):
+        name = os.path.basename(path)
+        if name in done:
+            continue
+        try:
+            conn.executescript(open(path, encoding="utf-8").read())
+            conn.execute("INSERT INTO schema_migrations (name) VALUES (?)", (name,))
+            conn.commit()
+        except Exception as exc:
+            conn.rollback()
+            print(f"migration {name} failed: {exc}", file=sys.stderr)
+            return 1
+        applied.append(name)
+    print(f"applied {len(applied)} migration(s): {', '.join(applied)}" if applied
+          else "database is up to date")
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
+'''
+
+_PYDB_MIGRATION_001 = """-- 001: notes table
+CREATE TABLE IF NOT EXISTS notes (
+    id         INTEGER PRIMARY KEY AUTOINCREMENT,
+    body       TEXT NOT NULL,
+    created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+"""
+
+_PYDB_SEED = """-- Optional sample data. Run with: python migrate.py && python -c \
+-- "import sqlite3,os;sqlite3.connect('app.db').executescript(open('seed.sql').read())"
+INSERT INTO notes (body) VALUES ('Welcome to your notes app');
+"""
+
+_PYDB_ENV_EXAMPLE = """# App configuration. Copy to .env (the harness generates one automatically,
+# filling SECRET_KEY with a random value).
+DATABASE_URL=app.db
+SECRET_KEY=changeme
+"""
+
+_PYDB_INDEX = """<!doctype html>
+<html lang="en"><head><meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Notes</title><link rel="stylesheet" href="styles.css" /></head>
+<body><main class="wrap">
+  <h1>Notes</h1>
+  <form id="f" class="row"><input id="t" placeholder="Write a note…" autocomplete="off" /><button>Add</button></form>
+  <ul id="list"></ul>
+</main><script src="app.js"></script></body></html>
+"""
+
+_PYDB_FRONT_JS = """'use strict';
+const list = document.getElementById('list');
+async function load(){
+  const notes = await (await fetch('/api/notes')).json();
+  list.innerHTML = notes.map(n => `<li><span>${n.body}</span><time>${n.created_at}</time></li>`).join('')
+    || '<li class="muted">No notes yet.</li>';
+  console.log('loaded', notes.length, 'notes');
+}
+document.getElementById('f').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const t = document.getElementById('t');
+  if (!t.value.trim()) return;
+  await fetch('/api/notes', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({body:t.value})});
+  t.value=''; load();
+});
+load();
+"""
+
+_PYDB_CSS = """:root{--bg:#0b0f17;--surface:#151b27;--text:#eef1f8;--muted:#9aa3b8;--accent:#5e8cff}
+@media(prefers-color-scheme:light){:root{--bg:#f3f5fb;--surface:#fff;--text:#1a1d29;--muted:#5b6275}}
+*{box-sizing:border-box}body{margin:0;font-family:system-ui,sans-serif;background:var(--bg);color:var(--text)}
+.wrap{max-width:560px;margin:0 auto;padding:32px 22px}.row{display:flex;gap:8px}
+input{flex:1;padding:10px 12px;border-radius:10px;border:1px solid rgba(128,128,128,.3);background:transparent;color:inherit}
+button{border:0;border-radius:10px;padding:10px 16px;background:var(--accent);color:#fff;cursor:pointer}
+ul{list-style:none;padding:0;margin:18px 0}
+li{display:flex;justify-content:space-between;gap:12px;align-items:baseline;padding:11px 12px;border-bottom:1px solid rgba(128,128,128,.18)}
+li time{color:var(--muted);font-size:.78rem;white-space:nowrap}.muted{color:var(--muted)}h1{letter-spacing:-.02em}
+"""
+
+# --------------------------------------------------------------------------- #
 #  vite-react — Vite + React + TypeScript (needs npm)
 # --------------------------------------------------------------------------- #
 _VITE_PKG = """{
@@ -343,6 +528,35 @@ SCAFFOLDS: dict[str, Scaffold] = {
             {"name": "api health", "command": _API_HEALTH, "needs_server": True},
             {"name": "app responds", "command": SMOKE_CMD, "needs_server": True},
         ],
+    ),
+    "python-db": Scaffold(
+        name="python-db", label="Stdlib full-stack + SQLite (migrations)", kind="fullstack",
+        run="python server.py",
+        note=("You are starting from the **stdlib full-stack + SQLite** scaffold: server.py serves the "
+              "frontend in ./public AND a JSON API under /api (/api/health, /api/notes GET+POST) backed by "
+              "a **SQLite database**. The schema lives in migrations/*.sql — add a new numbered migration "
+              "(e.g. migrations/002_*.sql) to change the schema; run `python migrate.py` to apply (it's "
+              "idempotent and tracked in schema_migrations). Config (DATABASE_URL, SECRET_KEY) comes from "
+              ".env — read it via os.environ, never hard-code. NO dependencies — stdlib sqlite3 only. Add "
+              "tables via migrations and endpoints in server.py."),
+        files={"server.py": _PYDB_SERVER, "migrate.py": _PYDB_MIGRATE,
+               "migrations/001_init.sql": _PYDB_MIGRATION_001, "seed.sql": _PYDB_SEED,
+               ".env.example": _PYDB_ENV_EXAMPLE, "public/index.html": _PYDB_INDEX,
+               "public/app.js": _PYDB_FRONT_JS, "public/styles.css": _PYDB_CSS},
+        checks=[
+            {"name": "compiles", "command": "python -m py_compile server.py migrate.py"},
+            {"name": "migrations apply", "command": "python migrate.py"},
+            {"name": "api health", "command": _API_HEALTH, "needs_server": True},
+            {"name": "notes api", "command": (
+                "python3 -c \"import urllib.request,json,sys; "
+                "req=urllib.request.Request('$APP_URL/api/notes', "
+                "data=json.dumps({'body':'smoke test'}).encode(), "
+                "headers={'Content-Type':'application/json'}); "
+                "r=urllib.request.urlopen(req,timeout=6); "
+                "sys.exit(0 if r.status==201 else 1)\""), "needs_server": True},
+            {"name": "app responds", "command": SMOKE_CMD, "needs_server": True},
+        ],
+        needs="",
     ),
     "vite-react": Scaffold(
         name="vite-react", label="Vite + React + TypeScript", kind="react", needs="node",

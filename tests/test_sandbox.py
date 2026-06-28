@@ -42,10 +42,30 @@ def test_run_check_uses_injected_runner():
     calls = {}
 
     class FakeRunner:
-        def run(self, command, cwd, timeout):
+        def run(self, command, cwd, timeout, env=None):
             calls["command"] = command
+            calls["env"] = env
             import subprocess
             return subprocess.CompletedProcess(args=command, returncode=0, stdout="ok", stderr="")
 
-    result = run_check(Check(name="x", command="whatever"), runner=FakeRunner())
+    result = run_check(Check(name="x", command="whatever"), runner=FakeRunner(),
+                       env={"DATABASE_URL": "app.db"})
     assert result.ok and calls["command"] == "whatever"
+    assert calls["env"] == {"DATABASE_URL": "app.db"}
+
+
+def test_host_runner_injects_env():
+    proc = HostRunner().run("echo $MY_VAR", None, 10, env={"MY_VAR": "hello-env"})
+    assert proc.returncode == 0
+    assert "hello-env" in proc.stdout
+
+
+def test_host_runner_env_layers_over_os_environ():
+    # env extends os.environ rather than replacing it (PATH still resolves echo).
+    proc = HostRunner().run("echo ok", None, 10, env={"EXTRA": "1"})
+    assert proc.returncode == 0 and "ok" in proc.stdout
+
+
+def test_docker_argv_passes_env_flags():
+    argv = docker_argv("img", "/w", "ls", env={"DATABASE_URL": "app.db"})
+    assert "-e" in argv and "DATABASE_URL=app.db" in argv

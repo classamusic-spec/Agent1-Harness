@@ -4,6 +4,15 @@ Where the agent is strong today, and the highest-leverage things to add next.
 Ordered by impact-to-effort.
 
 ## Today (done)
+- **Data layer** — a SQLite migration runner (`harness/migrations.py`: ordered,
+  idempotent `migrations/*.sql`, tracked in `schema_migrations`, `seed()` + CLI)
+  and `.env`/secrets handling (`harness/env.py`: tolerant `load_dotenv`,
+  `generate_env` with a random secret, `ensure_env` materialises `.env` from
+  `.env.example`). The workspace `.env` is injected into every verification check
+  and the dev server (runner `env=`), so migrations and the running app share one
+  config. New **`python-db`** scaffold: stdlib `http.server` + `sqlite3` notes API,
+  `migrations/001_init.sql`, `migrate.py`, `.env.example`, with checks that apply
+  migrations, boot the server, and POST a row — all dependency-free + offline.
 - **Milestone planner** — `--plan` decomposes a big app into an ordered plan
   (schema → API → UI → integration) and drives each milestone to green before the
   next (own build/verify/repair loop, fresh context, shared workspace); the final
@@ -84,7 +93,6 @@ Ordered by impact-to-effort.
 - Design-check templates (Playwright/axe/Lighthouse).
 
 ## Next — full-stack (building on the runtime)
-- **Data layer** — ORM + migrations (generate/apply/seed) + `.env`/secrets.
 - **Multi-agent decomposition** — backend/frontend/test agents on a worktree.
 - **Ship it** — Dockerfile + compose, zip/PR export, optional deploy.
 

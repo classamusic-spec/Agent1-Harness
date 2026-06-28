@@ -107,13 +107,17 @@ def failure_delta(prev: "VerificationReport | None", cur: VerificationReport) ->
     return "; ".join(parts)
 
 
-def run_check(check: Check, runner=None) -> CheckResult:
-    """Run a single check via a CommandRunner. Never raises — failures are data."""
+def run_check(check: Check, runner=None, env: dict | None = None) -> CheckResult:
+    """Run a single check via a CommandRunner. Never raises — failures are data.
+
+    `env` is extra environment (e.g. the workspace `.env`) merged into the
+    command's environment so checks read DB paths / secrets from config.
+    """
     if runner is None:
         from harness.sandbox import HostRunner
         runner = HostRunner()
     try:
-        proc = runner.run(check.command, check.cwd, check.timeout)
+        proc = runner.run(check.command, check.cwd, check.timeout, env=env)
     except subprocess.TimeoutExpired as exc:
         return CheckResult(
             name=check.name,
@@ -146,7 +150,8 @@ def run_check(check: Check, runner=None) -> CheckResult:
     )
 
 
-def run_suite(checks: list[Check], stop_on_failure: bool = True, runner=None) -> VerificationReport:
+def run_suite(checks: list[Check], stop_on_failure: bool = True, runner=None,
+              env: dict | None = None) -> VerificationReport:
     """Run all checks in order.
 
     With `stop_on_failure` (the default), the first hard failure stops the run
@@ -171,7 +176,7 @@ def run_suite(checks: list[Check], stop_on_failure: bool = True, runner=None) ->
             )
             continue
 
-        result = run_check(check, runner=runner)
+        result = run_check(check, runner=runner, env=env)
         report.results.append(result)
         if not result.ok and not check.allow_failure and stop_on_failure:
             halted = True

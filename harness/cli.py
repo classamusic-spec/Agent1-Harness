@@ -91,7 +91,7 @@ def _parse_args(argv: list[str]) -> argparse.Namespace:
     p.add_argument("--multimodal", action="store_true",
                    help="The local coder is vision-capable: attach --reference-image to it directly")
     p.add_argument("--scaffold", default=None,
-                   help="Start from a known-good base: static | python-api | vite-react | fastapi")
+                   help="Start from a known-good base: static | python-api | python-db | vite-react | fastapi")
     p.add_argument("--plan", action="store_true",
                    help="Decompose the app into milestones and build each to green in turn")
     p.add_argument("--max-milestones", type=int, default=6, help="Cap on planned milestones")

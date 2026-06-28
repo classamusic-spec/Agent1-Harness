@@ -20,24 +20,34 @@ from typing import Protocol
 
 
 class CommandRunner(Protocol):
-    def run(self, command: str, cwd: str | None, timeout: int) -> subprocess.CompletedProcess: ...
+    def run(self, command: str, cwd: str | None, timeout: int,
+            env: dict | None = None) -> subprocess.CompletedProcess: ...
 
 
 class HostRunner:
     """Run commands directly on the host."""
 
-    def run(self, command: str, cwd: str | None, timeout: int) -> subprocess.CompletedProcess:
+    def run(self, command: str, cwd: str | None, timeout: int,
+            env: dict | None = None) -> subprocess.CompletedProcess:
+        full_env = None
+        if env:
+            full_env = dict(os.environ)
+            full_env.update(env)
         return subprocess.run(
-            command, shell=True, cwd=cwd, capture_output=True, text=True, timeout=timeout
+            command, shell=True, cwd=cwd, capture_output=True, text=True,
+            timeout=timeout, env=full_env,
         )
 
 
-def docker_argv(image: str, cwd: str | None, command: str, *, network: str | None = None) -> list[str]:
+def docker_argv(image: str, cwd: str | None, command: str, *, network: str | None = None,
+                env: dict | None = None) -> list[str]:
     """Build the `docker run` argv for executing `command` against `cwd`."""
     mount = os.path.abspath(cwd or os.getcwd())
     argv = ["docker", "run", "--rm", "-v", f"{mount}:/work", "-w", "/work"]
     if network is not None:
         argv += ["--network", network]
+    for k, v in (env or {}).items():
+        argv += ["-e", f"{k}={v}"]
     argv += [image, "sh", "-lc", command]
     return argv
 
@@ -49,8 +59,9 @@ class DockerRunner:
         self.image = image
         self.network = network
 
-    def run(self, command: str, cwd: str | None, timeout: int) -> subprocess.CompletedProcess:
-        argv = docker_argv(self.image, cwd, command, network=self.network)
+    def run(self, command: str, cwd: str | None, timeout: int,
+            env: dict | None = None) -> subprocess.CompletedProcess:
+        argv = docker_argv(self.image, cwd, command, network=self.network, env=env)
         return subprocess.run(argv, capture_output=True, text=True, timeout=timeout)
 
 

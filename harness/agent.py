@@ -456,13 +456,10 @@ async def build(
                         if echo:
                             print(_banner(f"{req} requested — stopping (resumable)"), flush=True)
                         return await finish(False, req, report=first_report)
-                if any(c.needs_server for c in spec.checks):
-                    from harness import fullstack
-                    report = fullstack.verify_checks(
-                        spec.checks, ws, run_command=run_config.run_command or spec.run,
-                        runner=runner, stop_on_failure=config.stop_on_failure)
-                else:
-                    report = run_suite(spec.checks, stop_on_failure=config.stop_on_failure, runner=runner)
+                from harness import fullstack
+                report = fullstack.verify_checks(
+                    spec.checks, ws, run_command=run_config.run_command or spec.run,
+                    runner=runner, stop_on_failure=config.stop_on_failure)
                 progress.append(len(report.failures))
                 if on_progress:
                     on_progress({"tokens": _tokens(), "elapsed": _elapsed(), "round": len(progress)})

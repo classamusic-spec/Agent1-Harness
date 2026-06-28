@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import dataclasses
 
+from harness import env as envmod
 from harness.verifier import Check, CheckResult, VerificationReport, run_suite
 
 
@@ -21,12 +22,18 @@ def _skipped(check: Check, why: str) -> CheckResult:
 
 def verify_checks(checks: list[Check], workspace: str, *, run_command: str | None = None,
                   runner=None, stop_on_failure: bool = True) -> VerificationReport:
-    """Run `checks`, starting the dev server for any that need it."""
+    """Run `checks`, starting the dev server for any that need it.
+
+    The workspace `.env` (DB path, secrets) is loaded once and injected into every
+    check's environment and into the dev server, so migrations and the running app
+    share the same configuration. `.env` is materialised from `.env.example` first
+    if needed (generating a fresh secret)."""
+    check_env = envmod.ensure_env(workspace)
     # Default every check's cwd to the workspace (callers may leave it unset).
     checks = [c if c.cwd else dataclasses.replace(c, cwd=workspace) for c in checks]
     static = [c for c in checks if not c.needs_server]
     server_checks = [c for c in checks if c.needs_server]
-    report = run_suite(static, stop_on_failure=stop_on_failure, runner=runner)
+    report = run_suite(static, stop_on_failure=stop_on_failure, runner=runner, env=check_env)
     if not server_checks:
         return report
 
@@ -42,11 +49,11 @@ def verify_checks(checks: list[Check], workspace: str, *, run_command: str | Non
             report.results.append(_skipped(c, "skipped: no run command (none detected)"))
         return report
 
-    with runtime.serve(workspace, cmd) as svc:
+    with runtime.serve(workspace, cmd, env=check_env) as svc:
         base = f"http://127.0.0.1:{svc.port}"
         subbed = [dataclasses.replace(c, command=c.command.replace("$APP_URL", base))
                   for c in server_checks]
-        rep = run_suite(subbed, stop_on_failure=False, runner=runner)
+        rep = run_suite(subbed, stop_on_failure=False, runner=runner, env=check_env)
         if not rep.ok:  # attach server log tail to help debugging
             tail = "\n".join(svc.logs()[0][-15:])
             for r in rep.results:

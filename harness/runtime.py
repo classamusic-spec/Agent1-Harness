@@ -74,7 +74,10 @@ class Service:
                 self._lines.append(ln)
 
     def start(self) -> "Service":
+        from harness.env import load_dotenv
         env = dict(os.environ)
+        # The workspace .env (DB path, secrets) — explicit env passed in wins over it.
+        env.update(load_dotenv(os.path.join(self.workspace, ".env")))
         env.update(self.env)
         env["PORT"] = str(self.port)
         cmd = self.command.replace("$PORT", str(self.port))
@@ -142,10 +145,12 @@ class Service:
 
 
 @contextlib.contextmanager
-def serve(workspace: str, command: str, *, ready_path: str = "/", boot_timeout: float = 25.0):
+def serve(workspace: str, command: str, *, ready_path: str = "/", boot_timeout: float = 25.0,
+          env: dict | None = None):
     """Start a dev server, wait until it's healthy (or boot_timeout), yield the
-    Service, then stop it. Used by server-backed verification (e2e/smoke checks)."""
-    svc = Service(workspace, command, free_port(), ready_path=ready_path).start()
+    Service, then stop it. Used by server-backed verification (e2e/smoke checks).
+    The workspace `.env` is loaded automatically; `env` adds explicit overrides."""
+    svc = Service(workspace, command, free_port(), env=env, ready_path=ready_path).start()
     end = time.time() + boot_timeout
     while time.time() < end and svc.status not in ("ready", "running", "failed"):
         time.sleep(0.25)
