@@ -25,6 +25,8 @@ Ordered by impact-to-effort.
   stop the loop when exceeded.
 - **Resumable builds** — `--checkpoint` / `--resume`; the durable workspace plus a
   JSON checkpoint let an interrupted build continue to green (Resume in the Gallery).
+- **Live run controls** — pause / cancel a running build from the console; pause
+  leaves a checkpoint so it's resumable.
 - Web console with tabs: Build, **New Spec** (authoring), **Gallery** (artifact
   preview + Resume), and a **live Workspace view** (watch files appear/change as it builds).
 - Design-check templates (Playwright/axe/Lighthouse).
@@ -42,7 +44,8 @@ Ordered by impact-to-effort.
    unsafe deserialization, dependency risks.
 
 ## Next — isolation & ops
-7. **Live mid-run controls** — pause / cancel a running build from the console.
+7. **Container isolation hardening** — non-root, read-only rootfs, capped CPU/mem
+   for the Docker exec sandbox; per-build network policy.
 
 ## Next — reach & DX
 10. **Project scaffolds** — first-class starters for React (Vite), React Native

@@ -293,6 +293,11 @@ input[type="number"]:focus { outline: none; border-color: var(--accent); box-sha
 .approval-actions { display: flex; justify-content: flex-end; gap: var(--sp); }
 .approval-actions .primary { width: auto; margin: 0; padding: 9px 18px; }
 
+/* Run controls */
+.controls { display: inline-flex; gap: 6px; }
+.ghost.danger { color: var(--bad); border-color: var(--bad); }
+.ghost.danger:hover { background: rgba(217, 48, 74, 0.08); }
+
 /* Budget meters */
 .meters { display: grid; gap: 8px; margin: var(--sp) 0 0; }
 .meter { display: grid; grid-template-columns: 56px 1fr auto; align-items: center; gap: 10px; }

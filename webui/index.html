@@ -93,7 +93,14 @@
       <div class="card log-card">
         <div class="log-head">
           <h2>Log</h2>
-          <div class="head-right"><span class="stat" id="stat"></span><span class="badge" id="status" data-state="idle">idle</span></div>
+          <div class="head-right">
+            <span id="controls" class="controls" hidden>
+              <button id="pause" class="ghost">Pause</button>
+              <button id="cancel" class="ghost danger">Cancel</button>
+            </span>
+            <span class="stat" id="stat"></span>
+            <span class="badge" id="status" data-state="idle">idle</span>
+          </div>
         </div>
         <div id="meters" class="meters" hidden>
           <div class="meter">

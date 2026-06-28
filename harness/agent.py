@@ -112,6 +112,7 @@ async def build(
     planner_factory: Factory = _default_planner,
     approval: ApprovalGate | None = None,
     on_progress=None,
+    control=None,
 ) -> BuildResult:
     """Run the full self-improving build loop for a spec."""
     approval = approval or AutoApprove()
@@ -242,6 +243,12 @@ async def build(
             stall = 0
 
             while True:
+                if control is not None:
+                    req = control.requested()
+                    if req:
+                        if echo:
+                            print(_banner(f"{req} requested — stopping (resumable)"), flush=True)
+                        return await finish(False, req, report=first_report)
                 report = run_suite(spec.checks, stop_on_failure=config.stop_on_failure, runner=runner)
                 progress.append(len(report.failures))
                 if on_progress:

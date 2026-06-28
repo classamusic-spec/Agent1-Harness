@@ -241,6 +241,7 @@ async function pollCurrent() {
     const c = await (await fetch("/api/current")).json();
     currentJobId = c.job;
     $("#stat").textContent = c.tokens ? `${c.tokens} tokens · ${c.elapsed}s` : "";
+    $("#controls").hidden = !c.busy;
     updateMeters(c);
     const banner = $("#approval");
     if (c.pending) {
@@ -287,6 +288,16 @@ async function decide(approved) {
 }
 $("#approve").addEventListener("click", () => decide(true));
 $("#reject").addEventListener("click", () => decide(false));
+
+async function control(action) {
+  if (!currentJobId) return;
+  await fetch(`/api/jobs/${currentJobId}/control`, {
+    method: "POST", headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ action }),
+  });
+}
+$("#pause").addEventListener("click", () => control("pause"));
+$("#cancel").addEventListener("click", () => control("cancel"));
 
 /* ---------- wire up ---------- */
 $("#spec").addEventListener("change", syncWorkspace);

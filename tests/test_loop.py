@@ -292,6 +292,37 @@ def test_resume_continues_to_green(tmp_path):
     assert load_checkpoint(cp).sessions == 2  # resumed once
 
 
+def test_cancel_mid_run(tmp_path):
+    from harness.control import BuildControl
+    spec = _spec()
+    cfg = _config(tmp_path / "ws", max_repairs=5, max_escalations=0)
+    builder = FakeEngine(str(tmp_path / "ws"), [_noop, _noop, _noop])
+    ctrl = BuildControl()
+    # Cancel as soon as the first round completes.
+    result = asyncio.run(build(spec, cfg, echo=False, builder_factory=lambda s, c: builder,
+                              control=ctrl, on_progress=lambda p: ctrl.cancel()))
+    assert not result.ok and result.stop_reason == "cancelled"
+
+
+def test_pause_is_resumable(tmp_path):
+    from harness.agent import resume
+    from harness.control import BuildControl
+    cp = str(tmp_path / "cp.json")
+    ws = str(tmp_path / "ws")
+    spec = _spec()
+    cfg = _config(tmp_path / "ws", max_repairs=5, max_escalations=0, checkpoint_path=cp)
+    builder = FakeEngine(ws, [_noop, _noop, _noop])
+    ctrl = BuildControl()
+    paused = asyncio.run(build(spec, cfg, echo=False, builder_factory=lambda s, c: builder,
+                              control=ctrl, on_progress=lambda p: ctrl.pause()))
+    assert not paused.ok and paused.stop_reason == "paused"
+
+    # Resume and finish it.
+    done = asyncio.run(resume(cp, echo=False,
+                             builder_factory=lambda s, c: FakeEngine(c.workspace, [_writer("ok")])))
+    assert done.ok and done.stop_reason == "verified"
+
+
 def test_telemetry_reported(tmp_path):
     spec = _spec()
     cfg = _config(tmp_path / "ws")

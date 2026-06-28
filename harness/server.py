@@ -30,6 +30,7 @@ from urllib.parse import parse_qs, urlparse
 import yaml
 
 from harness.config import DEFAULT_LOCAL_BASE_URL, DEFAULT_MODEL, EngineConfig, HarnessConfig
+from harness.control import BuildControl
 from harness.diffing import _SKIP_DIRS
 from harness.spec import SpecError, load_spec, parse_spec
 from harness.verifier import run_suite
@@ -165,6 +166,7 @@ class Job:
         self.elapsed = 0.0
         self.token_budget = None
         self.deadline = None
+        self.control = BuildControl()
 
     def log(self, text: str) -> None:
         for line in text.splitlines():
@@ -252,7 +254,7 @@ class Console:
         if params.get("resume"):
             from harness.agent import resume
             print(f"Resuming build in {job.workspace}…")
-            result = asyncio.run(resume(cp_path, echo=True, on_progress=on_progress))
+            result = asyncio.run(resume(cp_path, echo=True, on_progress=on_progress, control=job.control))
             job.status = "passed" if result.ok else "failed"
             job.tokens, job.elapsed = result.tokens_used, result.elapsed_seconds
             print(f"RESULT: {job.status.upper()} ({result.stop_reason}) after {result.rounds} round(s)")
@@ -296,7 +298,8 @@ class Console:
         gate = ServerApproval(job) if (approve_plan or approve_build) else None
 
         print(f"engine={provider} model={model or '(unset)'} kind={spec.kind}")
-        result = asyncio.run(build(spec, config, echo=True, approval=gate, on_progress=on_progress))
+        result = asyncio.run(build(spec, config, echo=True, approval=gate,
+                                   on_progress=on_progress, control=job.control))
         job.status = "passed" if result.ok else "failed"
         job.tokens, job.elapsed = result.tokens_used, result.elapsed_seconds
         print(f"RESULT: {job.status.upper()} ({result.stop_reason}) after {result.rounds} round(s)")
@@ -380,6 +383,19 @@ def make_handler(console: Console):
                     return self._json({"ok": True, "path": p, "name": Path(p).stem})
                 except SpecError as e:
                     return self._json({"error": str(e)}, 400)
+            if u.path.startswith("/api/jobs/") and u.path.endswith("/control"):
+                job = console.jobs.get(u.path.split("/")[3])
+                if not job:
+                    return self._json({"error": "unknown job"}, 404)
+                action = body.get("action")
+                if action == "pause":
+                    job.control.pause()
+                elif action == "cancel":
+                    job.control.cancel()
+                else:
+                    return self._json({"error": "action must be pause|cancel"}, 400)
+                job.log(f"[control] {action} requested")
+                return self._json({"ok": True})
             if u.path.startswith("/api/jobs/") and u.path.endswith("/approve"):
                 from harness.approval import Decision
                 job = console.jobs.get(u.path.split("/")[3])
