@@ -4,6 +4,10 @@ Where the agent is strong today, and the highest-leverage things to add next.
 Ordered by impact-to-effort.
 
 ## Today (done)
+- **Patch-level review** — with `--patch-review`, the reviewer/sentry panel gets the
+  unified diff of the last change and concentrates its verdict on what changed
+  (faster, sharper on iterative builds); the first pass still reads the full tree.
+  `harness/review.py` (`review_instruction(focus, diff)`), `--patch-review`.
 - **Security scan (deterministic gate)** — a free, model-independent static scan
   for hardcoded secrets/keys, injection (SQL/command/path), unsafe deserialization,
   weak crypto, and DOM-XSS sinks, with exact file:line findings. Runs in-process
@@ -112,10 +116,6 @@ Ordered by impact-to-effort.
 - Web console with tabs: Build, **New Spec** (authoring), **Gallery** (artifact
   preview + Resume), a **live Workspace view**, and the **3D Office**.
 - Design-check templates (Playwright/axe/Lighthouse).
-
-## Next — quality & trust
-4. **Patch-level review** — reviewer reads the diff, not just the tree, for
-   faster, more focused verdicts on iterative builds.
 
 ## Next — isolation & ops
 7. **Container isolation hardening** — non-root, read-only rootfs, capped CPU/mem

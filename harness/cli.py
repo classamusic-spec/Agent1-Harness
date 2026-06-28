@@ -103,6 +103,9 @@ def _parse_args(argv: list[str]) -> argparse.Namespace:
     p.add_argument("--security-scan", action="store_true",
                    help="Deterministic security gate: after verification, statically scan for "
                         "secrets/injection/unsafe patterns and block (+repair) on high-severity")
+    p.add_argument("--patch-review", action="store_true",
+                   help="Give the reviewer the unified diff of the last change to focus its "
+                        "verdict on what changed (faster on iterative builds; needs --review)")
     p.add_argument("--run", default=None,
                    help="Dev-server command for server-backed checks (e2e/smoke) & preview "
                         "(auto-detected if omitted; spec 'run:' is also honored)")
@@ -285,6 +288,7 @@ def main(argv: list[str] | None = None) -> int:
         multi=args.multi,
         multi_parallel=not args.multi_sequential,
         security_scan=args.security_scan,
+        patch_review=args.patch_review,
     )
 
     approval = None

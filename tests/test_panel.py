@@ -56,3 +56,28 @@ def test_panel_includes_a11y_findings_tagged():
     )
     assert not verdict.approved
     assert verdict.findings[0].title.startswith("[a11y]")
+
+
+def test_review_instruction_includes_patch_block():
+    from harness.review import review_instruction
+    plain = review_instruction("quality")
+    assert "```diff" not in plain
+    patched = review_instruction("quality", diff="--- a\n+++ b\n+danger()")
+    assert "ITERATIVE build" in patched
+    assert "```diff" in patched and "+danger()" in patched
+    # an all-whitespace diff is treated as no diff
+    assert "```diff" not in review_instruction("quality", diff="   \n  ")
+
+
+def test_panel_forwards_diff_to_reviewers():
+    seen = []
+
+    class _CapEngine(_Engine):
+        async def send(self, prompt, *, echo=True):
+            seen.append(prompt)
+            return self.text
+
+    asyncio.run(run_panel(
+        lambda: _CapEngine('{"summary":"ok","approved":true,"findings":[]}'),
+        ["quality"], echo=False, diff="--- a\n+++ b\n-old\n+new"))
+    assert any("```diff" in p and "+new" in p for p in seen)

@@ -601,6 +601,7 @@ class Console:
             multi=bool(params.get("multi")),
             multi_parallel=not bool(params.get("multi_sequential")),
             security_scan=bool(params.get("security_scan")),
+            patch_review=bool(params.get("patch_review")),
         )
         job.token_budget = params.get("token_budget")
         job.deadline = params.get("deadline")

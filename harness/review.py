@@ -157,29 +157,47 @@ _FOCUS = {
 }
 
 
-def review_instruction(focus: str) -> str:
+_PATCH_BLOCK = """\
+This is an ITERATIVE build — concentrate your review on the change below (the
+unified diff since the last reviewed state). Read the surrounding files only as
+needed to judge it; do not re-litigate unchanged code. Flag a regression the diff
+introduces, or a real issue in the changed lines.
+
+```diff
+{diff}
+```
+"""
+
+
+def review_instruction(focus: str, diff: str = "") -> str:
     role, focus_block = _FOCUS.get(focus, _FOCUS["quality"])
-    return REVIEW_INSTRUCTION.format(role=role, focus_block=focus_block)
+    instruction = REVIEW_INSTRUCTION.format(role=role, focus_block=focus_block)
+    if diff.strip():
+        instruction += "\n\n" + _PATCH_BLOCK.format(diff=diff.strip())
+    return instruction
 
 
-async def run_review(engine, focus: str, *, echo: bool = True) -> ReviewVerdict:
-    """Drive a (separate, fresh-context) engine to produce a verdict."""
-    text = await engine.send(review_instruction(focus), echo=echo)
+async def run_review(engine, focus: str, *, echo: bool = True, diff: str = "") -> ReviewVerdict:
+    """Drive a (separate, fresh-context) engine to produce a verdict. When `diff`
+    is given, the reviewer focuses on that change (patch-level review)."""
+    text = await engine.send(review_instruction(focus, diff), echo=echo)
     return parse_verdict(text)
 
 
-async def run_panel(make_engine, focuses: list[str], *, echo: bool = True) -> tuple[ReviewVerdict, int]:
+async def run_panel(make_engine, focuses: list[str], *, echo: bool = True,
+                    diff: str = "") -> tuple[ReviewVerdict, int]:
     """Run several reviewers in parallel (one fresh engine each) and combine.
 
     Policy: the build passes only if NO reviewer reports a blocker/major finding.
     Returns the aggregate verdict and the total tokens the reviewers used.
+    When `diff` is given, reviewers do a focused patch-level review of that change.
     """
     import asyncio
 
     async def one(focus: str):
         engine = make_engine()
         async with engine:
-            verdict = await run_review(engine, focus, echo=echo)
+            verdict = await run_review(engine, focus, echo=echo, diff=diff)
         return focus, verdict, getattr(engine, "total_tokens", 0)
 
     results = await asyncio.gather(*(one(f) for f in focuses))

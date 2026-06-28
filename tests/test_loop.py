@@ -433,3 +433,34 @@ def test_security_gate_gives_up_when_unfixed(tmp_path):
     builder = FakeEngine(str(ws), [bad, bad])
     res = asyncio.run(build(spec, cfg, echo=False, builder_factory=lambda s, c: builder))
     assert not res.ok and res.stop_reason == "security-blocked"
+
+
+def test_patch_review_passes_diff_on_iterative_round(tmp_path):
+    """With patch_review, the reviewer gets no diff on the first pass (no prior
+    snapshot) but does on the next round (the v1->v2 change)."""
+    spec = _spec()
+    cfg = __import__("dataclasses").replace(
+        _config(tmp_path / "ws", enable_review=True, review_focus="quality", max_repairs=2),
+        patch_review=True)
+    builder = FakeEngine(str(tmp_path / "ws"), [_writer("v1"), _writer("v2")])
+    prompts: list[str] = []
+    verdicts = [
+        '{"summary":"x","approved":false,"findings":[{"severity":"blocker","title":"x"}]}',
+        '{"summary":"clean","approved":true,"findings":[]}',
+    ]
+
+    def reviewer_factory(s, c):
+        text = verdicts.pop(0)
+
+        def act(ws, p):
+            prompts.append(p)
+            return text
+        return FakeEngine(c.workspace, [act])
+
+    result = asyncio.run(build(
+        spec, cfg, echo=False, builder_factory=lambda s, c: builder,
+        reviewer_factory=reviewer_factory))
+    assert result.ok
+    assert len(prompts) == 2
+    assert "```diff" not in prompts[0]   # first review: no prior snapshot
+    assert "```diff" in prompts[1]       # second review: focused on v1->v2

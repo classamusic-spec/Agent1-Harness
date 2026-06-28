@@ -108,6 +108,9 @@ class HarnessConfig:
     # Deterministic security gate: statically scan for secrets/injection/unsafe
     # patterns after verification; block on high-severity findings and drive repairs.
     security_scan: bool = False
+    # Patch-level review: give the reviewer the unified diff of the last change so it
+    # focuses on what changed (faster, sharper verdicts on iterative builds).
+    patch_review: bool = False
     # Visual-diff refinement: after a build, screenshot it, ask the vision model how
     # it differs from the reference, and repair — up to max_visual_repairs times.
     visual_check: bool = False

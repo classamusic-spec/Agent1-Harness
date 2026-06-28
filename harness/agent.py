@@ -560,10 +560,14 @@ async def build(
                     continue  # rejection feedback sent; re-verify next round
 
                 focuses = config.review_panel or [config.review_focus]
+                review_diff = diff_snapshots(prev_snap, cur_snap) if (
+                    config.patch_review and prev_snap) else ""
                 if echo:
-                    print(_banner(f"review panel: {', '.join(focuses)} (round {len(progress)})"), flush=True)
+                    mode = "patch-level " if review_diff else ""
+                    print(_banner(f"{mode}review panel: {', '.join(focuses)} "
+                                  f"(round {len(progress)})"), flush=True)
                 verdict, rtokens = await run_panel(
-                    lambda: reviewer_factory(spec, run_config), focuses, echo=echo)
+                    lambda: reviewer_factory(spec, run_config), focuses, echo=echo, diff=review_diff)
                 extra_tokens += rtokens
                 if echo:
                     print(f"review approved={verdict.approved} | {verdict.summary}", flush=True)
