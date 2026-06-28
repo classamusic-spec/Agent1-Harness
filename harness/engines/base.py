@@ -45,4 +45,12 @@ def make_engine(spec: Spec, config: HarnessConfig, *, system_prompt_override: st
 
         return LocalEngine(spec, config, sys_prompt)
 
-    raise ValueError(f"unknown engine provider: {provider!r} (expected 'anthropic' or 'local')")
+    if provider in ("claude-cli", "claude-code"):
+        from harness.engines.claude_cli_engine import ClaudeCLIEngine
+
+        return ClaudeCLIEngine(spec, config, sys_prompt)
+
+    raise ValueError(
+        f"unknown engine provider: {provider!r} "
+        f"(expected 'anthropic', 'local', or 'claude-cli')"
+    )

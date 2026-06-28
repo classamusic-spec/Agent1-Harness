@@ -20,7 +20,11 @@
       </div>
 
       <nav class="tabs" role="tablist" aria-label="Sections">
-        <button class="tab active" data-tab="build" role="tab">
+        <button class="tab active" data-tab="studio" role="tab">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 4h18a1 1 0 0 1 1 1v14a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1zm1 4v10h7V8H4zm9 0v10h7V8h-7zm1.5 2h4v1.5h-4V10zm0 3h4v1.5h-4V13z"/></svg>
+          <span>Studio</span>
+        </button>
+        <button class="tab" data-tab="build" role="tab">
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2l2.4 5.4L20 8l-4 4 1 6-5-2.8L7 18l1-6-4-4 5.6-.6z"/></svg>
           <span>Build</span>
         </button>
@@ -62,8 +66,99 @@
       </div>
 
       <main>
+        <!-- STUDIO (Replit / Lovable-style: chat → live preview) -->
+        <section class="panel studio active" id="panel-studio" role="tabpanel">
+          <!-- Left: project + engine + chat -->
+          <div class="card studio-chat">
+            <div class="studio-head">
+              <h2 id="studio-project">New project</h2>
+              <span class="badge" id="studio-status" data-state="idle">idle</span>
+            </div>
+
+            <label for="st-engine">Engine</label>
+            <div class="select-wrap"><select id="st-engine">
+              <option value="claude-cli">Claude Code (CLI)</option>
+              <option value="local:glm">Local · GLM</option>
+              <option value="local:minimax">Local · MiniMax</option>
+              <option value="local:qwen">Local · Qwen Coder</option>
+              <option value="local:custom">Local · custom (OpenAI-compatible)</option>
+            </select></div>
+            <div class="two" id="st-local-fields" hidden>
+              <div>
+                <label for="st-model">Model</label>
+                <input id="st-model" type="text" placeholder="model id" />
+              </div>
+              <div>
+                <label for="st-baseurl">Base URL</label>
+                <input id="st-baseurl" type="text" placeholder="http://localhost:11434/v1" />
+              </div>
+            </div>
+
+            <div id="st-new">
+              <div class="two">
+                <div>
+                  <label for="st-name">Project name</label>
+                  <input id="st-name" type="text" placeholder="my-app" />
+                </div>
+                <div>
+                  <label for="st-kind">Kind</label>
+                  <div class="select-wrap"><select id="st-kind">
+                    <option value="frontend">Web app (frontend)</option>
+                    <option value="fullstack">Full-stack</option>
+                    <option value="react">React</option>
+                    <option value="react-native">Mobile (React Native)</option>
+                    <option value="swiftui">Mobile (SwiftUI)</option>
+                    <option value="api">API / backend</option>
+                    <option value="cli">CLI</option>
+                  </select></div>
+                </div>
+              </div>
+            </div>
+
+            <label for="st-prompt" id="st-prompt-label">Describe the app to build</label>
+            <textarea id="st-prompt" rows="5" placeholder="e.g. A calm pomodoro timer with start/pause/reset, a circular progress ring, and a session counter. Local-only, no backend."></textarea>
+            <button id="st-send" class="primary">Generate app</button>
+            <p class="hint" id="st-hint">Claude Code (your authenticated CLI) builds it, then verifies it. Then chat to iterate.</p>
+
+            <div class="studio-log-head">
+              <span class="meter-label">Activity</span>
+              <span class="stat" id="st-stat"></span>
+            </div>
+            <div id="st-log" class="log studio-log" tabindex="0" data-empty="The agent's work will stream here."></div>
+          </div>
+
+          <!-- Middle: files -->
+          <div class="card studio-files">
+            <div class="log-head"><h2>Files</h2><button id="st-refresh" class="ghost">Refresh</button></div>
+            <ul id="st-tree" class="rows mono"></ul>
+            <pre id="st-file" class="log mono" data-empty="Select a file to view."></pre>
+          </div>
+
+          <!-- Right: live preview -->
+          <div class="card studio-preview">
+            <div class="preview-toolbar">
+              <div class="segmented small" id="st-device" role="radiogroup" aria-label="Device">
+                <label><input type="radio" name="st-dev" value="desktop" checked /><span>Desktop</span></label>
+                <label><input type="radio" name="st-dev" value="mobile" /><span>Mobile</span></label>
+              </div>
+              <div class="preview-actions">
+                <button id="st-test" class="ghost">Run tests</button>
+                <button id="st-reload" class="ghost">Reload</button>
+                <a id="st-open" class="ghost" target="_blank" rel="noopener">Open ↗</a>
+              </div>
+            </div>
+            <div id="st-tests" class="test-strip" hidden></div>
+            <div class="preview-stage" id="st-stage" data-device="desktop">
+              <div class="device-frame">
+                <iframe id="st-preview" class="preview" title="Live app preview"></iframe>
+              </div>
+              <div class="preview-empty" id="st-preview-empty">Your app preview will appear here.</div>
+            </div>
+          </div>
+        </section>
+
         <!-- BUILD -->
-        <section class="panel layout active" id="panel-build" role="tabpanel">
+        <section class="panel layout" id="panel-build" role="tabpanel" hidden>
           <div class="card">
             <h2>Build</h2>
             <label for="spec">Spec</label>
@@ -218,6 +313,7 @@
   </div>
 
   <script src="/static/app.js"></script>
+  <script src="/static/studio.js"></script>
   <script type="module" src="/static/office.js"></script>
 </body>
 </html>

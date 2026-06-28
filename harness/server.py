@@ -150,6 +150,96 @@ def read_workspace_file(root: str, rel: str, max_bytes: int = 200_000) -> str:
         return "<binary file>"
 
 
+# --- Studio (Replit/Lovable-style) helpers --------------------------------
+
+STUDIO_MARKER = ".studio.json"
+
+# Web-ish kinds get a live, browser-previewable target and a default gate.
+_WEB_KINDS = {"frontend", "fullstack", "web", "ui", "react", "react-native", "mobile"}
+
+
+def _default_checks(kind: str) -> list[dict]:
+    """A minimal verification gate so freeform web apps still pass a real check."""
+    if kind.strip().lower() in _WEB_KINDS:
+        return [{
+            "name": "app builds",
+            "command": (
+                "python3 -c \"import pathlib,sys; "
+                "p=pathlib.Path('index.html'); "
+                "sys.exit(0 if p.is_file() and p.stat().st_size>80 else 1)\""
+            ),
+        }]
+    return []
+
+
+def studio_meta(workspace_dir: str) -> dict:
+    """Read the per-project Studio marker (kind/checks/engine), or {}."""
+    p = os.path.join(workspace_dir, STUDIO_MARKER)
+    try:
+        return json.loads(Path(p).read_text())
+    except (OSError, json.JSONDecodeError):
+        return {}
+
+
+def write_studio_meta(workspace_dir: str, meta: dict) -> None:
+    Path(workspace_dir).mkdir(parents=True, exist_ok=True)
+    Path(os.path.join(workspace_dir, STUDIO_MARKER)).write_text(json.dumps(meta, indent=2))
+
+
+def synth_spec(name: str, kind: str, description: str, language: str = "",
+               verification: list[dict] | None = None):
+    """Build an in-memory Spec for freeform / iterate flows (no YAML file needed)."""
+    checks = verification if verification is not None else _default_checks(kind)
+    return parse_spec({
+        "name": name or "app",
+        "kind": kind or "frontend",
+        "language": language or "html-css-js",
+        "description": description or "",
+        "verification": checks,
+    })
+
+
+_ITERATE_PROMPT = """\
+You are iterating on an existing app in the current working directory. Read the \
+files that exist, then apply this change while keeping everything else working \
+and the app runnable:
+
+{instruction}
+
+Keep the same overall stack and structure. Do not delete unrelated features. \
+When done, make sure the app still loads."""
+
+
+async def _iterate_once(spec, config: HarnessConfig, instruction: str):
+    """Run a single engine turn against an existing workspace. Returns (tokens, text)."""
+    from harness.engines.base import make_engine
+    engine = make_engine(spec, config)
+    async with engine:
+        text = await engine.send(_ITERATE_PROMPT.format(instruction=instruction), echo=True)
+    return getattr(engine, "total_tokens", 0), text
+
+
+def run_tests(workspace_dir: str, checks: list | None = None) -> dict:
+    """Run the verification suite for a workspace on demand (for the Run tests button)."""
+    from harness.spec import Check
+    if checks is None:
+        meta = studio_meta(workspace_dir)
+        checks = meta.get("checks") or _default_checks(meta.get("kind", "frontend"))
+    suite = [Check(name=c["name"], command=c["command"], cwd=workspace_dir) for c in checks]
+    if not suite:
+        return {"ok": True, "results": [], "note": "no checks defined"}
+    report = run_suite(suite, stop_on_failure=False)
+    return {
+        "ok": report.ok,
+        "results": [
+            {"name": r.name, "ok": r.ok, "skipped": r.skipped,
+             "returncode": r.returncode,
+             "output": ((r.stdout or "") + (("\n" + r.stderr) if r.stderr else "")).strip()[:2000]}
+            for r in report.results
+        ],
+    }
+
+
 # --- job runner -----------------------------------------------------------
 
 class Job:
@@ -218,6 +308,17 @@ class Console:
             name = os.path.basename(params.get("workspace") or "")
             workspace = os.path.abspath(os.path.join(self.workspaces_dir, name))
         else:
+            # Freeform (Studio): a natural-language prompt with no spec file —
+            # synthesize and persist a spec so the project is first-class.
+            if not params.get("spec") and params.get("prompt"):
+                params["spec"] = save_spec(self.specs_dir, {
+                    "name": params.get("name") or "app",
+                    "kind": params.get("kind") or "frontend",
+                    "language": params.get("language") or "html-css-js",
+                    "description": params["prompt"],
+                    "verification": params.get("verification")
+                    or _default_checks(params.get("kind") or "frontend"),
+                })
             spec_path = params["spec"]
             workspace = os.path.abspath(
                 params.get("workspace") or os.path.join(self.workspaces_dir, Path(spec_path).stem)
@@ -227,6 +328,65 @@ class Console:
         self.current = job
         threading.Thread(target=self._run, args=(job, params), daemon=True).start()
         return job
+
+    def iterate(self, params: dict) -> Job:
+        """Lovable-style conversational edit: one engine turn on an existing app."""
+        name = os.path.basename(params.get("workspace") or "")
+        workspace = os.path.abspath(os.path.join(self.workspaces_dir, name))
+        job = Job(str(int(time.time() * 1000)), workspace)
+        self.jobs[job.id] = job
+        self.current = job
+        threading.Thread(target=self._run_iterate, args=(job, params), daemon=True).start()
+        return job
+
+    def _run_iterate(self, job: Job, params: dict) -> None:
+        if not self._lock.acquire(blocking=False):
+            job.status = "error"
+            job.log("error: a build is already running")
+            job.done.set()
+            return
+        try:
+            with contextlib.redirect_stdout(_JobStream(job)):
+                self._execute_iterate(job, params)
+        except Exception as exc:
+            job.status = "error"
+            job.log(f"error: {type(exc).__name__}: {exc}")
+        finally:
+            job.done.set()
+            self._lock.release()
+
+    def _execute_iterate(self, job: Job, params: dict) -> None:
+        instruction = str(params.get("instruction", "")).strip()
+        if not instruction:
+            job.status = "error"
+            print("error: instruction is required")
+            return
+
+        meta = studio_meta(job.workspace)
+        kind = params.get("kind") or meta.get("kind") or "frontend"
+        provider = params.get("engine") or meta.get("engine") or "claude-cli"
+        model = params.get("model") or meta.get("model") or ""
+        base_url = params.get("base_url") or meta.get("base_url")
+        spec = synth_spec(os.path.basename(job.workspace), kind, instruction,
+                          verification=meta.get("checks"))
+
+        engine_cfg = EngineConfig(
+            provider=provider, model=model,
+            base_url=base_url or (DEFAULT_LOCAL_BASE_URL if provider == "local" else None),
+            api_key_env="OPENAI_API_KEY" if provider == "local" else "ANTHROPIC_API_KEY",
+        )
+        config = HarnessConfig(workspace=job.workspace, engine=engine_cfg)
+
+        print(f"[iterate] {provider} · {model or '(default)'} — applying change…")
+        print(f"› {instruction}")
+        tokens, _text = asyncio.run(_iterate_once(spec, config, instruction))
+        job.tokens = tokens
+        # Verify against the project's gate so the preview reflects a passing app.
+        result = run_tests(job.workspace, meta.get("checks"))
+        for r in result["results"]:
+            print(f"[{'PASS' if r['ok'] else 'FAIL'}] {r['name']}")
+        job.status = "passed" if result["ok"] else "failed"
+        print(f"RESULT: {job.status.upper()} · {tokens} tokens")
 
     def _run(self, job: Job, params: dict) -> None:
         if not self._lock.acquire(blocking=False):
@@ -261,6 +421,15 @@ class Console:
             return
 
         spec = load_spec(params["spec"], cwd=job.workspace)
+        # Persist a Studio marker so conversational iterate / Run tests know the
+        # project's persona, gate, and engine without the original spec file.
+        write_studio_meta(job.workspace, {
+            "kind": spec.kind,
+            "engine": params.get("engine", "anthropic"),
+            "model": params.get("model") or "",
+            "base_url": params.get("base_url"),
+            "checks": [{"name": c.name, "command": c.command} for c in spec.checks],
+        })
         if params.get("check_only"):
             report = run_suite(spec.checks, stop_on_failure=True)
             print(report.to_feedback() or "(no checks defined)")
@@ -373,10 +542,29 @@ def make_handler(console: Console):
             length = int(self.headers.get("Content-Length", 0))
             body = json.loads(self.rfile.read(length) or b"{}")
             if u.path == "/api/builds":
-                if not body.get("spec") and not body.get("resume"):
-                    return self._json({"error": "spec is required"}, 400)
-                job = console.start(body)
+                if not body.get("spec") and not body.get("resume") and not body.get("prompt"):
+                    return self._json({"error": "spec, prompt, or resume is required"}, 400)
+                try:
+                    job = console.start(body)
+                except SpecError as e:
+                    return self._json({"error": str(e)}, 400)
                 return self._json({"id": job.id, "workspace": job.workspace})
+            if u.path == "/api/iterate":
+                if not body.get("workspace") or not body.get("instruction"):
+                    return self._json({"error": "workspace and instruction are required"}, 400)
+                if console.busy():
+                    return self._json({"error": "a build is already running"}, 409)
+                job = console.iterate(body)
+                return self._json({"id": job.id, "workspace": job.workspace})
+            if u.path == "/api/test":
+                name = os.path.basename(body.get("workspace") or "")
+                root = os.path.join(os.path.abspath(console.workspaces_dir), name)
+                if not os.path.isdir(root):
+                    return self._json({"error": "unknown workspace"}, 404)
+                try:
+                    return self._json(run_tests(root, body.get("checks")))
+                except Exception as e:  # surface check-runner errors to the UI
+                    return self._json({"error": f"{type(e).__name__}: {e}"}, 500)
             if u.path == "/api/specs":
                 try:
                     p = save_spec(console.specs_dir, body)

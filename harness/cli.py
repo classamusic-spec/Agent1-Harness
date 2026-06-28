@@ -38,8 +38,10 @@ def _parse_args(argv: list[str]) -> argparse.Namespace:
                    help="Write a resumable checkpoint to this path each round")
     p.add_argument("--resume", default=None,
                    help="Resume a build from a checkpoint file (no spec needed)")
-    p.add_argument("--engine", "-e", choices=["anthropic", "local"], default="anthropic",
-                   help="Model backend (default: anthropic)")
+    p.add_argument("--engine", "-e", choices=["anthropic", "local", "claude-cli"],
+                   default="anthropic",
+                   help="Model backend: anthropic (SDK), local (OpenAI-compatible), "
+                        "or claude-cli (drive the installed Claude Code CLI)")
     p.add_argument("--model", "-m", default=None,
                    help=f"Model id/name (anthropic default: {DEFAULT_MODEL}; required for local)")
     p.add_argument("--base-url", default=None,
@@ -108,6 +110,12 @@ def _engine_config(args) -> EngineConfig:
             api_key_env=args.api_key_env or "OPENAI_API_KEY",
             temperature=args.temperature,
         )
+    if args.engine == "claude-cli":
+        return EngineConfig(
+            provider="claude-cli",
+            model=args.model or "",  # empty -> the CLI's default model
+            temperature=args.temperature,
+        )
     return EngineConfig(
         provider="anthropic",
         model=args.model or DEFAULT_MODEL,
@@ -129,6 +137,12 @@ def _preflight(engine: EngineConfig) -> str | None:
         if not os.environ.get(engine.api_key_env):
             return (f"{engine.api_key_env} is not set. Export it, switch to --engine local, "
                     "or use --check-only.")
+    elif engine.provider == "claude-cli":
+        import shutil
+        binname = os.environ.get("CLAUDE_CLI_BIN", "claude")
+        if shutil.which(binname) is None:
+            return (f"the claude-cli engine needs the '{binname}' CLI on PATH "
+                    "(install Claude Code, or set $CLAUDE_CLI_BIN).")
     else:  # local
         if not engine.model:
             return "the local engine requires --model (the name your server serves, e.g. qwen2.5-coder)."

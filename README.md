@@ -1,9 +1,12 @@
 # Agent1-Harness
 
 An **agent that builds applications from a spec** — a master front-end UI
-designer and a rigorous backend engineer — that runs on **Claude or your own
-local LLM**, improves itself by **learning from its mistakes**, and gates every
-build behind **deterministic verification + an independent reviewer/sentry**.
+designer and a rigorous backend engineer — that runs on **your Claude Code CLI,
+the Claude Agent SDK, or your own local LLM** (GLM / MiniMax / Qwen / …),
+improves itself by **learning from its mistakes**, and gates every build behind
+**deterministic verification + an independent reviewer/sentry**. A **Studio**
+surface lets you build and iterate conversationally with a **live preview**,
+Replit/Lovable-style.
 
 ```
             ┌─────────────────────────  the loop  ─────────────────────────┐
@@ -22,6 +25,17 @@ workspace.
 
 The build console (`appbuilder-web`) — a ChatGPT / Hermes-style app shell: a left
 nav rail, a roomy content area, automatic light/dark.
+
+**Studio (Replit / Lovable-style)** — chat to build an app, watch it render **live** on
+the right, browse the files, and re-run the gate on demand. Powered by **your Claude
+Code CLI** or a local LLM. This preview is a real app the Claude Code engine built and
+verified end-to-end:
+
+![Studio — live preview, desktop](docs/screenshots/studio-desktop.png)
+
+**Mobile preview** — the same app in a phone frame (great for responsive web / RN-web):
+
+![Studio — mobile device frame](docs/screenshots/studio-mobile.png)
 
 **Build tab** — pick spec/engine, toggle gates (review, test-first, approval), set budgets:
 
@@ -68,7 +82,8 @@ nav rail, a roomy content area, automatic light/dark.
 | **Live run controls** | `harness/control.py` | **Pause** or **Cancel** a running build from the console; the loop stops at the next round boundary. Pause leaves a checkpoint, so it's resumable. |
 | **3D Office** | `webui/office.js` (three.js) | A futuristic Office tab: an agent character works at a desk beside an **AI rig** whose fans spin and GPU cards glow cyan while a model runs. Animates with build state (idle / building / passed / failed), driven live by `/api/current`. three.js is vendored for offline use. |
 | **CI** | `.github/workflows/ci.yml` | Runs the full test suite on Python 3.10–3.12 on every push and PR. |
-| **Engines** | `harness/engines/` | `anthropic` (Claude Agent SDK) or `local` (any OpenAI-compatible server). |
+| **Studio (live preview)** | `harness/server.py` + `webui/studio.js` | A Replit/Lovable-style surface: describe an app → it builds → **live preview** (Desktop / Mobile device frame, reload, open) with a **Run tests** chip; then **chat to iterate** (`/api/iterate` runs one engine turn on the workspace and re-verifies). Freeform prompts become first-class specs. |
+| **Engines** | `harness/engines/` | `anthropic` (Claude Agent SDK), `local` (any OpenAI-compatible server — GLM / MiniMax / Qwen / …), or **`claude-cli`** — drives your installed, authenticated **Claude Code CLI** as the builder (no API key/SDK needed). |
 | **Personas** | `harness/personas.py` | Specialist system prompts by `kind`: frontend design, backend rigor, **React/React Native**, **SwiftUI (Apple-level)**. |
 | **Web console** | `harness/server.py` + `webui/` | Tabs: Build, **New Spec** (author specs), **Gallery** (preview built apps), and a **live Workspace view** (watch files appear/change as the agent works). Stdlib only. See `docs/screenshots/`. |
 | **Design checks** | `checks/` | Headless Playwright + axe-core + Lighthouse, wired as verification commands. |
@@ -108,6 +123,39 @@ Pick a spec, choose engine/model, toggle the reviewer/sentry gate and learning,
 and watch the build stream live (SSE). The UI itself dogfoods the design
 persona — a ChatGPT / Hermes-style sidebar shell, a cohesive token system,
 automatic light/dark, keyboard focus, and reduced-motion support.
+
+## Studio — build & iterate like Replit / Lovable
+
+The **Studio** tab is the conversational surface:
+
+1. **Describe** the app (or pick a kind). The harness builds it, then **verifies** it.
+2. **Watch it live** in the preview pane — toggle **Desktop / Mobile** (a phone frame),
+   reload, or open in a new tab. Hit **Run tests** to re-run the gate any time.
+3. **Chat to iterate** — "add a dark-mode toggle", "make the ring teal". Each message
+   runs one engine turn against the workspace and re-verifies; the preview reloads.
+
+Choose your engine right in Studio:
+
+- **Claude Code (CLI)** — drives your installed, authenticated `claude` CLI. No API key,
+  no SDK; *literally* plugging Claude Code in as the builder. (Set `$CLAUDE_CLI_BIN` to
+  point at a non-default binary.)
+- **Local** — any OpenAI-compatible server (Ollama / LM Studio / vLLM). Presets for
+  **GLM**, **MiniMax**, and **Qwen Coder**; the model id + base URL are editable to match
+  whatever your server exposes.
+
+```bash
+# Same thing from the CLI — build with your Claude Code login as the engine:
+appbuilder specs/landing-page.yaml -w workspaces/landing --engine claude-cli
+
+# …or a local model:
+appbuilder specs/landing-page.yaml -w workspaces/landing \
+    --engine local --base-url http://localhost:11434/v1 --model glm-4
+```
+
+> **Native mobile (RN / SwiftUI):** the in-browser preview covers web and
+> responsive/RN-web in a phone frame. True React Native and SwiftUI builds still need
+> their native toolchains (Node/Expo, macOS/Xcode) to *run* — the harness drives the
+> build the same way everywhere; only the run/preview surface differs.
 
 ## Native targets — React Native & SwiftUI
 
@@ -152,7 +200,7 @@ See `checks/README.md` (needs Node + Chromium).
 pip install -e .            # Claude engine
 pip install -e ".[local]"   # + local-LLM engine (openai client)
 pip install -e ".[dev]"     # + tests
-pytest                      # 54 offline tests; no API key, no network
+pytest                      # 121 offline tests; no API key, no network
 ```
 
 The trust-critical pieces (verifier, spec, isolation, memory, review parsing,

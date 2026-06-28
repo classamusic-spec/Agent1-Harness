@@ -4,7 +4,15 @@ Where the agent is strong today, and the highest-leverage things to add next.
 Ordered by impact-to-effort.
 
 ## Today (done)
-- Deterministic verification gate; engine-agnostic loop (Claude **or** local LLM).
+- **Studio (Replit / Lovable-style)** — describe an app → it builds → **live
+  preview** (Desktop / Mobile device frame, reload, Run tests) → **chat to
+  iterate** (one engine turn on the workspace, re-verified). Freeform prompts
+  become first-class specs.
+- **Claude Code (CLI) engine** — plug in your installed, authenticated `claude`
+  CLI as the builder (no API key/SDK). Plus `local` presets for GLM / MiniMax /
+  Qwen and any OpenAI-compatible server.
+- Deterministic verification gate; engine-agnostic loop (Claude SDK, **Claude
+  Code CLI**, **or** local LLM).
 - Specialist personas: frontend design, backend rigor, React/React Native, SwiftUI.
 - Reviewer / Sentry second gate (independent, structured verdict) — single focus
   or a **parallel panel** (quality + bugs + a11y), pass only if no blocker/major.
