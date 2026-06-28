@@ -20,8 +20,9 @@ Ordered by impact-to-effort.
 - **Human-in-the-loop approval** — `--approve-plan` / `--approve-build` pause for
   sign-off (stdin or an Approve/Reject banner in the console). **Feedback-driven**:
   rejecting with a message feeds it back as a targeted repair and the loop continues.
-- **Cost/time telemetry + budgets** — tokens + wall-clock per build, shown in the
-  console; `--token-budget` / `--deadline` stop the loop when exceeded.
+- **Cost/time telemetry + budgets** — tokens + wall-clock per build, with **live
+  token & time budget meters** in the console; `--token-budget` / `--deadline`
+  stop the loop when exceeded.
 - Web console with tabs: Build, **New Spec** (authoring), **Gallery** (artifact
   preview), and a **live Workspace view** (watch files appear/change as it builds).
 - Design-check templates (Playwright/axe/Lighthouse).
@@ -39,9 +40,7 @@ Ordered by impact-to-effort.
    unsafe deserialization, dependency risks.
 
 ## Next — isolation & ops
-7. **Cost/time telemetry** — surface token + wall-clock usage per build from the
-   engine and enforce hard budgets; show it in the console.
-8. **Resumable builds** — persist loop state so a build can be paused/resumed.
+7. **Resumable builds** — persist loop state so a build can be paused/resumed.
 
 ## Next — reach & DX
 10. **Project scaffolds** — first-class starters for React (Vite), React Native

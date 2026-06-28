@@ -248,6 +248,17 @@ def test_token_budget_stops(tmp_path):
     assert not result.ok and result.stop_reason == "token-budget"
 
 
+def test_on_progress_callback(tmp_path):
+    spec = _spec()
+    cfg = _config(tmp_path / "ws")
+    builder = FakeEngine(str(tmp_path / "ws"), [_writer("ok")], total_tokens=10)
+    seen = []
+    asyncio.run(build(spec, cfg, echo=False,
+                      builder_factory=lambda s, c: builder, on_progress=lambda p: seen.append(p)))
+    assert seen and "tokens" in seen[0] and "elapsed" in seen[0]
+    assert seen[-1]["tokens"] == 10
+
+
 def test_telemetry_reported(tmp_path):
     spec = _spec()
     cfg = _config(tmp_path / "ws")

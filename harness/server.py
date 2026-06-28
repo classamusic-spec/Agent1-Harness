@@ -162,6 +162,8 @@ class Job:
         self.approve_event = threading.Event()
         self.tokens = 0
         self.elapsed = 0.0
+        self.token_budget = None
+        self.deadline = None
 
     def log(self, text: str) -> None:
         for line in text.splitlines():
@@ -264,12 +266,20 @@ class Console:
             test_first=bool(params.get("test_first")),
             approve_plan=approve_plan, approve_build=approve_build,
             max_tokens_budget=params.get("token_budget"),
+            deadline_seconds=params.get("deadline"),
         )
+        job.token_budget = params.get("token_budget")
+        job.deadline = params.get("deadline")
         from harness.agent import build
 
         gate = ServerApproval(job) if (approve_plan or approve_build) else None
+
+        def on_progress(p):
+            job.tokens = p.get("tokens", job.tokens)
+            job.elapsed = p.get("elapsed", job.elapsed)
+
         print(f"engine={provider} model={model or '(unset)'} kind={spec.kind}")
-        result = asyncio.run(build(spec, config, echo=True, approval=gate))
+        result = asyncio.run(build(spec, config, echo=True, approval=gate, on_progress=on_progress))
         job.status = "passed" if result.ok else "failed"
         job.tokens, job.elapsed = result.tokens_used, result.elapsed_seconds
         print(f"RESULT: {job.status.upper()} ({result.stop_reason}) after {result.rounds} round(s)")
@@ -322,6 +332,8 @@ def make_handler(console: Console):
                                    "pending": j.pending if j else None,
                                    "tokens": j.tokens if j else 0,
                                    "elapsed": round(j.elapsed, 1) if j else 0.0,
+                                   "token_budget": j.token_budget if j else None,
+                                   "deadline": j.deadline if j else None,
                                    "busy": console.busy()})
             if path == "/api/workspace":
                 root = self._ws_root(q.get("dir", [""])[0])

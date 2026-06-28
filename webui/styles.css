@@ -293,6 +293,18 @@ input[type="number"]:focus { outline: none; border-color: var(--accent); box-sha
 .approval-actions { display: flex; justify-content: flex-end; gap: var(--sp); }
 .approval-actions .primary { width: auto; margin: 0; padding: 9px 18px; }
 
+/* Budget meters */
+.meters { display: grid; gap: 8px; margin: var(--sp) 0 0; }
+.meter { display: grid; grid-template-columns: 56px 1fr auto; align-items: center; gap: 10px; }
+.meter-label { font-size: 0.74rem; color: var(--muted); }
+.meter .bar { height: 8px; border-radius: 999px; background: var(--field-2);
+  border: 1px solid var(--hairline); overflow: hidden; }
+.meter .bar i { display: block; height: 100%; width: 0%; border-radius: 999px;
+  background: linear-gradient(90deg, #5ac8fa, var(--accent)); transition: width 0.4s ease; }
+.meter .bar i.warn { background: linear-gradient(90deg, var(--warn), #ff9f0a); }
+.meter .bar i.over { background: linear-gradient(90deg, #ff7a90, var(--bad)); }
+.meter-val { font-size: 0.74rem; color: var(--muted); font-variant-numeric: tabular-nums; min-width: 96px; text-align: right; }
+
 /* Color-coded log lines */
 .line { white-space: pre-wrap; word-break: break-word; }
 .line.ok { color: var(--good); }

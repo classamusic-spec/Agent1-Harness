@@ -75,8 +75,16 @@
           <label class="toggle"><input type="checkbox" id="approveplan" /> <span>Approve test plan</span></label>
           <label class="toggle"><input type="checkbox" id="approvebuild" /> <span>Approve final build</span></label>
           <label class="toggle"><input type="checkbox" id="checkonly" /> <span>Verify only (no model)</span></label>
-          <label for="tokenbudget">Token budget <span class="muted">(0 = none)</span></label>
-          <input id="tokenbudget" type="number" min="0" placeholder="0" />
+          <div class="two">
+            <div>
+              <label for="tokenbudget">Token budget <span class="muted">(0 = none)</span></label>
+              <input id="tokenbudget" type="number" min="0" placeholder="0" />
+            </div>
+            <div>
+              <label for="timebudget">Time budget s <span class="muted">(0 = none)</span></label>
+              <input id="timebudget" type="number" min="0" placeholder="0" />
+            </div>
+          </div>
         </fieldset>
 
         <button id="run" class="primary">Build</button>
@@ -86,6 +94,18 @@
         <div class="log-head">
           <h2>Log</h2>
           <div class="head-right"><span class="stat" id="stat"></span><span class="badge" id="status" data-state="idle">idle</span></div>
+        </div>
+        <div id="meters" class="meters" hidden>
+          <div class="meter">
+            <span class="meter-label">Tokens</span>
+            <div class="bar"><i id="bar-tokens"></i></div>
+            <span class="meter-val" id="meter-tokens"></span>
+          </div>
+          <div class="meter">
+            <span class="meter-label">Time</span>
+            <div class="bar"><i id="bar-time"></i></div>
+            <span class="meter-val" id="meter-time"></span>
+          </div>
         </div>
         <div id="log" class="log" tabindex="0" aria-live="polite" data-empty="Logs will appear here once a build starts."></div>
       </div>

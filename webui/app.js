@@ -70,6 +70,7 @@ const radio = (n) => document.querySelector(`input[name="${n}"]:checked`).value;
 async function run() {
   $("#log").textContent = ""; setStatus("running", "running"); $("#run").disabled = true;
   const tb = Number($("#tokenbudget").value) || 0;
+  const db = Number($("#timebudget").value) || 0;
   const body = {
     spec: $("#spec").value, workspace: $("#workspace").value || null,
     engine: radio("engine"), model: $("#model").value || null, base_url: $("#baseurl").value || null,
@@ -79,6 +80,7 @@ async function run() {
     test_first: $("#testfirst").checked,
     approve_plan: $("#approveplan").checked, approve_build: $("#approvebuild").checked,
     token_budget: tb > 0 ? tb : null,
+    deadline: db > 0 ? db : null,
   };
   try {
     const j = await (await fetch("/api/builds", {
@@ -213,6 +215,7 @@ async function pollCurrent() {
     const c = await (await fetch("/api/current")).json();
     currentJobId = c.job;
     $("#stat").textContent = c.tokens ? `${c.tokens} tokens · ${c.elapsed}s` : "";
+    updateMeters(c);
     const banner = $("#approval");
     if (c.pending) {
       banner.hidden = false;
@@ -222,6 +225,26 @@ async function pollCurrent() {
       banner.hidden = true;
     }
   } catch {}
+}
+function setBar(barId, valId, used, budget, fmt) {
+  const pct = Math.min(100, (used / budget) * 100);
+  const bar = $(barId);
+  bar.style.width = pct + "%";
+  bar.className = pct >= 100 ? "over" : pct >= 80 ? "warn" : "";
+  $(valId).textContent = `${fmt(used)} / ${fmt(budget)}`;
+}
+function updateMeters(c) {
+  const meters = $("#meters");
+  const hasTok = c.token_budget > 0;
+  const hasTime = c.deadline > 0;
+  if (!hasTok && !hasTime) { meters.hidden = true; return; }
+  meters.hidden = false;
+  const tokMeter = $("#bar-tokens").closest(".meter");
+  const timeMeter = $("#bar-time").closest(".meter");
+  tokMeter.style.display = hasTok ? "" : "none";
+  timeMeter.style.display = hasTime ? "" : "none";
+  if (hasTok) setBar("#bar-tokens", "#meter-tokens", c.tokens || 0, c.token_budget, (n) => `${n}`);
+  if (hasTime) setBar("#bar-time", "#meter-time", c.elapsed || 0, c.deadline, (n) => `${Number(n).toFixed(0)}s`);
 }
 function formatPending(p) {
   if (p.kind === "plan") return (p.payload.checks || []).map((c) => `${c[0]}: ${c[1]}`).join("\n");

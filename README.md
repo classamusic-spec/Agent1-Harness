@@ -26,9 +26,9 @@ The build console (`appbuilder-web`) — clean, Apple-inspired, automatic light/
 
 ![Build console](docs/screenshots/console-build-options.png)
 
-**Color-coded live log** — passes, failures, gate banners, and telemetry at a glance:
+**Color-coded live log + budget meters** — passes/failures/gates at a glance, with live token & time budget bars:
 
-![Color-coded log](docs/screenshots/console-log.png)
+![Color-coded log and budget meters](docs/screenshots/console-budget-meters.png)
 
 **Live Workspace view** — watch files appear/change as the agent works, with a file viewer and live preview:
 
@@ -58,7 +58,7 @@ The build console (`appbuilder-web`) — clean, Apple-inspired, automatic light/
 | **Isolation** | `harness/isolation.py` | `directory` (default) or `worktree` (a git worktree off a base repo). |
 | **Exec sandbox** | `harness/sandbox.py` | Commands run on the `--sandbox host` (default) or in a throwaway `--sandbox docker` container with the workspace bind-mounted. |
 | **Approval gates** | `harness/approval.py` | `--approve-plan` / `--approve-build` pause for human sign-off (stdin in the CLI, or an Approve/Reject banner in the console). Rejecting **with a message** feeds it back as a targeted repair and the loop continues; a message-less rejection stops. |
-| **Telemetry & budgets** | engines + `agent.py` | Tokens + wall-clock per build, shown in the CLI summary and the console; `--token-budget` and `--deadline` stop the loop when exceeded. |
+| **Telemetry & budgets** | engines + `agent.py` | Tokens + wall-clock per build; `--token-budget` / `--deadline` stop the loop when exceeded. The console shows **live token & time budget meters** that fill as the build runs (amber near the limit, red over). |
 | **Engines** | `harness/engines/` | `anthropic` (Claude Agent SDK) or `local` (any OpenAI-compatible server). |
 | **Personas** | `harness/personas.py` | Specialist system prompts by `kind`: frontend design, backend rigor, **React/React Native**, **SwiftUI (Apple-level)**. |
 | **Web console** | `harness/server.py` + `webui/` | Tabs: Build, **New Spec** (author specs), **Gallery** (preview built apps), and a **live Workspace view** (watch files appear/change as the agent works). Stdlib only. See `docs/screenshots/`. |

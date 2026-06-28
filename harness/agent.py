@@ -110,6 +110,7 @@ async def build(
     fixer_factory: Factory = _default_fixer,
     planner_factory: Factory = _default_planner,
     approval: ApprovalGate | None = None,
+    on_progress=None,
 ) -> BuildResult:
     """Run the full self-improving build loop for a spec."""
     approval = approval or AutoApprove()
@@ -208,6 +209,9 @@ async def build(
             while True:
                 report = run_suite(spec.checks, stop_on_failure=config.stop_on_failure, runner=runner)
                 progress.append(len(report.failures))
+                if on_progress:
+                    on_progress({"tokens": getattr(builder, "total_tokens", 0) + extra_tokens,
+                                 "elapsed": time.monotonic() - start, "round": len(progress)})
                 if first_report is None and not report.ok:
                     first_report = report
                 if echo:
