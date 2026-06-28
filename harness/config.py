@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import dataclasses
 import os
 from dataclasses import dataclass, field
 
@@ -65,6 +66,9 @@ class HarnessConfig:
     # Token budget (wall-clock budget is deadline_seconds above).
     max_tokens_budget: int | None = None
 
+    # Resumability: when set, a checkpoint is written here each round.
+    checkpoint_path: str | None = None
+
     # Reviewer / Sentry second gate.
     enable_review: bool = False
     review_focus: str = "quality"  # "quality" | "bugs" | "a11y"
@@ -102,3 +106,15 @@ class HarnessConfig:
             api_key_env=self.engine.api_key_env,
             temperature=self.engine.temperature,
         )
+
+
+def config_to_dict(config: HarnessConfig) -> dict:
+    """Serialize a HarnessConfig (incl. nested EngineConfig) to a plain dict."""
+    return dataclasses.asdict(config)
+
+
+def config_from_dict(data: dict) -> HarnessConfig:
+    """Rebuild a HarnessConfig from config_to_dict output."""
+    d = dict(data)
+    engine = EngineConfig(**d.pop("engine", {}))
+    return HarnessConfig(engine=engine, **d)

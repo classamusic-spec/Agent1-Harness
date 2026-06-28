@@ -136,7 +136,19 @@ async function loadArtifacts() {
     for (const a of artifacts) {
       const li = document.createElement("li");
       li.className = "row";
-      li.innerHTML = `<span>${a.name}</span><span class="muted">${a.files} files${a.has_index ? " · web" : ""}</span>`;
+      const meta = `${a.files} files${a.has_index ? " · web" : ""}`;
+      const right = document.createElement("span");
+      right.className = "muted";
+      right.textContent = meta;
+      const label = document.createElement("span");
+      label.textContent = a.name;
+      li.append(label, right);
+      if (a.has_checkpoint) {
+        const btn = document.createElement("button");
+        btn.className = "ghost"; btn.textContent = "Resume";
+        btn.addEventListener("click", (e) => { e.stopPropagation(); resumeBuild(a.name); });
+        li.appendChild(btn);
+      }
       li.addEventListener("click", () => {
         $$("#artifacts .row").forEach((r) => r.classList.remove("sel"));
         li.classList.add("sel");
@@ -147,6 +159,20 @@ async function loadArtifacts() {
     }
     if (!$("#artifacts .sel")) ul.querySelector(".row")?.click(); // auto-preview first
   } catch {}
+}
+
+async function resumeBuild(name) {
+  $("#log").textContent = ""; setStatus("running", "running");
+  try {
+    const j = await (await fetch("/api/builds", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ resume: true, workspace: name }),
+    })).json();
+    if (j.error) { setStatus("error", j.error); return; }
+    currentWorkspaceName = name;
+    showTab("workspace");
+    stream(j.id);
+  } catch { setStatus("error", "resume failed"); }
 }
 
 /* ---------- workspace (live) ---------- */

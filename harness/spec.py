@@ -81,6 +81,22 @@ def parse_spec(data: dict, *, cwd: str | None = None) -> Spec:
     )
 
 
+def spec_to_dict(spec: Spec) -> dict:
+    """Serialize a Spec back to the YAML-spec mapping form (for checkpoints)."""
+    return {
+        "name": spec.name,
+        "description": spec.description,
+        "kind": spec.kind,
+        "language": spec.language,
+        "constraints": list(spec.constraints),
+        "verification": [
+            {"name": c.name, "command": c.command, "timeout": c.timeout,
+             "allow_failure": c.allow_failure}
+            for c in spec.checks
+        ],
+    }
+
+
 def load_spec(path: str | Path, *, cwd: str | None = None) -> Spec:
     """Load and validate a YAML spec from disk."""
     path = Path(path)

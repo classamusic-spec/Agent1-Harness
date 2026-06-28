@@ -196,7 +196,10 @@ class DemoEngine(Engine):
 async def _main(workspace: str) -> int:
     ws = os.path.abspath(workspace)
     spec = load_spec("specs/notes-app.yaml", cwd=ws)
-    config = HarnessConfig(workspace=ws, engine=EngineConfig(provider="local", model="demo-engine"))
+    config = HarnessConfig(
+        workspace=ws, engine=EngineConfig(provider="local", model="demo-engine"),
+        checkpoint_path=os.path.join(ws, ".appbuilder_checkpoint.json"),
+    )
     result = await build(spec, config, echo=True, builder_factory=lambda s, c: DemoEngine(c.workspace))
 
     print("\n" + "=" * 40)

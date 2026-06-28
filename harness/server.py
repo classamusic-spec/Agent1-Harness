@@ -109,6 +109,7 @@ def list_artifacts(workspaces_dir: str) -> list[dict]:
             "name": d.name,
             "files": len(files),
             "has_index": (d / "index.html").is_file(),
+            "has_checkpoint": (d / ".appbuilder_checkpoint.json").is_file(),
         })
     return out
 
@@ -211,10 +212,14 @@ class Console:
         return self._lock.locked()
 
     def start(self, params: dict) -> Job:
-        spec_path = params["spec"]
-        workspace = os.path.abspath(
-            params.get("workspace") or os.path.join(self.workspaces_dir, Path(spec_path).stem)
-        )
+        if params.get("resume"):
+            name = os.path.basename(params.get("workspace") or "")
+            workspace = os.path.abspath(os.path.join(self.workspaces_dir, name))
+        else:
+            spec_path = params["spec"]
+            workspace = os.path.abspath(
+                params.get("workspace") or os.path.join(self.workspaces_dir, Path(spec_path).stem)
+            )
         job = Job(str(int(time.time() * 1000)), workspace)
         self.jobs[job.id] = job
         self.current = job
@@ -238,6 +243,21 @@ class Console:
             self._lock.release()
 
     def _execute(self, job: Job, params: dict) -> None:
+        cp_path = os.path.join(job.workspace, ".appbuilder_checkpoint.json")
+
+        def on_progress(p):
+            job.tokens = p.get("tokens", job.tokens)
+            job.elapsed = p.get("elapsed", job.elapsed)
+
+        if params.get("resume"):
+            from harness.agent import resume
+            print(f"Resuming build in {job.workspace}…")
+            result = asyncio.run(resume(cp_path, echo=True, on_progress=on_progress))
+            job.status = "passed" if result.ok else "failed"
+            job.tokens, job.elapsed = result.tokens_used, result.elapsed_seconds
+            print(f"RESULT: {job.status.upper()} ({result.stop_reason}) after {result.rounds} round(s)")
+            return
+
         spec = load_spec(params["spec"], cwd=job.workspace)
         if params.get("check_only"):
             report = run_suite(spec.checks, stop_on_failure=True)
@@ -267,16 +287,13 @@ class Console:
             approve_plan=approve_plan, approve_build=approve_build,
             max_tokens_budget=params.get("token_budget"),
             deadline_seconds=params.get("deadline"),
+            checkpoint_path=cp_path,
         )
         job.token_budget = params.get("token_budget")
         job.deadline = params.get("deadline")
         from harness.agent import build
 
         gate = ServerApproval(job) if (approve_plan or approve_build) else None
-
-        def on_progress(p):
-            job.tokens = p.get("tokens", job.tokens)
-            job.elapsed = p.get("elapsed", job.elapsed)
 
         print(f"engine={provider} model={model or '(unset)'} kind={spec.kind}")
         result = asyncio.run(build(spec, config, echo=True, approval=gate, on_progress=on_progress))
@@ -353,7 +370,7 @@ def make_handler(console: Console):
             length = int(self.headers.get("Content-Length", 0))
             body = json.loads(self.rfile.read(length) or b"{}")
             if u.path == "/api/builds":
-                if not body.get("spec"):
+                if not body.get("spec") and not body.get("resume"):
                     return self._json({"error": "spec is required"}, 400)
                 job = console.start(body)
                 return self._json({"id": job.id, "workspace": job.workspace})

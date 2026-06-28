@@ -32,8 +32,12 @@ from harness.verifier import run_suite
 def _parse_args(argv: list[str]) -> argparse.Namespace:
     p = argparse.ArgumentParser(prog="appbuilder", description=__doc__,
                                 formatter_class=argparse.RawDescriptionHelpFormatter)
-    p.add_argument("spec", help="Path to the YAML build spec")
-    p.add_argument("--workspace", "-w", required=True, help="Directory to build the app in")
+    p.add_argument("spec", nargs="?", help="Path to the YAML build spec (omit when using --resume)")
+    p.add_argument("--workspace", "-w", help="Directory to build the app in")
+    p.add_argument("--checkpoint", default=None,
+                   help="Write a resumable checkpoint to this path each round")
+    p.add_argument("--resume", default=None,
+                   help="Resume a build from a checkpoint file (no spec needed)")
     p.add_argument("--engine", "-e", choices=["anthropic", "local"], default="anthropic",
                    help="Model backend (default: anthropic)")
     p.add_argument("--model", "-m", default=None,
@@ -131,8 +135,42 @@ def _preflight(engine: EngineConfig) -> str | None:
     return None
 
 
+def _summarize(result, *, workspace=None, learn=False) -> int:
+    print("\n" + "=" * 40)
+    print(f"BUILD {'SUCCEEDED' if result.ok else 'FAILED'} ({result.stop_reason}) "
+          f"after {result.rounds} round(s)")
+    if result.progress:
+        print(f"Failing checks per round: {result.progress}")
+    if result.escalations:
+        print(f"Escalations used: {result.escalations}")
+    print(f"Telemetry: {result.tokens_used} tokens · {result.elapsed_seconds:.1f}s")
+    if result.report and not result.ok:
+        print("\nRemaining failures:")
+        for f in result.report.failures:
+            print(f"  - {f.name} (exit {f.returncode})")
+    if result.verdict and not result.verdict.approved:
+        print("\nReviewer findings:")
+        for f in result.verdict.blocking:
+            print(f"  - ({f.severity}) {f.title}")
+    if learn:
+        print(f"Lessons recorded this build: {result.lessons_learned}")
+    print(f"Workspace: {result.workspace or workspace}")
+    return 0 if result.ok else 1
+
+
 def main(argv: list[str] | None = None) -> int:
     args = _parse_args(argv if argv is not None else sys.argv[1:])
+
+    # Resume mode: continue a build from its checkpoint (no spec/workspace needed).
+    if args.resume:
+        from harness.agent import resume
+        print(f"Resuming from checkpoint: {args.resume}")
+        result = asyncio.run(resume(args.resume, echo=not args.no_echo))
+        return _summarize(result)
+
+    if not args.spec or not args.workspace:
+        print("error: a spec and --workspace are required (or use --resume CHECKPOINT)", file=sys.stderr)
+        return 2
     workspace = os.path.abspath(args.workspace)
 
     try:
@@ -183,6 +221,7 @@ def main(argv: list[str] | None = None) -> int:
         approve_plan=args.approve_plan,
         approve_build=args.approve_build,
         max_tokens_budget=args.token_budget,
+        checkpoint_path=args.checkpoint,
     )
 
     approval = None
@@ -205,27 +244,7 @@ def main(argv: list[str] | None = None) -> int:
           f"isolation: {args.isolation} | gates: {gates}"
           + (" | " + " ".join(extras) if extras else ""))
     result = asyncio.run(build(spec, config, echo=not args.no_echo, approval=approval))
-
-    print("\n" + "=" * 40)
-    print(f"BUILD {'SUCCEEDED' if result.ok else 'FAILED'} ({result.stop_reason}) "
-          f"after {result.rounds} round(s)")
-    if result.progress:
-        print(f"Failing checks per round: {result.progress}")
-    if result.escalations:
-        print(f"Escalations used: {result.escalations}")
-    print(f"Telemetry: {result.tokens_used} tokens · {result.elapsed_seconds:.1f}s")
-    if result.report and not result.ok:
-        print("\nRemaining failures:")
-        for f in result.report.failures:
-            print(f"  - {f.name} (exit {f.returncode})")
-    if result.verdict and not result.verdict.approved:
-        print("\nReviewer findings:")
-        for f in result.verdict.blocking:
-            print(f"  - ({f.severity}) {f.title}")
-    if learn:
-        print(f"Lessons recorded this build: {result.lessons_learned}")
-    print(f"Workspace: {result.workspace or workspace}")
-    return 0 if result.ok else 1
+    return _summarize(result, workspace=workspace, learn=learn)
 
 
 if __name__ == "__main__":

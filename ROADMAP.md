@@ -23,8 +23,10 @@ Ordered by impact-to-effort.
 - **Cost/time telemetry + budgets** — tokens + wall-clock per build, with **live
   token & time budget meters** in the console; `--token-budget` / `--deadline`
   stop the loop when exceeded.
+- **Resumable builds** — `--checkpoint` / `--resume`; the durable workspace plus a
+  JSON checkpoint let an interrupted build continue to green (Resume in the Gallery).
 - Web console with tabs: Build, **New Spec** (authoring), **Gallery** (artifact
-  preview), and a **live Workspace view** (watch files appear/change as it builds).
+  preview + Resume), and a **live Workspace view** (watch files appear/change as it builds).
 - Design-check templates (Playwright/axe/Lighthouse).
 
 ## Next — correctness & convergence
@@ -40,7 +42,7 @@ Ordered by impact-to-effort.
    unsafe deserialization, dependency risks.
 
 ## Next — isolation & ops
-7. **Resumable builds** — persist loop state so a build can be paused/resumed.
+7. **Live mid-run controls** — pause / cancel a running build from the console.
 
 ## Next — reach & DX
 10. **Project scaffolds** — first-class starters for React (Vite), React Native

@@ -259,6 +259,39 @@ def test_on_progress_callback(tmp_path):
     assert seen[-1]["tokens"] == 10
 
 
+def test_checkpoint_written_on_build(tmp_path):
+    from harness.checkpoint import load_checkpoint
+    cp = str(tmp_path / "cp.json")
+    spec = _spec()
+    cfg = _config(tmp_path / "ws", checkpoint_path=cp)
+    builder = FakeEngine(str(tmp_path / "ws"), [_writer("ok")])
+    result = asyncio.run(build(spec, cfg, echo=False, builder_factory=lambda s, c: builder))
+    assert result.ok
+    saved = load_checkpoint(cp)
+    assert saved.status == "completed" and saved.stop_reason == "verified"
+
+
+def test_resume_continues_to_green(tmp_path):
+    from harness.agent import resume
+    from harness.checkpoint import load_checkpoint
+    cp = str(tmp_path / "cp.json")
+    ws = str(tmp_path / "ws")
+    spec = _spec()
+
+    # First run never writes the file -> fails, leaving a 'failed' checkpoint.
+    cfg = _config(tmp_path / "ws", max_repairs=0, max_escalations=0, checkpoint_path=cp)
+    first = asyncio.run(build(spec, cfg, echo=False,
+                             builder_factory=lambda s, c: FakeEngine(ws, [_noop])))
+    assert not first.ok and load_checkpoint(cp).status == "failed"
+
+    # Resume: a fresh builder writes the file against the existing workspace -> green.
+    second = asyncio.run(resume(cp, echo=False,
+                               builder_factory=lambda s, c: FakeEngine(c.workspace, [_writer("done")])))
+    assert second.ok and second.stop_reason == "verified"
+    assert load_checkpoint(cp).status == "completed"
+    assert load_checkpoint(cp).sessions == 2  # resumed once
+
+
 def test_telemetry_reported(tmp_path):
     spec = _spec()
     cfg = _config(tmp_path / "ws")

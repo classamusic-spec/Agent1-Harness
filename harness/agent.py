@@ -29,7 +29,8 @@ from dataclasses import dataclass, field
 from typing import Callable
 
 from harness.approval import ApprovalGate, AutoApprove
-from harness.config import HarnessConfig
+from harness.checkpoint import Checkpoint, checkpoint_exists, load_checkpoint, save_checkpoint
+from harness.config import HarnessConfig, config_from_dict, config_to_dict
 from harness.diffing import diff_snapshots, snapshot
 from harness.engines import Engine, make_engine
 from harness.isolation import workspace_session
@@ -47,7 +48,7 @@ from harness.prompts import (
 )
 from harness.reflect import reflect
 from harness.review import ReviewVerdict, run_panel
-from harness.spec import Spec
+from harness.spec import Spec, parse_spec, spec_to_dict
 from harness.verifier import VerificationReport, failure_delta, run_suite
 
 Factory = Callable[[Spec, HarnessConfig], Engine]
@@ -159,26 +160,60 @@ async def build(
         escalations = 0
         extra_tokens = 0  # reviewer + fixer tokens (builder counted at finish)
         start = time.monotonic()
+
+        # Resume support: carry cumulative tokens/elapsed and session count.
+        base_tokens, base_elapsed, sessions = 0, 0.0, 1
+        if config.checkpoint_path and checkpoint_exists(config.checkpoint_path):
+            try:
+                prior = load_checkpoint(config.checkpoint_path)
+                base_tokens, base_elapsed, sessions = (
+                    prior.tokens_used, prior.elapsed_seconds, prior.sessions + 1)
+                if echo:
+                    print(_banner(f"resuming build (session {sessions})"), flush=True)
+            except Exception:
+                pass
+
         builder = builder_factory(spec, run_config)
 
         def _diff() -> str:
             return diff_snapshots(prev_snap, cur_snap) if config.diff_aware else ""
+
+        def _tokens() -> int:
+            return base_tokens + getattr(builder, "total_tokens", 0) + extra_tokens
+
+        def _elapsed() -> float:
+            return base_elapsed + (time.monotonic() - start)
+
+        def _write_cp(status: str, stop_reason: str = "") -> None:
+            if not config.checkpoint_path:
+                return
+            try:
+                save_checkpoint(config.checkpoint_path, Checkpoint(
+                    spec=spec_to_dict(spec),
+                    config=config_to_dict(dataclasses.replace(config, workspace=ws)),
+                    workspace=ws, status=status, stop_reason=stop_reason,
+                    rounds=len(progress), escalations=escalations,
+                    tokens_used=_tokens(), elapsed_seconds=round(_elapsed(), 2),
+                    sessions=sessions, progress=list(progress)))
+            except Exception:
+                pass
 
         async with builder:
             transcript.append(await builder.send(with_lessons(build_prompt(spec), lessons_text), echo=echo))
             cur_snap = snapshot(ws)
 
             if not spec.has_verification:
+                _write_cp("completed", "no-verification")
                 return BuildResult(True, 1, "no-verification", workspace=ws,
-                                   tokens_used=getattr(builder, "total_tokens", 0),
-                                   elapsed_seconds=time.monotonic() - start, transcript=transcript)
+                                   tokens_used=_tokens(), elapsed_seconds=_elapsed(),
+                                   transcript=transcript)
 
             async def finish(ok, reason, *, report=None, verdict=None, findings=None):
                 learned = await _finalize(store, spec, config, builder, report=report,
                                           findings=findings, echo=echo)
-                tokens = getattr(builder, "total_tokens", 0) + extra_tokens
+                _write_cp("completed" if ok else "failed", reason)
                 return BuildResult(ok, len(progress), reason, report, verdict, ws,
-                                   learned, escalations, tokens, time.monotonic() - start,
+                                   learned, escalations, _tokens(), _elapsed(),
                                    progress, transcript)
 
             async def accept(reason, *, report=None, verdict=None):
@@ -210,15 +245,15 @@ async def build(
                 report = run_suite(spec.checks, stop_on_failure=config.stop_on_failure, runner=runner)
                 progress.append(len(report.failures))
                 if on_progress:
-                    on_progress({"tokens": getattr(builder, "total_tokens", 0) + extra_tokens,
-                                 "elapsed": time.monotonic() - start, "round": len(progress)})
+                    on_progress({"tokens": _tokens(), "elapsed": _elapsed(), "round": len(progress)})
+                _write_cp("running")
                 if first_report is None and not report.ok:
                     first_report = report
                 if echo:
                     print(_banner(f"verification (round {len(progress)})"), flush=True)
                     print(report.to_feedback() or "(no checks)", flush=True)
 
-                if config.max_tokens_budget and getattr(builder, "total_tokens", 0) >= config.max_tokens_budget:
+                if config.max_tokens_budget and _tokens() >= config.max_tokens_budget:
                     if echo:
                         print(f"[loop] token budget reached ({config.max_tokens_budget}) — stopping", flush=True)
                     return await finish(report.ok, "token-budget", report=None if report.ok else report)
@@ -293,6 +328,16 @@ async def build(
                 transcript.append(await builder.send(
                     review_repair_prompt(verdict, review_attempt, config.max_repairs), echo=echo))
                 prev_snap, cur_snap = cur_snap, snapshot(ws)
+
+
+async def resume(checkpoint_path: str, *, echo: bool = True, **kwargs) -> BuildResult:
+    """Resume a build from a checkpoint, continuing against its existing workspace."""
+    cp = load_checkpoint(checkpoint_path)
+    spec = parse_spec(cp.spec)
+    config = config_from_dict(cp.config)
+    if not config.checkpoint_path:
+        config = dataclasses.replace(config, checkpoint_path=checkpoint_path)
+    return await build(spec, config, echo=echo, **kwargs)
 
 
 async def _finalize(store, spec, config, builder, *, report=None, findings=None, echo=True) -> int:
