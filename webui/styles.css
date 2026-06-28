@@ -518,7 +518,7 @@ input[type="number"]:focus { outline: none; border-color: var(--accent); box-sha
   background:
     radial-gradient(700px 360px at 70% -10%, rgba(0,113,227,0.06), transparent 60%),
     var(--field-2);
-  border: 1px solid var(--hairline); border-radius: var(--radius-sm); min-height: 56vh;
+  border: 1px solid var(--hairline); border-radius: var(--radius-sm); min-height: 46vh;
 }
 .preview-stage .device-frame { transition: all 0.2s ease; }
 .preview-stage[data-device="desktop"] .device-frame { width: 100%; height: 64vh; }
@@ -532,6 +532,31 @@ input[type="number"]:focus { outline: none; border-color: var(--accent); box-sha
 .preview-stage[data-device="mobile"] .preview {
   width: 100%; height: 100%; border: 0; border-radius: 26px; background: #fff; }
 .preview-empty { position: absolute; color: var(--muted); font-size: 0.85rem; pointer-events: none; }
+
+/* Devtools-style console for the previewed app */
+.console-drawer { margin-top: var(--sp); border: 1px solid var(--hairline);
+  border-radius: var(--radius-sm); background: var(--code-bg); overflow: hidden; }
+.console-head { display: flex; align-items: center; gap: var(--sp); padding: 6px 8px;
+  border-bottom: 1px solid var(--hairline); }
+.console-hint { flex: 1; font-size: 0.72rem; color: var(--muted); overflow: hidden;
+  text-overflow: ellipsis; white-space: nowrap; }
+.cbadge { display: inline-block; min-width: 18px; padding: 0 6px; margin-left: 4px;
+  font-size: 0.7rem; font-weight: 700; text-align: center; border-radius: 999px;
+  background: var(--field-2); color: var(--muted); }
+.cbadge[data-has="1"] { background: rgba(47, 107, 255, 0.18); color: var(--accent); }
+.cbadge[data-has="err"] { background: rgba(226, 59, 87, 0.18); color: var(--bad); }
+.console-body { max-height: 168px; overflow: auto; padding: 6px 8px;
+  font-family: var(--mono); font-size: 0.76rem; line-height: 1.5; }
+.console-body:empty::before { content: "No logs yet — interact with the app to see output.";
+  color: var(--muted); }
+.cline { white-space: pre-wrap; word-break: break-word; padding: 1px 0;
+  border-bottom: 1px solid var(--hairline); color: var(--text); }
+.ctag { font-size: 0.62rem; font-weight: 700; padding: 1px 5px; border-radius: 5px;
+  background: var(--field-2); color: var(--muted); }
+.cline.lvl-error { color: var(--bad); } .cline.lvl-error .ctag { background: rgba(226,59,87,0.18); color: var(--bad); }
+.cline.lvl-warn { color: var(--warn); } .cline.lvl-warn .ctag { background: rgba(192,106,0,0.18); color: var(--warn); }
+.cline.lvl-net .ctag { background: rgba(18,147,106,0.18); color: var(--good); }
+.cline.lvl-info .ctag, .cline.lvl-debug .ctag { background: rgba(47,107,255,0.16); color: var(--accent); }
 
 /* Run controls */
 .controls { display: inline-flex; gap: 6px; }

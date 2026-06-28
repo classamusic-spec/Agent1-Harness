@@ -38,6 +38,37 @@ from harness.verifier import run_suite
 WEB_DIR = Path(__file__).resolve().parent.parent / "webui"
 _TREE_CAP = 400
 
+# Injected into a previewed app (only when ?__dev=1) so the Studio can show its
+# console.* output, errors, and fetches in a devtools-style panel. Same-origin,
+# posts to the parent frame; never present unless the Studio asks for it.
+_DEVTOOLS_SNIPPET = (
+    "<script>(function(){if(window.__harnessDev)return;window.__harnessDev=1;"
+    "function S(l,a){try{parent.postMessage({__harnessLog:1,level:l,"
+    "text:[].map.call(a,function(p){try{return typeof p==='object'?JSON.stringify(p):String(p)}"
+    "catch(e){return String(p)}}).join(' ')},'*')}catch(e){}}"
+    "['log','info','warn','error','debug'].forEach(function(m){var o=console[m]?"
+    "console[m].bind(console):function(){};console[m]=function(){S(m,arguments);o.apply(null,arguments)}});"
+    "window.addEventListener('error',function(e){S('error',[(e.message||'Error')+"
+    "(e.filename?' ('+e.filename.split('/').pop()+':'+e.lineno+')':'')])});"
+    "window.addEventListener('unhandledrejection',function(e){var r=e.reason;"
+    "S('error',['Unhandled rejection: '+((r&&r.message)||r)])});"
+    "var f=window.fetch;if(f){window.fetch=function(){var u=arguments[0];var url=(u&&u.url)||u;"
+    "return f.apply(this,arguments).then(function(r){S('net',[r.status+' '+url]);return r},"
+    "function(e){S('error',['fetch failed '+url]);throw e})}}"
+    "S('info',['devtools attached']);})();</script>"
+)
+
+
+def _inject_devtools(html: bytes) -> bytes:
+    text = html.decode("utf-8", "replace")
+    lower = text.lower()
+    i = lower.find("<head>")
+    if i != -1:
+        pos = i + len("<head>")
+    else:  # no <head> — drop it at the very top
+        pos = 0
+    return (text[:pos] + _DEVTOOLS_SNIPPET + text[pos:]).encode("utf-8")
+
 
 # --- testable helpers -----------------------------------------------------
 
@@ -676,7 +707,11 @@ def make_handler(console: Console):
                 return self._send(404, b"not found", "text/plain")
             mime = {".html": "text/html", ".css": "text/css", ".js": "text/javascript",
                     ".json": "application/json", ".svg": "image/svg+xml", ".png": "image/png"}
-            self._send(200, Path(target).read_bytes(), mime.get(Path(target).suffix, "text/plain"))
+            data = Path(target).read_bytes()
+            suffix = Path(target).suffix
+            if suffix == ".html" and "__dev=1" in urlparse(self.path).query:
+                data = _inject_devtools(data)
+            self._send(200, data, mime.get(suffix, "text/plain"))
 
         def _sse(self, job_id):
             job = console.jobs.get(job_id)

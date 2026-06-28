@@ -53,11 +53,42 @@
 
   function reloadPreview() {
     if (!project) return;
-    $("#st-preview").src = `/artifact/${encodeURIComponent(project)}/index.html?t=${Date.now()}`;
+    clearConsole();
+    $("#st-preview").src = `/artifact/${encodeURIComponent(project)}/index.html?__dev=1&t=${Date.now()}`;
     $("#st-open").href = `/artifact/${encodeURIComponent(project)}/index.html`;
     $("#st-preview-empty").hidden = true;
   }
   function setDevice(d) { device = d; $("#st-stage").dataset.device = d; }
+
+  // --- devtools console (captures the previewed app's logs/errors/fetches) ---
+  let consoleCount = 0;
+  function clearConsole() {
+    consoleCount = 0;
+    const body = $("#st-console-body"); if (body) body.innerHTML = "";
+    const c = $("#st-console-count"); if (c) { c.textContent = "0"; c.dataset.has = ""; }
+  }
+  function onPreviewMessage(e) {
+    const d = e && e.data;
+    if (!d || !d.__harnessLog) return;
+    consoleCount++;
+    const c = $("#st-console-count");
+    if (c) { c.textContent = String(consoleCount); c.dataset.has = d.level === "error" ? "err" : "1"; }
+    const body = $("#st-console-body");
+    if (!body) return;
+    const line = document.createElement("div");
+    line.className = "cline lvl-" + (d.level || "log");
+    line.innerHTML = `<span class="ctag">${(d.level || "log").toUpperCase()}</span>`;
+    line.appendChild(document.createTextNode(" " + (d.text || "")));
+    body.appendChild(line);
+    while (body.childElementCount > 400) body.removeChild(body.firstChild);
+    body.scrollTop = body.scrollHeight;
+  }
+  function toggleConsole() {
+    const body = $("#st-console-body");
+    const open = body.hidden;
+    body.hidden = !open;
+    $("#st-console-toggle").classList.toggle("active", open);
+  }
 
   async function loadFiles() {
     if (!project) return;
@@ -332,6 +363,9 @@
     $("#st-from").addEventListener("change", showDiff);
     $("#st-to").addEventListener("change", showDiff);
     $("#st-restore").addEventListener("click", restoreVersion);
+    $("#st-console-toggle").addEventListener("click", toggleConsole);
+    $("#st-console-clear").addEventListener("click", clearConsole);
+    window.addEventListener("message", onPreviewMessage);
     $$('input[name="st-dev"]').forEach((r) => r.addEventListener("change", () => setDevice(r.value)));
     $("#st-prompt").addEventListener("keydown", (e) => {
       if ((e.metaKey || e.ctrlKey) && e.key === "Enter") send();
