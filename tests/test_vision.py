@@ -86,6 +86,62 @@ def test_resolve_design_vision_failure_falls_back(tmp_path, monkeypatch):
     assert asyncio.run(_resolve_design(cfg, str(ws), False)) == ""
 
 
+def test_local_engine_attaches_image_only_on_first_turn(tmp_path):
+    from harness.engines.local_engine import LocalEngine
+    ref = tmp_path / "ref.png"; ref.write_bytes(b"PNGBYTES")
+    cfg = HarnessConfig(workspace=str(tmp_path), reference_image=str(ref), coder_multimodal=True)
+    eng = LocalEngine(Spec(name="a", description="d", kind="frontend"), cfg, "sys")
+    first = eng._user_message("build it")
+    assert isinstance(first["content"], list)
+    kinds = [p["type"] for p in first["content"]]
+    assert "text" in kinds and "image_url" in kinds
+    # second turn is text-only (image attached once)
+    assert eng._user_message("now fix")["content"] == "now fix"
+
+
+def test_local_engine_text_only_without_multimodal(tmp_path):
+    from harness.engines.local_engine import LocalEngine
+    ref = tmp_path / "ref.png"; ref.write_bytes(b"x")
+    cfg = HarnessConfig(workspace=str(tmp_path), reference_image=str(ref), coder_multimodal=False)
+    eng = LocalEngine(Spec(name="a", description="d"), cfg, "sys")
+    assert eng._user_message("hi")["content"] == "hi"
+
+
+def test_resolve_design_local_multimodal_defers_to_engine(tmp_path):
+    ref = tmp_path / "ref.png"; ref.write_bytes(b"img")
+    ws = tmp_path / "ws"; ws.mkdir()
+    from harness.config import EngineConfig
+    cfg = HarnessConfig(workspace=str(ws), engine=EngineConfig(provider="local", model="qwen-vl"),
+                        reference_image=str(ref), coder_multimodal=True)
+    out = asyncio.run(_resolve_design(cfg, str(ws), False))
+    assert out == ""  # the engine attaches the image; no file staged, no brief
+    assert not (ws / ".studio" / "reference.png").exists()
+
+
+def test_parse_compare_reads_json():
+    from harness import vision
+    v = vision._parse_compare('{"matches": false, "differences": ["accent is blue not orange"]}')
+    assert v["matches"] is False and v["differences"] == ["accent is blue not orange"]
+    assert vision._parse_compare('{"matches": true, "differences": []}')["matches"] is True
+
+
+def test_visual_refine_noops_without_vision_engine(tmp_path):
+    from harness.agent import visual_refine
+    (tmp_path / "index.html").write_text("<h1>app</h1>")
+    cfg = HarnessConfig(workspace=str(tmp_path), reference_image=str(tmp_path / "r.png"),
+                        visual_check=True)  # no vision_model -> no vision_engine
+    assert asyncio.run(visual_refine(Spec(name="a", description="d"), cfg, echo=False)) == (0, 0)
+
+
+def test_screenshot_capture_real_or_none(tmp_path):
+    from harness import screenshot
+    html = tmp_path / "index.html"
+    html.write_text("<!doctype html><html><body style='background:#0af'><h1>hi</h1></body></html>")
+    data = screenshot.capture(str(html), width=320, height=200, timeout=40)
+    # PNG bytes when a browser is present; None on machines without one.
+    assert data is None or data[:4] == b"\x89PNG"
+
+
 def test_save_reference_image_writes_under_studio(tmp_path):
     ws = tmp_path / "ws"; ws.mkdir()
     data_url = "data:image/png;base64," + base64.b64encode(b"PNGDATA").decode()

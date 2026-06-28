@@ -48,6 +48,8 @@
       image: refImage,
       vision_model: $("#st-vision").value.trim() || null,
       vision_base_url: (engineParams().base_url) || null,
+      coder_multimodal: $("#st-multimodal").checked,
+      visual_check: $("#st-visualcheck").checked,
     };
   }
 

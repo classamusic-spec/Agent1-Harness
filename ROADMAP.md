@@ -18,9 +18,12 @@ Ordered by impact-to-effort.
 - **Devtools console** — the previewed app's console/errors/fetches stream into a
   panel under the preview, captured via an injected agent (preview-only).
 - **Vision (image → UI)** — reference a screenshot when building: a local vision
-  model writes a design brief for the coder (two-stage), or a multimodal coder /
-  Claude Code reads the staged image directly. `harness/vision.py`,
-  `--reference-image` / `--vision-model`, and a Studio image upload.
+  model writes a design brief for the coder (two-stage); a multimodal coder reads
+  the image directly (Claude Code via the staged file, or a **local VL model
+  inline** with `--multimodal`); and a **visual-match loop** (`--visual-check`)
+  screenshots the build, vision-compares it to the reference, and repairs the
+  differences. `harness/vision.py` + `harness/screenshot.py`, CLI flags, Studio
+  upload + toggles.
 - **Claude Code (CLI) engine** — plug in your installed, authenticated `claude`
   CLI as the builder (no API key/SDK). Plus `local` presets for GLM / MiniMax /
   Qwen and any OpenAI-compatible server.

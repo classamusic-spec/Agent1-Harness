@@ -119,7 +119,7 @@ hand-quality HTML/CSS/JS, no libraries:
 | **CI** | `.github/workflows/ci.yml` | Runs the full test suite on Python 3.10–3.12 on every push and PR. |
 | **Studio (live preview)** | `harness/server.py` + `webui/studio.js` | A Replit/Lovable-style surface: describe an app → it builds → **live preview** (Desktop / Mobile device frame, reload, open) with a **Run tests** chip; then **chat to iterate** (`/api/iterate` runs one engine turn on the workspace and re-verifies). A **project switcher** jumps between built apps, a **Stop** button cancels a run, and **version history + diffs** (`harness/versions.py`) snapshot every turn so you can review the colorized diff and **Restore** any version. Freeform prompts become first-class specs. |
 | **Engines** | `harness/engines/` | `anthropic` (Claude Agent SDK), `local` (any OpenAI-compatible server — GLM / MiniMax / Qwen / …), or **`claude-cli`** — drives your installed, authenticated **Claude Code CLI** as the builder (no API key/SDK needed). |
-| **Vision (image → UI)** | `harness/vision.py` | Reference a UI screenshot when building. **Two-stage:** a local **vision** model writes a design brief that's injected into the **coder**'s prompt. **Direct:** a multimodal coder (or Claude Code) reads the staged image. CLI `--reference-image/--vision-model`; Studio image upload. |
+| **Vision (image → UI)** | `harness/vision.py`, `harness/screenshot.py` | Reference a UI screenshot when building. **Two-stage:** a local **vision** model writes a design brief injected into the **coder**'s prompt. **Direct:** a multimodal coder reads the image — Claude Code reads the staged file, or a local VL model gets it inline (`--multimodal`). **Visual-match loop** (`--visual-check`): screenshot the build, vision-compare to the reference, repair the differences. CLI flags + Studio upload/toggles. |
 | **Personas** | `harness/personas.py` | Specialist system prompts by `kind`: frontend design, backend rigor, **React/React Native**, **SwiftUI (Apple-level)**. |
 | **Web console** | `harness/server.py` + `webui/` | Tabs: Build, **New Spec** (author specs), **Gallery** (preview built apps), and a **live Workspace view** (watch files appear/change as the agent works). Stdlib only. See `docs/screenshots/`. |
 | **Design checks** | `checks/` | Headless Playwright + axe-core + Lighthouse, wired as verification commands. |
@@ -213,14 +213,23 @@ Drop a screenshot of a UI you like and the harness will build to match it. Two p
    brief* from the image; that brief is injected into the prompt for a strong, dedicated
    **coder** model (e.g. `qwen2.5-coder`). Each model is specialised → best quality.
    Set a Vision model in Studio, or `--vision-model qwen2.5-vl --vision-base-url …`.
-2. **Single multimodal model:** one vision+code model — or the **Claude Code** engine —
-   reads the staged image directly (no separate describe step). Simpler; great when one
-   model is strong at both.
+2. **Single multimodal model:** one vision+code model reads the image directly (no separate
+   describe step). The **Claude Code** engine reads the staged file; a **local** vision-capable
+   model gets the image attached to its first turn with `--multimodal`.
+
+3. **Visual-match loop (`--visual-check`):** after building, the harness screenshots the result
+   with a headless Chromium, asks the vision model how it differs from the reference, and feeds
+   those differences back as a repair — up to `max_visual_repairs` times. Closes the loop on
+   visual fidelity. (`harness/screenshot.py` + `vision.compare_ui`.)
 
 ```bash
-# Two-stage: local vision model describes the image, local coder builds it
+# Two-stage + visual-match loop: vision model describes & QAs, coder builds
 appbuilder specs/app.yaml -w ws/app --engine local --model qwen2.5-coder \
-    --reference-image design.png --vision-model qwen2.5-vl
+    --reference-image design.png --vision-model qwen2.5-vl --visual-check
+
+# Single local multimodal model reads the image itself
+appbuilder specs/app.yaml -w ws/app --engine local --model qwen2.5-vl \
+    --reference-image design.png --multimodal
 ```
 
 Below: from a single prompt **plus the Streak home screen as a reference image**, the

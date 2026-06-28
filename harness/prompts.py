@@ -35,6 +35,16 @@ def build_prompt(spec: Spec, design_brief: str = "") -> str:
     )
 
 
+def visual_repair_prompt(differences: list[str]) -> str:
+    bullets = "\n".join(f"- {d}" for d in differences) or "- (general visual polish)"
+    return (
+        "The current build does not yet visually match the reference design. A visual "
+        "comparison found these differences — fix them in the existing files without breaking "
+        "functionality, staying faithful to the reference's look and feel:\n"
+        f"{bullets}\n\nApply the changes now."
+    )
+
+
 def with_lessons(prompt: str, lessons: str) -> str:
     """Prepend prior-build lessons to a prompt, if any."""
     return f"{lessons}\n\n{prompt}" if lessons else prompt

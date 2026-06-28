@@ -43,6 +43,28 @@ class LocalEngine(Engine):
         self._messages: list[dict] = [{"role": "system", "content": system_prompt}]
         self._client = None  # created on __aenter__
         self.total_tokens = 0
+        # Attach a reference image to the first turn iff the coder is multimodal.
+        self._pending_image = (
+            config.reference_image
+            if config.coder_multimodal and config.reference_image else None
+        )
+
+    def _user_message(self, prompt: str) -> dict:
+        """Build the user turn, attaching the reference image once if the model can see."""
+        if not self._pending_image:
+            return {"role": "user", "content": prompt}
+        import os
+        from harness import vision
+        img = self._pending_image
+        self._pending_image = None  # only on the first turn
+        if not os.path.isfile(img):
+            return {"role": "user", "content": prompt}
+        with open(img, "rb") as fh:
+            url = vision.to_data_url(fh.read(), vision.mime_for(img))
+        return {"role": "user", "content": [
+            {"type": "text", "text": prompt},
+            {"type": "image_url", "image_url": {"url": url}},
+        ]}
 
     async def __aenter__(self) -> "LocalEngine":
         try:
@@ -63,7 +85,7 @@ class LocalEngine(Engine):
 
     async def send(self, prompt: str, *, echo: bool = True) -> str:
         assert self._client is not None, "engine not entered"
-        self._messages.append({"role": "user", "content": prompt})
+        self._messages.append(self._user_message(prompt))
         schemas = self._toolbox.schemas()
         produced: list[str] = []
 

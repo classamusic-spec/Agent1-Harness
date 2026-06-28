@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+import dataclasses
 import os
 import sys
 
@@ -87,6 +88,11 @@ def _parse_args(argv: list[str]) -> argparse.Namespace:
                         "(OpenAI-compatible, e.g. qwen2.5-vl on a local server)")
     p.add_argument("--vision-base-url", default=None,
                    help="Base URL for the vision model (default: the local engine URL)")
+    p.add_argument("--multimodal", action="store_true",
+                   help="The local coder is vision-capable: attach --reference-image to it directly")
+    p.add_argument("--visual-check", action="store_true",
+                   help="After building, screenshot it, compare to --reference-image with the "
+                        "vision model, and repair visual differences (needs a vision model + Chrome)")
     # Learning memory
     p.add_argument("--learn", action="store_true", help="Record and reuse lessons from past builds")
     p.add_argument("--memory", default=None, help="Path to the JSONL lesson store (implies --learn)")
@@ -247,6 +253,8 @@ def main(argv: list[str] | None = None) -> int:
         reference_image=args.reference_image,
         vision_model=args.vision_model,
         vision_base_url=args.vision_base_url,
+        coder_multimodal=args.multimodal,
+        visual_check=args.visual_check,
     )
 
     approval = None
@@ -269,6 +277,13 @@ def main(argv: list[str] | None = None) -> int:
           f"isolation: {args.isolation} | gates: {gates}"
           + (" | " + " ".join(extras) if extras else ""))
     result = asyncio.run(build(spec, config, echo=not args.no_echo, approval=approval))
+    if result.ok and config.visual_check and config.reference_image and config.vision_engine():
+        from harness.agent import visual_refine
+        # build() ran in `workspace` (directory isolation); refine in place.
+        refine_cfg = dataclasses.replace(config, workspace=workspace)
+        rounds, _ = asyncio.run(visual_refine(spec, refine_cfg, echo=not args.no_echo))
+        if rounds:
+            print(f"\nVisual refinement: {rounds} repair round(s) against the reference image.")
     return _summarize(result, workspace=workspace, learn=learn)
 
 

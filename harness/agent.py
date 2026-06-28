@@ -46,6 +46,7 @@ from harness.prompts import (
     human_feedback_prompt,
     repair_prompt,
     review_repair_prompt,
+    visual_repair_prompt,
     with_lessons,
 )
 from harness.reflect import reflect
@@ -127,7 +128,13 @@ async def _resolve_design(config: HarnessConfig, ws: str, echo: bool) -> str:
         if echo and brief:
             print(brief, flush=True)
         return brief
-    # Direct path: stage the image where a multimodal coder can read it.
+    # Local multimodal coder: the engine attaches the image to its first turn.
+    if config.coder_multimodal and config.engine.provider == "local":
+        if echo:
+            print("[vision] attaching the reference image to the local multimodal coder",
+                  flush=True)
+        return ""
+    # Direct path: stage the image where a file-reading multimodal coder can see it.
     rel = os.path.relpath(img, ws)
     if rel.startswith(".."):
         from harness import vision
@@ -139,6 +146,58 @@ async def _resolve_design(config: HarnessConfig, ws: str, echo: bool) -> str:
     return (f"A reference UI screenshot is saved at ./{rel} in this directory. Open and study it, "
             "then match its layout, spacing, color palette, typography, components, and overall "
             "visual style as closely as possible.")
+
+
+async def visual_refine(spec: Spec, config: HarnessConfig, *, echo: bool = True,
+                        on_progress=None) -> tuple[int, int]:
+    """Screenshot the build, ask a vision model how it differs from the reference,
+    and repair — up to config.max_visual_repairs times. Returns (rounds, tokens).
+
+    Needs a reference image, a vision model (config.vision_engine()), and a local
+    headless browser; otherwise it no-ops cleanly.
+    """
+    ve = config.vision_engine()
+    if not (config.reference_image and ve and os.path.isfile(config.reference_image)):
+        return (0, 0)
+    from harness import screenshot, vision
+    index = os.path.join(config.workspace, "index.html")
+    if not os.path.isfile(index):
+        return (0, 0)
+    with open(config.reference_image, "rb") as fh:
+        ref_bytes = fh.read()
+    ref_mime = vision.mime_for(config.reference_image)
+    runner = build_runner(config)
+    rounds, tokens = 0, 0
+    for attempt in range(max(0, config.max_visual_repairs)):
+        shot = screenshot.capture(index)
+        if not shot:
+            if echo:
+                print("[visual] no headless browser available; skipping visual check", flush=True)
+            break
+        try:
+            verdict = await vision.compare_ui(ref_bytes, shot, ve, ref_mime=ref_mime)
+        except Exception as exc:
+            if echo:
+                print(f"[visual] compare failed ({type(exc).__name__}: {exc})", flush=True)
+            break
+        diffs = verdict.get("differences") or []
+        if echo:
+            label = "matches the reference" if verdict.get("matches") else f"{len(diffs)} difference(s)"
+            print(_banner(f"visual check {attempt + 1}/{config.max_visual_repairs}: {label}"), flush=True)
+            for d in diffs:
+                print(f"  - {d}", flush=True)
+        if verdict.get("matches") or not diffs:
+            break
+        fixer = make_engine(spec, config)
+        async with fixer:
+            await fixer.send(visual_repair_prompt(diffs), echo=echo)
+        tokens += getattr(fixer, "total_tokens", 0)
+        rounds += 1
+        if spec.has_verification:
+            run_suite(spec.checks, stop_on_failure=False, runner=runner)
+        if on_progress:
+            on_progress({"tokens": tokens})
+    return (rounds, tokens)
 
 
 async def build(

@@ -139,6 +139,8 @@
                 <button type="button" id="st-ref-clear" class="ref-x" hidden aria-label="Remove image">×</button>
               </label>
               <input id="st-vision" type="text" placeholder="Vision model (optional) — blank: a multimodal coder reads it" />
+              <label class="toggle ref-toggle"><input type="checkbox" id="st-multimodal" /> <span>Local coder is multimodal (reads the image)</span></label>
+              <label class="toggle ref-toggle"><input type="checkbox" id="st-visualcheck" /> <span>Visual-match loop (needs a vision model)</span></label>
             </div>
 
             <button id="st-send" class="primary">Generate app</button>

@@ -276,6 +276,8 @@ def _apply_reference(config, params: dict) -> None:
     config.reference_image = save_reference_image(config.workspace, params["image"])
     config.vision_model = params.get("vision_model") or None
     config.vision_base_url = params.get("vision_base_url") or None
+    config.coder_multimodal = bool(params.get("coder_multimodal"))
+    config.visual_check = bool(params.get("visual_check"))
 
 
 def _snapshot(workspace_dir: str, label: str, instruction: str = "") -> None:
@@ -572,6 +574,15 @@ class Console:
         print(f"RESULT: {job.status.upper()} ({result.stop_reason}) after {result.rounds} round(s)")
         print(f"Telemetry: {result.tokens_used} tokens · {result.elapsed_seconds:.1f}s")
         _snapshot(job.workspace, "Initial build", spec.description)
+
+        # Visual-diff refinement: converge the look toward the reference image.
+        if result.ok and config.visual_check and config.reference_image and config.vision_engine():
+            from harness.agent import visual_refine
+            vr, vt = asyncio.run(visual_refine(spec, config, echo=True, on_progress=on_progress))
+            if vr:
+                job.tokens += vt
+                _snapshot(job.workspace, "Visual match", "matched reference image")
+                print(f"Visual refinement: {vr} repair round(s), {vt} tokens")
 
 
 # --- HTTP layer -----------------------------------------------------------

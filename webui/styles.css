@@ -467,6 +467,7 @@ input[type="number"]:focus { outline: none; border-color: var(--accent); box-sha
   color: var(--muted); font-size: 1.1rem; line-height: 1; padding: 0 4px; }
 .ref-x:hover { color: var(--bad); }
 #st-vision { font-size: 0.78rem; padding: 8px 11px; }
+.ref-toggle { margin-top: 4px; font-size: 0.8rem; }
 .studio-head { display: flex; align-items: center; gap: var(--sp); margin-bottom: var(--sp); }
 .studio-head h2 { margin: 0; flex: 1; font-size: 0.98rem; font-weight: 650;
   text-transform: none; letter-spacing: -0.01em; color: var(--text);
