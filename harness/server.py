@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+import base64
 import contextlib
 import io
 import json
@@ -249,6 +250,34 @@ async def _run_engine_turn(engine, instruction: str):
         return getattr(engine, "total_tokens", 0), text
 
 
+_IMG_EXT = {"image/png": ".png", "image/jpeg": ".jpg", "image/webp": ".webp", "image/gif": ".gif"}
+
+
+def save_reference_image(workspace_dir: str, data_url: str) -> str:
+    """Save an uploaded data-URL (or raw base64) screenshot under <ws>/.studio. Returns path."""
+    m = re.match(r"data:(image/[\w.+-]+);base64,(.*)", data_url or "", re.DOTALL)
+    if m:
+        mime, b64 = m.group(1), m.group(2)
+    else:
+        mime, b64 = "image/png", (data_url or "")
+    raw = base64.b64decode(b64)
+    d = os.path.join(workspace_dir, ".studio")
+    os.makedirs(d, exist_ok=True)
+    path = os.path.join(d, "reference" + _IMG_EXT.get(mime, ".png"))
+    with open(path, "wb") as fh:
+        fh.write(raw)
+    return path
+
+
+def _apply_reference(config, params: dict) -> None:
+    """If a reference image was uploaded, point the config at it + any vision model."""
+    if not params.get("image"):
+        return
+    config.reference_image = save_reference_image(config.workspace, params["image"])
+    config.vision_model = params.get("vision_model") or None
+    config.vision_base_url = params.get("vision_base_url") or None
+
+
 def _snapshot(workspace_dir: str, label: str, instruction: str = "") -> None:
     """Best-effort per-turn snapshot for the Studio history/diff (never fails a build)."""
     try:
@@ -419,6 +448,15 @@ class Console:
         )
         config = HarnessConfig(workspace=job.workspace, engine=engine_cfg)
 
+        # Reference UI image (optional): describe it (vision) or stage it (direct),
+        # then fold the design context into the change instruction.
+        _apply_reference(config, params)
+        if config.reference_image:
+            from harness.agent import _resolve_design
+            brief = asyncio.run(_resolve_design(config, job.workspace, True))
+            if brief:
+                instruction = f"{instruction}\n\nReference design context:\n{brief}"
+
         from harness.engines.base import make_engine
         engine = make_engine(spec, config)
         job.engine = engine  # so a Stop/cancel can kill the in-flight turn
@@ -518,10 +556,14 @@ class Console:
         )
         job.token_budget = params.get("token_budget")
         job.deadline = params.get("deadline")
+        _apply_reference(config, params)  # reference UI image + optional vision model
         from harness.agent import build
 
         gate = ServerApproval(job) if (approve_plan or approve_build) else None
 
+        if config.reference_image:
+            print(f"reference image: {os.path.basename(config.reference_image)}"
+                  f"{' · vision=' + config.vision_model if config.vision_model else ' · direct (multimodal coder)'}")
         print(f"engine={provider} model={model or '(unset)'} kind={spec.kind}")
         result = asyncio.run(build(spec, config, echo=True, approval=gate,
                                    on_progress=on_progress, control=job.control))

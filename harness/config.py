@@ -80,6 +80,17 @@ class HarnessConfig:
     memory_path: str | None = None  # JSONL lesson store
     reflect: bool = True  # when learning, ask the model to distill reusable lessons
 
+    # Image-referenced builds: match a reference UI screenshot.
+    #   - vision_model set   -> two-stage: a separate vision model writes a design
+    #     brief that's injected into the coder's prompt (best quality, local-friendly).
+    #   - vision_model unset -> "direct": a multimodal coder (e.g. the Claude Code
+    #     engine) reads the staged image itself.
+    reference_image: str | None = None   # path to a UI screenshot to match
+    design_brief: str | None = None      # precomputed brief (skips the vision call)
+    vision_model: str | None = None
+    vision_base_url: str | None = None
+    vision_provider: str = "local"
+
     # Loop convergence guards.
     stall_limit: int = 3  # consecutive identical failing rounds before escalate/stop
     deadline_seconds: float | None = None  # overall wall-clock budget (None = unlimited)
@@ -95,6 +106,17 @@ class HarnessConfig:
             base_url=self.engine.base_url,
             api_key_env=self.engine.api_key_env,
             temperature=self.engine.temperature,
+        )
+
+    def vision_engine(self) -> "EngineConfig | None":
+        """Engine config for the separate vision model, or None for direct/no-image."""
+        if not self.vision_model:
+            return None
+        return EngineConfig(
+            provider=self.vision_provider,
+            model=self.vision_model,
+            base_url=self.vision_base_url or DEFAULT_LOCAL_BASE_URL,
+            api_key_env="OPENAI_API_KEY",
         )
 
     def fixer_engine(self) -> EngineConfig:

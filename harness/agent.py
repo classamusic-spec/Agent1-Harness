@@ -24,6 +24,8 @@ tests.
 from __future__ import annotations
 
 import dataclasses
+import os
+import shutil
 import time
 from dataclasses import dataclass, field
 from typing import Callable
@@ -99,6 +101,44 @@ def _signature(report: VerificationReport) -> frozenset:
 
 def _expired(start: float, deadline: float | None) -> bool:
     return deadline is not None and (time.monotonic() - start) >= deadline
+
+
+async def _resolve_design(config: HarnessConfig, ws: str, echo: bool) -> str:
+    """Turn a reference image into a design brief (two-stage) or stage it for a
+    multimodal coder to read directly. Returns the brief/instruction (or "")."""
+    if config.design_brief:
+        return config.design_brief
+    img = config.reference_image
+    if not img or not os.path.isfile(img):
+        return ""
+    ve = config.vision_engine()
+    if ve is not None:
+        from harness import vision
+        if echo:
+            print(_banner(f"vision: describing reference UI via {ve.model}"), flush=True)
+        try:
+            with open(img, "rb") as fh:
+                data = fh.read()
+            brief = await vision.describe_ui(data, vision.mime_for(img), ve)
+        except Exception as exc:
+            print(f"[vision] describe failed ({type(exc).__name__}: {exc}); "
+                  "building from the spec alone.", flush=True)
+            return ""
+        if echo and brief:
+            print(brief, flush=True)
+        return brief
+    # Direct path: stage the image where a multimodal coder can read it.
+    rel = os.path.relpath(img, ws)
+    if rel.startswith(".."):
+        from harness import vision
+        ext = os.path.splitext(img)[1] or ".png"
+        os.makedirs(os.path.join(ws, ".studio"), exist_ok=True)
+        dest = os.path.join(ws, ".studio", "reference" + ext)
+        shutil.copy2(img, dest)
+        rel = os.path.join(".studio", "reference" + ext)
+    return (f"A reference UI screenshot is saved at ./{rel} in this directory. Open and study it, "
+            "then match its layout, spacing, color palette, typography, components, and overall "
+            "visual style as closely as possible.")
 
 
 async def build(
@@ -199,8 +239,11 @@ async def build(
             except Exception:
                 pass
 
+        design_brief = await _resolve_design(run_config, ws, echo)
+
         async with builder:
-            transcript.append(await builder.send(with_lessons(build_prompt(spec), lessons_text), echo=echo))
+            transcript.append(await builder.send(
+                with_lessons(build_prompt(spec, design_brief), lessons_text), echo=echo))
             cur_snap = snapshot(ws)
 
             if not spec.has_verification:

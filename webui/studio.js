@@ -6,6 +6,7 @@
   let project = null;       // active workspace name (null = new-project mode)
   let currentFile = null;   // path of the file shown in the viewer
   let jobId = null;         // id of the in-flight build/iterate job
+  let refImage = null;      // data-URL of an uploaded reference UI screenshot
   let device = "desktop";
   let pollTimer = null;
   let wired = false;
@@ -19,6 +20,36 @@
     "local:qwen":    { model: "qwen2.5-coder", base_url: "http://localhost:11434/v1" },
     "local:custom":  { model: "",              base_url: "http://localhost:11434/v1" },
   };
+
+  function onRefFile(e) {
+    const f = e.target.files && e.target.files[0];
+    if (!f) return;
+    const r = new FileReader();
+    r.onload = () => {
+      refImage = r.result;
+      const thumb = $("#st-ref-thumb");
+      thumb.src = refImage; thumb.hidden = false;
+      $("#st-ref-text").textContent = f.name;
+      $("#st-ref-clear").hidden = false;
+    };
+    r.readAsDataURL(f);
+  }
+  function clearRef(e) {
+    if (e) { e.preventDefault(); e.stopPropagation(); }
+    refImage = null;
+    $("#st-ref-file").value = "";
+    $("#st-ref-thumb").hidden = true; $("#st-ref-thumb").removeAttribute("src");
+    $("#st-ref-text").textContent = "＋ Reference UI image (optional)";
+    $("#st-ref-clear").hidden = true;
+  }
+  function refParams() {
+    if (!refImage) return {};
+    return {
+      image: refImage,
+      vision_model: $("#st-vision").value.trim() || null,
+      vision_base_url: (engineParams().base_url) || null,
+    };
+  }
 
   function engineParams() {
     const sel = $("#st-engine").value;
@@ -189,12 +220,13 @@
     if (!prompt) return;
     const eng = engineParams();
     runningUI(true); $("#st-log").textContent = ""; setStatus("running", "working");
+    const ref = refParams();
     let url, body;
     if (project) {
-      url = "/api/iterate"; body = { workspace: project, instruction: prompt, ...eng };
+      url = "/api/iterate"; body = { workspace: project, instruction: prompt, ...eng, ...ref };
     } else {
       url = "/api/builds";
-      body = { prompt, name: ($("#st-name").value || "app").trim(), kind: $("#st-kind").value, ...eng };
+      body = { prompt, name: ($("#st-name").value || "app").trim(), kind: $("#st-kind").value, ...eng, ...ref };
     }
     try {
       const j = await (await fetch(url, {
@@ -205,6 +237,7 @@
       project = project || j.workspace.split("/").pop();
       selectLabel(project);
       $("#st-prompt").value = "";
+      clearRef();
       stream(j.id); startPoll();
     } catch { setStatus("error", "request failed"); runningUI(false); }
   }
@@ -365,6 +398,8 @@
     $("#st-restore").addEventListener("click", restoreVersion);
     $("#st-console-toggle").addEventListener("click", toggleConsole);
     $("#st-console-clear").addEventListener("click", clearConsole);
+    $("#st-ref-file").addEventListener("change", onRefFile);
+    $("#st-ref-clear").addEventListener("click", clearRef);
     window.addEventListener("message", onPreviewMessage);
     $$('input[name="st-dev"]').forEach((r) => r.addEventListener("change", () => setDevice(r.value)));
     $("#st-prompt").addEventListener("keydown", (e) => {

@@ -79,6 +79,14 @@ def _parse_args(argv: list[str]) -> argparse.Namespace:
     p.add_argument("--review-panel", default=None,
                    help="Run a parallel reviewer panel, e.g. 'quality,bugs,a11y,security' (implies --review)")
     p.add_argument("--reviewer-model", default=None, help="Model for the reviewer (default: builder model)")
+    p.add_argument("--reference-image", default=None,
+                   help="A UI screenshot to match. With --vision-model it's described by a "
+                        "vision model first; otherwise a multimodal coder (e.g. claude-cli) reads it.")
+    p.add_argument("--vision-model", default=None,
+                   help="Separate vision model that writes a design brief from --reference-image "
+                        "(OpenAI-compatible, e.g. qwen2.5-vl on a local server)")
+    p.add_argument("--vision-base-url", default=None,
+                   help="Base URL for the vision model (default: the local engine URL)")
     # Learning memory
     p.add_argument("--learn", action="store_true", help="Record and reuse lessons from past builds")
     p.add_argument("--memory", default=None, help="Path to the JSONL lesson store (implies --learn)")
@@ -236,6 +244,9 @@ def main(argv: list[str] | None = None) -> int:
         approve_build=args.approve_build,
         max_tokens_budget=args.token_budget,
         checkpoint_path=args.checkpoint,
+        reference_image=args.reference_image,
+        vision_model=args.vision_model,
+        vision_base_url=args.vision_base_url,
     )
 
     approval = None

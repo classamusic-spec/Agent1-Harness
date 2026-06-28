@@ -1,0 +1,14 @@
+name: water-tracker
+kind: frontend
+language: html-css-js
+description: "A daily water intake tracker single-page web app. Eight cup icons in a row/grid;\
+  \ tap a cup to fill it; a big circular progress ring shows cups vs an 8-cup goal; a streak\
+  \ counter for consecutive days hitting the goal; resets each day; everything persists in\
+  \ localStorage. Match the reference image's visual style very closely \u2014 warm off-white\
+  \ background, rounded white cards with a colored left accent bar, friendly emoji, flame\
+  \ streak styling, the same typography and spacing, and a bottom tab bar. Plain HTML/CSS/JS:\
+  \ index.html, styles.css, app.js. console.log key events for debugging."
+verification:
+- name: app builds
+  command: python3 -c "import pathlib,sys; p=pathlib.Path('index.html'); sys.exit(0 if p.is_file()
+    and p.stat().st_size>80 else 1)"

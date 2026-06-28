@@ -130,6 +130,17 @@
 
             <label for="st-prompt" id="st-prompt-label">Describe the app to build</label>
             <textarea id="st-prompt" rows="5" placeholder="e.g. A calm pomodoro timer with start/pause/reset, a circular progress ring, and a session counter. Local-only, no backend."></textarea>
+
+            <div class="ref-controls">
+              <label class="ref-chip" id="st-ref-chip">
+                <input type="file" id="st-ref-file" accept="image/png,image/jpeg,image/webp" hidden />
+                <img id="st-ref-thumb" alt="reference preview" hidden />
+                <span id="st-ref-text">＋ Reference UI image (optional)</span>
+                <button type="button" id="st-ref-clear" class="ref-x" hidden aria-label="Remove image">×</button>
+              </label>
+              <input id="st-vision" type="text" placeholder="Vision model (optional) — blank: a multimodal coder reads it" />
+            </div>
+
             <button id="st-send" class="primary">Generate app</button>
             <p class="hint" id="st-hint">Claude Code (your authenticated CLI) builds it, then verifies it. Then chat to iterate.</p>
 

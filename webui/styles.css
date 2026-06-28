@@ -454,6 +454,19 @@ input[type="number"]:focus { outline: none; border-color: var(--accent); box-sha
 @media (max-width: 1180px) { .panel.studio { grid-template-columns: 1fr; } }
 
 .studio-chat { display: flex; flex-direction: column; }
+/* reference UI image upload + optional vision model */
+.ref-controls { margin-top: 12px; display: flex; flex-direction: column; gap: 8px; }
+.ref-chip { display: flex; align-items: center; gap: 9px; cursor: pointer;
+  padding: 8px 11px; border: 1px dashed var(--hairline-strong); border-radius: var(--radius-sm);
+  background: var(--field); font-size: 0.82rem; color: var(--muted);
+  transition: border-color 0.15s ease, color 0.15s ease; }
+.ref-chip:hover { border-color: var(--accent); color: var(--text); }
+.ref-chip img { width: 36px; height: 36px; object-fit: cover; border-radius: 8px;
+  border: 1px solid var(--hairline); }
+.ref-x { margin-left: auto; border: 0; background: none; cursor: pointer;
+  color: var(--muted); font-size: 1.1rem; line-height: 1; padding: 0 4px; }
+.ref-x:hover { color: var(--bad); }
+#st-vision { font-size: 0.78rem; padding: 8px 11px; }
 .studio-head { display: flex; align-items: center; gap: var(--sp); margin-bottom: var(--sp); }
 .studio-head h2 { margin: 0; flex: 1; font-size: 0.98rem; font-weight: 650;
   text-transform: none; letter-spacing: -0.01em; color: var(--text);
