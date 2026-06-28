@@ -60,6 +60,15 @@ def _context_blocks(diff: str, delta: str) -> str:
     return out
 
 
+def human_feedback_prompt(message: str) -> str:
+    return (
+        "A human reviewer rejected the build with this feedback:\n\n"
+        f"{message}\n\n"
+        "Address it specifically and minimally. Then run the `verify` tool to "
+        "confirm the verification suite still passes."
+    )
+
+
 def repair_prompt(report: VerificationReport, attempt: int, max_attempts: int,
                   *, diff: str = "", delta: str = "") -> str:
     return (

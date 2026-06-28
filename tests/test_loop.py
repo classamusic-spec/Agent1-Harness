@@ -209,6 +209,26 @@ def test_build_approval_rejected(tmp_path):
     assert not result.ok and result.stop_reason == "build-rejected"
 
 
+def test_build_approval_feedback_then_accept(tmp_path):
+    from harness.approval import CallbackApproval, Decision
+    spec = _spec()
+    cfg = _config(tmp_path / "ws", approve_build=True, max_repairs=3)
+    builder = FakeEngine(str(tmp_path / "ws"), [_writer("v1"), _writer("v2")])
+    calls = {"n": 0}
+
+    def gate_fn(kind, payload):
+        calls["n"] += 1
+        # First sign-off: reject with feedback; second: approve.
+        return Decision(False, "make the header bigger") if calls["n"] == 1 else Decision(True)
+
+    result = asyncio.run(build(spec, cfg, echo=False,
+                              builder_factory=lambda s, c: builder,
+                              approval=CallbackApproval(gate_fn)))
+    assert result.ok and result.stop_reason == "verified"
+    assert result.rounds == 2  # rejection fed back as a repair, then accepted
+    assert not builder.actions  # both builder turns consumed (initial + feedback)
+
+
 def test_build_approval_accepted(tmp_path):
     from harness.approval import CallbackApproval
     spec = _spec()

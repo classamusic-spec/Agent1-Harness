@@ -17,7 +17,8 @@ Ordered by impact-to-effort.
 - **Test-first (red→green)** — derive the verification suite from the spec before
   building, then drive the build to green against it.
 - **Human-in-the-loop approval** — `--approve-plan` / `--approve-build` pause for
-  sign-off (stdin or an Approve/Reject banner in the console).
+  sign-off (stdin or an Approve/Reject banner in the console). **Feedback-driven**:
+  rejecting with a message feeds it back as a targeted repair and the loop continues.
 - **Cost/time telemetry + budgets** — tokens + wall-clock per build, shown in the
   console; `--token-budget` / `--deadline` stop the loop when exceeded.
 - Web console with tabs: Build, **New Spec** (authoring), **Gallery** (artifact
@@ -25,8 +26,8 @@ Ordered by impact-to-effort.
 - Design-check templates (Playwright/axe/Lighthouse).
 
 ## Next — correctness & convergence
-1. **Feedback-driven rejection** — when a human rejects a build with a message,
-   feed it back as a targeted repair turn instead of just stopping.
+1. **Multi-reviewer panel** — run quality + sentry + a11y reviewers in parallel
+   and require no-blocker/majority to pass.
 
 ## Next — quality & trust
 4. **Multi-reviewer panel** — run quality + sentry + a11y reviewers in parallel

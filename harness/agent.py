@@ -40,6 +40,7 @@ from harness.testfirst import propose_checks
 from harness.prompts import (
     build_prompt,
     escalation_prompt,
+    human_feedback_prompt,
     repair_prompt,
     review_repair_prompt,
     with_lessons,
@@ -180,12 +181,21 @@ async def build(
                                    progress, transcript)
 
             async def accept(reason, *, report=None, verdict=None):
-                # Final human sign-off before the build is accepted.
+                """Final human sign-off. Returns a BuildResult to stop, or None to
+                continue the loop after feeding rejection feedback back as a repair."""
+                nonlocal review_repairs, prev_snap, cur_snap
                 if config.approve_build:
                     dec = await approval.request("build", {"workspace": ws, "reason": reason})
                     if not dec.approved:
                         if echo:
-                            print(f"[approval] build rejected: {dec.message}", flush=True)
+                            print(f"[approval] build rejected: {dec.message or '(no message)'}", flush=True)
+                        # Feedback-driven: a message + budget left -> targeted repair, keep going.
+                        if dec.message and review_repairs > 0:
+                            review_repairs -= 1
+                            transcript.append(await builder.send(
+                                human_feedback_prompt(dec.message), echo=echo))
+                            prev_snap, cur_snap = cur_snap, snapshot(ws)
+                            return None
                         return await finish(False, "build-rejected", report=report, verdict=verdict)
                 return await finish(True, reason, report=report, verdict=verdict)
 
@@ -251,7 +261,10 @@ async def build(
 
                 # Verification passed. Apply the reviewer/sentry gate if enabled.
                 if not config.enable_review:
-                    return await accept("verified", report=first_report)
+                    res = await accept("verified", report=first_report)
+                    if res is not None:
+                        return res
+                    continue  # rejection feedback sent; re-verify next round
 
                 if echo:
                     print(_banner(f"review: {config.review_focus} (round {len(progress)})"), flush=True)
@@ -263,7 +276,10 @@ async def build(
                     print(f"review approved={verdict.approved} | {verdict.summary}", flush=True)
 
                 if verdict.approved:
-                    return await accept("approved", report=first_report, verdict=verdict)
+                    res = await accept("approved", report=first_report, verdict=verdict)
+                    if res is not None:
+                        return res
+                    continue  # rejection feedback sent; re-verify next round
                 if review_repairs <= 0:
                     return await finish(False, "review-rejected", verdict=verdict, findings=verdict.findings)
                 if _expired(start, config.deadline_seconds):
