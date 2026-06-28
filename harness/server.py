@@ -210,13 +210,11 @@ Keep the same overall stack and structure. Do not delete unrelated features. \
 When done, make sure the app still loads."""
 
 
-async def _iterate_once(spec, config: HarnessConfig, instruction: str):
+async def _run_engine_turn(engine, instruction: str):
     """Run a single engine turn against an existing workspace. Returns (tokens, text)."""
-    from harness.engines.base import make_engine
-    engine = make_engine(spec, config)
     async with engine:
         text = await engine.send(_ITERATE_PROMPT.format(instruction=instruction), echo=True)
-    return getattr(engine, "total_tokens", 0), text
+        return getattr(engine, "total_tokens", 0), text
 
 
 def run_tests(workspace_dir: str, checks: list | None = None) -> dict:
@@ -257,6 +255,8 @@ class Job:
         self.token_budget = None
         self.deadline = None
         self.control = BuildControl()
+        self.engine = None      # live engine (set during iterate) so cancel can kill it
+        self.cancelled = False
 
     def log(self, text: str) -> None:
         for line in text.splitlines():
@@ -377,9 +377,22 @@ class Console:
         )
         config = HarnessConfig(workspace=job.workspace, engine=engine_cfg)
 
+        from harness.engines.base import make_engine
+        engine = make_engine(spec, config)
+        job.engine = engine  # so a Stop/cancel can kill the in-flight turn
+
         print(f"[iterate] {provider} · {model or '(default)'} — applying change…")
         print(f"› {instruction}")
-        tokens, _text = asyncio.run(_iterate_once(spec, config, instruction))
+        try:
+            tokens, _text = asyncio.run(_run_engine_turn(engine, instruction))
+        except Exception as exc:
+            if job.cancelled:
+                job.status = "cancelled"
+                print("RESULT: CANCELLED")
+                return
+            raise
+        finally:
+            job.engine = None
         job.tokens = tokens
         # Verify against the project's gate so the preview reflects a passing app.
         result = run_tests(job.workspace, meta.get("checks"))
@@ -580,6 +593,13 @@ def make_handler(console: Console):
                     job.control.pause()
                 elif action == "cancel":
                     job.control.cancel()
+                    job.cancelled = True
+                    eng = getattr(job, "engine", None)
+                    if eng is not None and hasattr(eng, "terminate"):
+                        try:
+                            eng.terminate()  # kill the in-flight CLI turn immediately
+                        except Exception:
+                            pass
                 else:
                     return self._json({"error": "action must be pause|cancel"}, 400)
                 job.log(f"[control] {action} requested")

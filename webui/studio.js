@@ -5,9 +5,11 @@
 (function () {
   let project = null;       // active workspace name (null = new-project mode)
   let currentFile = null;   // path of the file shown in the viewer
+  let jobId = null;         // id of the in-flight build/iterate job
   let device = "desktop";
   let pollTimer = null;
   let wired = false;
+  const NEW = "__new__";    // sentinel option value in the project switcher
 
   // Local-LLM presets — editable. Model ids depend on what your server exposes
   // (Ollama/LM Studio/vLLM). GLM / MiniMax / Qwen are common OpenAI-compatible.
@@ -92,17 +94,49 @@
     } catch {}
   }
 
+  function runningUI(on) {
+    $("#st-send").disabled = on;
+    $("#st-stop").hidden = !on;
+    $("#st-project").disabled = on;
+  }
+
+  // --- project switcher ----------------------------------------------------
+  async function populateProjects() {
+    const sel = $("#st-project");
+    try {
+      const { artifacts } = await (await fetch("/api/artifacts")).json();
+      const names = (artifacts || []).map((a) => a.name);
+      sel.innerHTML = "";
+      for (const n of names) {
+        const o = document.createElement("option"); o.value = n; o.textContent = n;
+        sel.appendChild(o);
+      }
+      const newo = document.createElement("option");
+      newo.value = NEW; newo.textContent = "＋ New project…";
+      sel.appendChild(newo);
+      sel.value = project || NEW;
+      return names;
+    } catch { return []; }
+  }
+  function selectLabel(name) {
+    const sel = $("#st-project");
+    if (name && ![...sel.options].some((o) => o.value === name)) {
+      const o = document.createElement("option"); o.value = name; o.textContent = name;
+      sel.insertBefore(o, sel.firstChild);
+    }
+    sel.value = name || NEW;
+  }
+
   function intoIterateMode() {
     $("#st-new").hidden = true;
     $("#st-prompt-label").textContent = "Describe a change";
     $("#st-prompt").placeholder = "e.g. Add a dark-mode toggle, and a confetti burst when the timer ends.";
     $("#st-send").textContent = "Send change";
     $("#st-hint").textContent = "Your engine edits the app, then re-verifies. The preview reloads on the right.";
-    ensureNewButton();
   }
   function resetToNew() {
     project = null; currentFile = null;
-    $("#studio-project").textContent = "New project";
+    selectLabel(null);
     $("#st-new").hidden = false;
     $("#st-prompt-label").textContent = "Describe the app to build";
     $("#st-send").textContent = "Generate app";
@@ -110,16 +144,9 @@
     $("#st-tree").innerHTML = ""; $("#st-file").textContent = "";
     $("#st-tests").hidden = true; $("#st-log").textContent = ""; setStatus("idle", "idle");
   }
-  function ensureNewButton() {
-    if ($("#st-newbtn")) return;
-    const b = document.createElement("button");
-    b.id = "st-newbtn"; b.className = "ghost"; b.textContent = "＋ New";
-    b.addEventListener("click", resetToNew);
-    $(".studio-head").insertBefore(b, $("#st-status"));
-  }
   function setProject(name) {
-    project = name;
-    $("#studio-project").textContent = name;
+    project = name; currentFile = null;
+    selectLabel(name);
     intoIterateMode();
     loadFiles(); reloadPreview(); runTests();
   }
@@ -128,7 +155,7 @@
     const prompt = $("#st-prompt").value.trim();
     if (!prompt) return;
     const eng = engineParams();
-    $("#st-send").disabled = true; $("#st-log").textContent = ""; setStatus("running", "working");
+    runningUI(true); $("#st-log").textContent = ""; setStatus("running", "working");
     let url, body;
     if (project) {
       url = "/api/iterate"; body = { workspace: project, instruction: prompt, ...eng };
@@ -140,22 +167,35 @@
       const j = await (await fetch(url, {
         method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body),
       })).json();
-      if (j.error) { setStatus("error", j.error); appendLog("error: " + j.error); $("#st-send").disabled = false; return; }
+      if (j.error) { setStatus("error", j.error); appendLog("error: " + j.error); runningUI(false); return; }
+      jobId = j.id;
       project = project || j.workspace.split("/").pop();
-      $("#studio-project").textContent = project;
+      selectLabel(project);
       $("#st-prompt").value = "";
       stream(j.id); startPoll();
-    } catch { setStatus("error", "request failed"); $("#st-send").disabled = false; }
+    } catch { setStatus("error", "request failed"); runningUI(false); }
+  }
+
+  async function stop() {
+    if (!jobId) return;
+    $("#st-stop").disabled = true; appendLog("[control] stop requested…");
+    try {
+      await fetch(`/api/jobs/${jobId}/control`, {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "cancel" }),
+      });
+    } catch {}
+    $("#st-stop").disabled = false;
   }
 
   function stream(id) {
     const es = new EventSource(`/api/jobs/${id}/events`);
     es.onmessage = (ev) => appendLog(ev.data);
     es.addEventListener("done", (ev) => {
-      setStatus(ev.data, ev.data); $("#st-send").disabled = false; es.close();
-      stopPoll(); intoIterateMode(); loadFiles(); reloadPreview(); runTests();
+      setStatus(ev.data, ev.data); runningUI(false); jobId = null; es.close();
+      stopPoll(); intoIterateMode(); populateProjects(); loadFiles(); reloadPreview(); runTests();
     });
-    es.onerror = () => { $("#st-send").disabled = false; es.close(); stopPoll(); };
+    es.onerror = () => { runningUI(false); es.close(); stopPoll(); };
   }
 
   function startPoll() { stopPoll(); pollTimer = setInterval(pollOnce, 1500); pollOnce(); }
@@ -190,6 +230,11 @@
   function wire() {
     $("#st-engine").addEventListener("change", onEngineChange);
     $("#st-send").addEventListener("click", send);
+    $("#st-stop").addEventListener("click", stop);
+    $("#st-project").addEventListener("change", (e) => {
+      const v = e.target.value;
+      if (v === NEW) resetToNew(); else setProject(v);
+    });
     $("#st-refresh").addEventListener("click", () => { loadFiles(); reloadPreview(); });
     $("#st-reload").addEventListener("click", reloadPreview);
     $("#st-test").addEventListener("click", runTests);
@@ -199,9 +244,10 @@
     });
   }
 
-  function show() {
+  async function show() {
     if (!wired) { wire(); wired = true; }
     onEngineChange();
+    const names = await populateProjects();
     // Deep-link support: /?tab=studio&proj=<name>&dev=mobile
     const qs = new URLSearchParams(location.search);
     const dev = qs.get("dev");
@@ -211,15 +257,24 @@
       setDevice(dev);
     }
     const proj = qs.get("proj");
-    if (proj && project !== proj) { setProject(proj); return; }
-    if (!project) {
-      fetch("/api/artifacts").then((r) => r.json()).then(({ artifacts }) => {
-        if (!project && artifacts && artifacts.length) {
-          const pick = artifacts.find((a) => a.has_index) || artifacts[0];
-          setProject(pick.name);
-        }
-      }).catch(() => {});
-    }
+    if (proj && project !== proj) setProject(proj);
+    else if (!project && names.length) setProject(names[0]);
+    reconnectIfBusy();
+  }
+
+  // If a build/iterate is already running (e.g. the page was reloaded mid-run),
+  // re-attach: show Stop, stream the log, and resume polling.
+  async function reconnectIfBusy() {
+    if (jobId) return;
+    try {
+      const c = await (await fetch("/api/current")).json();
+      if (c.busy && c.job) {
+        jobId = c.job;
+        if (c.name) { project = c.name; selectLabel(project); intoIterateMode(); loadFiles(); reloadPreview(); }
+        runningUI(true); setStatus("running", "working");
+        stream(jobId); startPoll();
+      }
+    } catch {}
   }
 
   window.Studio = { show };

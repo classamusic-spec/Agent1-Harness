@@ -98,6 +98,22 @@ def test_claude_cli_argv_includes_model_system_and_tools():
     assert "Write" in argv and "Edit" in argv and "Read" in argv
 
 
+def test_claude_cli_terminate_is_safe_without_proc():
+    spec = synth_spec("app", "frontend", "desc")
+    cfg = HarnessConfig(workspace="/tmp/ws", engine=EngineConfig(provider="claude-cli"))
+    eng = ClaudeCLIEngine(spec, cfg, "")
+    # No subprocess running yet — terminate must be a harmless no-op.
+    assert eng._proc is None
+    eng.terminate()
+
+
+def test_job_has_cancel_fields():
+    from harness.server import Job
+    job = Job("1", "/tmp/ws")
+    assert job.cancelled is False
+    assert job.engine is None
+
+
 def test_claude_cli_argv_omits_model_when_unset():
     spec = synth_spec("app", "frontend", "desc")
     cfg = HarnessConfig(workspace="/tmp/ws", engine=EngineConfig(provider="claude-cli", model=""))

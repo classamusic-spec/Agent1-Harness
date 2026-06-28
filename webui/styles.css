@@ -383,6 +383,9 @@ input[type="number"]:focus { outline: none; border-color: var(--accent); box-sha
   text-transform: none; letter-spacing: -0.01em; color: var(--text);
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .studio-head .ghost { flex: none; }
+.st-project-wrap { flex: 1; min-width: 0; }
+.st-project-wrap select { padding: 8px 30px 8px 11px; font-weight: 600; }
+#st-status { flex: none; }
 .studio-log-head { display: flex; align-items: center; justify-content: space-between;
   margin-top: calc(var(--sp) * 2.5); }
 .studio-log { min-height: 150px; max-height: 30vh; margin-top: var(--sp); }

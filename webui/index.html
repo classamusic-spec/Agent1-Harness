@@ -71,8 +71,11 @@
           <!-- Left: project + engine + chat -->
           <div class="card studio-chat">
             <div class="studio-head">
-              <h2 id="studio-project">New project</h2>
-              <span class="badge" id="studio-status" data-state="idle">idle</span>
+              <div class="select-wrap st-project-wrap">
+                <select id="st-project" aria-label="Switch project"></select>
+              </div>
+              <button id="st-stop" class="ghost danger" hidden>Stop</button>
+              <span class="badge" id="st-status" data-state="idle">idle</span>
             </div>
 
             <label for="st-engine">Engine</label>

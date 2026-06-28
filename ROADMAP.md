@@ -6,8 +6,10 @@ Ordered by impact-to-effort.
 ## Today (done)
 - **Studio (Replit / Lovable-style)** — describe an app → it builds → **live
   preview** (Desktop / Mobile device frame, reload, Run tests) → **chat to
-  iterate** (one engine turn on the workspace, re-verified). Freeform prompts
-  become first-class specs.
+  iterate** (one engine turn on the workspace, re-verified). A **project
+  switcher** jumps between built apps and a **Stop** button cancels a run
+  (killing the engine turn immediately for changes; reload re-attaches to a live
+  job). Freeform prompts become first-class specs.
 - **Claude Code (CLI) engine** — plug in your installed, authenticated `claude`
   CLI as the builder (no API key/SDK). Plus `local` presets for GLM / MiniMax /
   Qwen and any OpenAI-compatible server.

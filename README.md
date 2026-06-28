@@ -37,6 +37,12 @@ verified end-to-end:
 
 ![Studio — mobile device frame](docs/screenshots/studio-mobile.png)
 
+**Switch projects & stop a run** — a project switcher jumps between built apps without
+leaving Studio, and a **Stop** button cancels an in-flight build/iteration (it kills the
+engine turn immediately for changes):
+
+![Studio — project switcher and Stop](docs/screenshots/studio-running.png)
+
 **Build tab** — pick spec/engine, toggle gates (review, test-first, approval), set budgets:
 
 ![Build console](docs/screenshots/console-build-options.png)
@@ -82,7 +88,7 @@ verified end-to-end:
 | **Live run controls** | `harness/control.py` | **Pause** or **Cancel** a running build from the console; the loop stops at the next round boundary. Pause leaves a checkpoint, so it's resumable. |
 | **3D Office** | `webui/office.js` (three.js) | A futuristic Office tab: an agent character works at a desk beside an **AI rig** whose fans spin and GPU cards glow cyan while a model runs. Animates with build state (idle / building / passed / failed), driven live by `/api/current`. three.js is vendored for offline use. |
 | **CI** | `.github/workflows/ci.yml` | Runs the full test suite on Python 3.10–3.12 on every push and PR. |
-| **Studio (live preview)** | `harness/server.py` + `webui/studio.js` | A Replit/Lovable-style surface: describe an app → it builds → **live preview** (Desktop / Mobile device frame, reload, open) with a **Run tests** chip; then **chat to iterate** (`/api/iterate` runs one engine turn on the workspace and re-verifies). Freeform prompts become first-class specs. |
+| **Studio (live preview)** | `harness/server.py` + `webui/studio.js` | A Replit/Lovable-style surface: describe an app → it builds → **live preview** (Desktop / Mobile device frame, reload, open) with a **Run tests** chip; then **chat to iterate** (`/api/iterate` runs one engine turn on the workspace and re-verifies). A **project switcher** jumps between built apps and a **Stop** button cancels a run (kills the engine turn immediately for changes). Freeform prompts become first-class specs. |
 | **Engines** | `harness/engines/` | `anthropic` (Claude Agent SDK), `local` (any OpenAI-compatible server — GLM / MiniMax / Qwen / …), or **`claude-cli`** — drives your installed, authenticated **Claude Code CLI** as the builder (no API key/SDK needed). |
 | **Personas** | `harness/personas.py` | Specialist system prompts by `kind`: frontend design, backend rigor, **React/React Native**, **SwiftUI (Apple-level)**. |
 | **Web console** | `harness/server.py` + `webui/` | Tabs: Build, **New Spec** (author specs), **Gallery** (preview built apps), and a **live Workspace view** (watch files appear/change as the agent works). Stdlib only. See `docs/screenshots/`. |
@@ -133,6 +139,9 @@ The **Studio** tab is the conversational surface:
    reload, or open in a new tab. Hit **Run tests** to re-run the gate any time.
 3. **Chat to iterate** — "add a dark-mode toggle", "make the ring teal". Each message
    runs one engine turn against the workspace and re-verifies; the preview reloads.
+4. **Switch & stop** — the project switcher jumps between built apps without leaving
+   Studio; **Stop** cancels an in-flight run (immediately killing the engine turn for a
+   change). Reloading the page mid-run re-attaches to the live job.
 
 Choose your engine right in Studio:
 

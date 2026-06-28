@@ -16,6 +16,7 @@ import asyncio
 import json
 import os
 import shutil
+import signal
 
 from harness.config import HarnessConfig
 from harness.engines.base import Engine
@@ -46,8 +47,24 @@ class ClaudeCLIEngine(Engine):
         self._system = system_prompt
         self._bin = os.environ.get("CLAUDE_CLI_BIN", "claude")
         self._timeout = _DEFAULT_TIMEOUT
+        self._proc = None  # live subprocess (for cancellation)
         self.total_tokens = 0
         self.last_cost_usd = 0.0
+
+    def terminate(self) -> None:
+        """Kill the in-flight CLI turn (and its children). Safe to call cross-thread."""
+        p = self._proc
+        if p is None or p.returncode is not None:
+            return
+        # The turn runs in its own session/process group (start_new_session=True),
+        # so kill the whole group to take the CLI and any workers it spawned.
+        try:
+            os.killpg(os.getpgid(p.pid), signal.SIGKILL)
+        except (ProcessLookupError, PermissionError):
+            try:
+                p.kill()
+            except ProcessLookupError:
+                pass
 
     async def __aenter__(self) -> "ClaudeCLIEngine":
         if shutil.which(self._bin) is None:
@@ -80,12 +97,19 @@ class ClaudeCLIEngine(Engine):
             cwd=self._config.workspace,
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
+            start_new_session=True,  # own process group so terminate() can kill children
         )
+        self._proc = proc
         try:
             out, err = await asyncio.wait_for(proc.communicate(), timeout=self._timeout)
         except asyncio.TimeoutError:
             proc.kill()
             raise RuntimeError(f"claude CLI timed out after {self._timeout:.0f}s")
+        finally:
+            self._proc = None
+
+        if proc.returncode and proc.returncode < 0:
+            raise RuntimeError("claude CLI turn was cancelled")
 
         stdout = out.decode("utf-8", "replace").strip()
         stderr = err.decode("utf-8", "replace").strip()
