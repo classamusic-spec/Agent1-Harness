@@ -62,14 +62,27 @@ class HarnessConfig:
     reflect: bool = True  # when learning, ask the model to distill reusable lessons
 
     # Loop convergence guards.
-    stall_limit: int = 3  # stop after N consecutive identical failing rounds
+    stall_limit: int = 3  # consecutive identical failing rounds before escalate/stop
     deadline_seconds: float | None = None  # overall wall-clock budget (None = unlimited)
+    diff_aware: bool = True  # include a diff of the last change in repair prompts
+    max_escalations: int = 1  # fresh-fixer attempts on a stall before giving up
+    escalation_model: str | None = None  # stronger model for the fixer (default: builder model)
 
     def reviewer_engine(self) -> EngineConfig:
         """Engine config for the reviewer (same backend, optional model override)."""
         return EngineConfig(
             provider=self.engine.provider,
             model=self.reviewer_model or self.engine.model,
+            base_url=self.engine.base_url,
+            api_key_env=self.engine.api_key_env,
+            temperature=self.engine.temperature,
+        )
+
+    def fixer_engine(self) -> EngineConfig:
+        """Engine config for the escalation fixer (optional stronger model)."""
+        return EngineConfig(
+            provider=self.engine.provider,
+            model=self.escalation_model or self.engine.model,
             base_url=self.engine.base_url,
             api_key_env=self.engine.api_key_env,
             temperature=self.engine.temperature,

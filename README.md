@@ -25,11 +25,11 @@ workspace.
 | **Verification gate** | `harness/verifier.py` | Runs build/test/lint; structured pass/fail. LLM-free, unit-tested. |
 | **Reviewer / Sentry gate** | `harness/review.py` | Independent fresh-context agent returns a JSON verdict. `quality` reviewer or `bugs` (Sentry-style) hunter. Approval is **deterministic**: no blocker/major findings. |
 | **Learn from itself** | `harness/memory.py` | Distills failures + reviewer findings into lessons (JSONL), injected into future builds. |
-| **The loop** | `harness/agent.py` | Engine-agnostic: implement → verify → review → repair, bounded by repair budgets; records lessons. |
+| **The loop** | `harness/agent.py` | Engine-agnostic: implement → verify → review → repair. **Diff-aware repair** (shows the last change's diff + failure delta) and **stall escalation** (a fresh-context fixer, optionally a stronger model). |
 | **Isolation** | `harness/isolation.py` | `directory` (default) or `worktree` (a git worktree off a base repo). |
 | **Engines** | `harness/engines/` | `anthropic` (Claude Agent SDK) or `local` (any OpenAI-compatible server). |
 | **Personas** | `harness/personas.py` | Specialist system prompts by `kind`: frontend design, backend rigor, **React/React Native**, **SwiftUI (Apple-level)**. |
-| **Web console** | `harness/server.py` + `webui/` | Clean, accessible UI to launch builds and watch logs live. Stdlib only. |
+| **Web console** | `harness/server.py` + `webui/` | Tabs: Build, **New Spec** (author specs), **Gallery** (preview built apps), and a **live Workspace view** (watch files appear/change as the agent works). Stdlib only. See `docs/screenshots/`. |
 | **Design checks** | `checks/` | Headless Playwright + axe-core + Lighthouse, wired as verification commands. |
 
 ## Self-improving loop, in one command

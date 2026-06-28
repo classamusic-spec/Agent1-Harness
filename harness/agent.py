@@ -5,14 +5,20 @@ One round of the loop:
     implement/repair  ->  VERIFY (deterministic gate)  ->  REVIEW (agent gate)
 
 The build succeeds only when verification passes *and* the reviewer/sentry gate
-approves (when enabled). Convergence is guarded: the loop bails early if repairs
-stop making progress (stall) or a wall-clock budget is exceeded (timeout), so it
-never burns the full budget on a wedged build. Lessons from failures — and, when
-enabled, a model-driven reflection — are written to memory and injected into
-future builds. Everything runs inside an isolated workspace.
+approves (when enabled).
 
-The loop is engine-agnostic (Claude or local LLM) and accepts factory overrides
-so it can be driven by a fake engine in tests.
+Convergence intelligence:
+  - Diff-aware repair: each repair turn shows the model a unified diff of its
+    last change plus the delta in failing checks, so it targets the regression.
+  - Stall escalation: if repairs keep producing the same failures, a fresh-context
+    "fixer" engine (optionally a stronger model) is brought in to try a different
+    approach before the loop gives up.
+  - Time budget: an optional wall-clock deadline.
+
+Lessons (mechanical + model reflection) are written to memory and injected into
+future builds. Everything runs inside an isolated workspace. The loop is
+engine-agnostic and accepts factory overrides so a fake engine can drive it in
+tests.
 """
 
 from __future__ import annotations
@@ -23,18 +29,24 @@ from dataclasses import dataclass, field
 from typing import Callable
 
 from harness.config import HarnessConfig
+from harness.diffing import diff_snapshots, snapshot
 from harness.engines import Engine, make_engine
 from harness.isolation import workspace_session
 from harness.memory import LessonStore, lessons_from_findings, lessons_from_report
-from harness.personas import reviewer_system
-from harness.prompts import build_prompt, repair_prompt, review_repair_prompt, with_lessons
+from harness.personas import fixer_system, reviewer_system
+from harness.prompts import (
+    build_prompt,
+    escalation_prompt,
+    repair_prompt,
+    review_repair_prompt,
+    with_lessons,
+)
 from harness.reflect import reflect
 from harness.review import ReviewVerdict, run_review
 from harness.spec import Spec
-from harness.verifier import VerificationReport, run_suite
+from harness.verifier import VerificationReport, failure_delta, run_suite
 
-BuilderFactory = Callable[[Spec, HarnessConfig], Engine]
-ReviewerFactory = Callable[[Spec, HarnessConfig], Engine]
+Factory = Callable[[Spec, HarnessConfig], Engine]
 
 
 @dataclass
@@ -47,7 +59,8 @@ class BuildResult:
     verdict: ReviewVerdict | None = None
     workspace: str = ""
     lessons_learned: int = 0
-    progress: list[int] = field(default_factory=list)  # failing-check count per round
+    escalations: int = 0
+    progress: list[int] = field(default_factory=list)
     transcript: list[str] = field(default_factory=list)
 
 
@@ -60,12 +73,16 @@ def _default_reviewer(spec: Spec, config: HarnessConfig) -> Engine:
     return make_engine(spec, rconfig, system_prompt_override=reviewer_system())
 
 
+def _default_fixer(spec: Spec, config: HarnessConfig) -> Engine:
+    fconfig = dataclasses.replace(config, engine=config.fixer_engine())
+    return make_engine(spec, fconfig, system_prompt_override=fixer_system())
+
+
 def _banner(text: str) -> str:
     return f"\n{'=' * 8} {text} {'=' * 8}"
 
 
 def _signature(report: VerificationReport) -> frozenset:
-    """A comparable fingerprint of a failing round, to detect no-progress."""
     return frozenset((r.name, r.returncode) for r in report.failures)
 
 
@@ -78,8 +95,9 @@ async def build(
     config: HarnessConfig,
     *,
     echo: bool = True,
-    builder_factory: BuilderFactory = _default_builder,
-    reviewer_factory: ReviewerFactory = _default_reviewer,
+    builder_factory: Factory = _default_builder,
+    reviewer_factory: Factory = _default_reviewer,
+    fixer_factory: Factory = _default_fixer,
 ) -> BuildResult:
     """Run the full self-improving build loop for a spec."""
     store = LessonStore(config.memory_path) if config.learn and config.memory_path else None
@@ -90,29 +108,36 @@ async def build(
         base_repo=config.base_repo,
         branch=f"appbuilder/{spec.name}",
         keep=config.keep_workspace,
-    ) as effective_ws:
-        run_config = dataclasses.replace(config, workspace=effective_ws)
+    ) as ws:
+        run_config = dataclasses.replace(config, workspace=ws)
         for c in spec.checks:
-            c.cwd = effective_ws
+            c.cwd = ws
 
         lessons_text = store.render(spec.kind, spec.language) if store else ""
         transcript: list[str] = []
         progress: list[int] = []
         first_report: VerificationReport | None = None
+        prev_report: VerificationReport | None = None
+        prev_snap: dict | None = None
+        escalations = 0
         start = time.monotonic()
         builder = builder_factory(spec, run_config)
 
+        def _diff() -> str:
+            return diff_snapshots(prev_snap, cur_snap) if config.diff_aware else ""
+
         async with builder:
             transcript.append(await builder.send(with_lessons(build_prompt(spec), lessons_text), echo=echo))
+            cur_snap = snapshot(ws)
 
             if not spec.has_verification:
-                return BuildResult(True, 1, "no-verification", workspace=effective_ws, transcript=transcript)
+                return BuildResult(True, 1, "no-verification", workspace=ws, transcript=transcript)
 
             async def finish(ok, reason, *, report=None, verdict=None, findings=None):
                 learned = await _finalize(store, spec, config, builder, report=report,
                                           findings=findings, echo=echo)
-                return BuildResult(ok, len(progress), reason, report, verdict, effective_ws,
-                                   learned, progress, transcript)
+                return BuildResult(ok, len(progress), reason, report, verdict, ws,
+                                   learned, escalations, progress, transcript)
 
             verify_repairs = config.max_repairs
             review_repairs = config.max_repairs
@@ -133,17 +158,39 @@ async def build(
                     sig = _signature(report)
                     stall = stall + 1 if sig == prev_sig else 1
                     prev_sig = sig
+
                     if stall >= config.stall_limit:
+                        if escalations < config.max_escalations:
+                            escalations += 1
+                            if echo:
+                                print(_banner(f"escalation {escalations}/{config.max_escalations}: "
+                                              "fresh fixer engine"), flush=True)
+                            diff, delta = _diff(), failure_delta(prev_report, report)
+                            fixer = fixer_factory(spec, run_config)
+                            async with fixer:
+                                transcript.append(await fixer.send(
+                                    escalation_prompt(report, escalations, config.max_escalations,
+                                                      diff=diff, delta=delta), echo=echo))
+                            prev_snap, cur_snap = cur_snap, snapshot(ws)
+                            prev_report = report
+                            stall, prev_sig = 0, None
+                            continue
                         if echo:
-                            print(f"[loop] no progress for {stall} rounds — stopping (stalled)", flush=True)
+                            print("[loop] stuck after escalation — stopping (stalled)", flush=True)
                         return await finish(False, "stalled", report=report)
+
                     if verify_repairs <= 0:
                         return await finish(False, "verify-failed", report=report)
                     if _expired(start, config.deadline_seconds):
                         return await finish(False, "timeout", report=report)
+
                     verify_repairs -= 1
                     n = config.max_repairs - verify_repairs
-                    transcript.append(await builder.send(repair_prompt(report, n, config.max_repairs), echo=echo))
+                    diff, delta = _diff(), failure_delta(prev_report, report)
+                    transcript.append(await builder.send(
+                        repair_prompt(report, n, config.max_repairs, diff=diff, delta=delta), echo=echo))
+                    prev_snap, cur_snap = cur_snap, snapshot(ws)
+                    prev_report = report
                     continue
 
                 # Verification passed. Apply the reviewer/sentry gate if enabled.
@@ -166,13 +213,12 @@ async def build(
                     return await finish(False, "timeout", verdict=verdict, findings=verdict.findings)
                 review_repairs -= 1
                 review_attempt += 1
-                transcript.append(
-                    await builder.send(review_repair_prompt(verdict, review_attempt, config.max_repairs), echo=echo)
-                )
+                transcript.append(await builder.send(
+                    review_repair_prompt(verdict, review_attempt, config.max_repairs), echo=echo))
+                prev_snap, cur_snap = cur_snap, snapshot(ws)
 
 
 async def _finalize(store, spec, config, builder, *, report=None, findings=None, echo=True) -> int:
-    """Record lessons learned this build (mechanical + optional reflection)."""
     if store is None:
         return 0
     lessons = []
@@ -180,8 +226,6 @@ async def _finalize(store, spec, config, builder, *, report=None, findings=None,
         lessons += lessons_from_report(report, spec)
     if findings:
         lessons += lessons_from_findings(findings, spec)
-    # Reflect only when there was something to learn from (a failure or rejection).
     if config.reflect and (report is not None or findings):
-        reflected = await reflect(builder, spec, echo=echo)
-        lessons = reflected + lessons  # richer lessons first; dedupe happens on write
+        lessons = (await reflect(builder, spec, echo=echo)) + lessons
     return store.add_many(lessons)

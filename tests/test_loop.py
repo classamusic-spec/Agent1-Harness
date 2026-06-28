@@ -110,12 +110,41 @@ def test_review_gate_rejects_then_approves(tmp_path):
 
 def test_stalls_when_no_progress(tmp_path):
     spec = _spec()
-    cfg = _config(tmp_path / "ws", max_repairs=5, stall_limit=2)
+    cfg = _config(tmp_path / "ws", max_repairs=5, stall_limit=2, max_escalations=0)
     builder = FakeEngine(str(tmp_path / "ws"), [_noop, _noop, _noop])  # never fixes it
     result = asyncio.run(build(spec, cfg, echo=False, builder_factory=lambda s, c: builder))
     assert not result.ok
     assert result.stop_reason == "stalled"
     assert result.rounds == 2  # bailed early instead of using all 5 repairs
+
+
+def test_escalation_fixes_a_stall(tmp_path):
+    spec = _spec()
+    cfg = _config(tmp_path / "ws", max_repairs=5, stall_limit=2, max_escalations=1)
+    builder = FakeEngine(str(tmp_path / "ws"), [_noop, _noop, _noop])  # builder stays stuck
+    fixer_calls = {"n": 0}
+
+    def fixer_factory(s, c):
+        fixer_calls["n"] += 1
+        return FakeEngine(c.workspace, [_writer("fixed by specialist")])
+
+    result = asyncio.run(build(
+        spec, cfg, echo=False,
+        builder_factory=lambda s, c: builder,
+        fixer_factory=fixer_factory,
+    ))
+    assert result.ok and result.stop_reason == "verified"
+    assert result.escalations == 1
+    assert fixer_calls["n"] == 1
+
+
+def test_stall_stops_when_escalations_exhausted(tmp_path):
+    spec = _spec()
+    cfg = _config(tmp_path / "ws", max_repairs=5, stall_limit=2, max_escalations=0)
+    builder = FakeEngine(str(tmp_path / "ws"), [_noop, _noop, _noop])
+    result = asyncio.run(build(spec, cfg, echo=False, builder_factory=lambda s, c: builder))
+    assert not result.ok and result.stop_reason == "stalled"
+    assert result.escalations == 0
 
 
 def test_timeout_budget(tmp_path):

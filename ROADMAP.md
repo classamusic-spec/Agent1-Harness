@@ -9,15 +9,15 @@ Ordered by impact-to-effort.
 - Reviewer / Sentry second gate (independent, structured verdict).
 - Learns from mistakes: mechanical + model-driven reflection lessons.
 - Convergence guards: stall detection + wall-clock budget.
+- **Diff-aware repair** — repairs see a unified diff of the last change + the failure delta.
+- **Stall escalation** — a fresh-context "fixer" (optionally a stronger model) on a stall.
 - Per-build isolation (directory / git worktree).
-- Clean web console + design-check templates (Playwright/axe/Lighthouse).
+- Web console with tabs: Build, **New Spec** (authoring), **Gallery** (artifact
+  preview), and a **live Workspace view** (watch files appear/change as it builds).
+- Design-check templates (Playwright/axe/Lighthouse).
 
 ## Next — correctness & convergence
-1. **Diff-aware repair** — show the model a unified diff of what changed between
-   rounds + the *delta* in failures, so repairs target regressions precisely.
-2. **Escalation policy** — on repeated stalls, automatically raise effort /
-   switch to a stronger model / spawn a fresh-context "fixer" before giving up.
-3. **Test-first option** — generate the verification/tests from the spec first,
+1. **Test-first option** — generate the verification/tests from the spec first,
    get them approved, then build against them (red→green).
 
 ## Next — quality & trust

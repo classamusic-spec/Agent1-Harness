@@ -1,11 +1,15 @@
-"""A small, dependency-free web console for the harness.
+"""A dependency-free web console for the harness.
 
-Lets you browse specs, kick off a build (or a check-only run), and watch the
-log stream live in the browser. Built on the stdlib http.server so there's
-nothing extra to install. Builds are serialized (one at a time) which keeps
-stdout capture correct for the live log.
+Features:
+  - Browse specs and launch builds (or check-only runs); watch logs live (SSE).
+  - Author new specs from the UI (validated before saving).
+  - Artifact gallery: browse built workspaces and preview built apps in an iframe.
+  - Live workspace view: watch files appear/change as the agent works.
 
-Run:  appbuilder-web            # serves http://127.0.0.1:8765
+Built on the stdlib http.server — nothing extra to install. Builds are
+serialized (one at a time) so stdout capture for the live log stays correct.
+
+Run:  appbuilder-web            # http://127.0.0.1:8765
 """
 
 from __future__ import annotations
@@ -16,20 +20,27 @@ import contextlib
 import io
 import json
 import os
+import re
 import threading
 import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
+from urllib.parse import parse_qs, urlparse
+
+import yaml
 
 from harness.config import DEFAULT_LOCAL_BASE_URL, DEFAULT_MODEL, EngineConfig, HarnessConfig
-from harness.spec import SpecError, load_spec
+from harness.diffing import _SKIP_DIRS
+from harness.spec import SpecError, load_spec, parse_spec
 from harness.verifier import run_suite
 
 WEB_DIR = Path(__file__).resolve().parent.parent / "webui"
+_TREE_CAP = 400
 
+
+# --- testable helpers -----------------------------------------------------
 
 def list_specs(specs_dir: str) -> list[dict]:
-    """Return [{name, kind, path}] for every YAML spec in `specs_dir`."""
     out: list[dict] = []
     base = Path(specs_dir)
     if not base.is_dir():
@@ -43,10 +54,107 @@ def list_specs(specs_dir: str) -> list[dict]:
     return out
 
 
+def read_spec(path: str) -> dict:
+    spec = load_spec(path)
+    return {
+        "name": spec.name, "kind": spec.kind, "language": spec.language,
+        "description": spec.description, "constraints": spec.constraints,
+        "verification": [{"name": c.name, "command": c.command} for c in spec.checks],
+        "raw": Path(path).read_text(),
+    }
+
+
+def _slug(name: str) -> str:
+    s = re.sub(r"[^a-z0-9-]+", "-", name.strip().lower()).strip("-")
+    return s or "spec"
+
+
+def save_spec(specs_dir: str, data: dict) -> str:
+    """Validate and write a spec to <specs_dir>/<slug>.yaml. Returns the path."""
+    doc = {
+        "name": str(data.get("name", "")).strip(),
+        "kind": str(data.get("kind", "fullstack")).strip() or "fullstack",
+        "language": str(data.get("language", "unspecified")).strip() or "unspecified",
+        "description": str(data.get("description", "")).strip(),
+    }
+    constraints = [str(c).strip() for c in (data.get("constraints") or []) if str(c).strip()]
+    if constraints:
+        doc["constraints"] = constraints
+    checks = []
+    for v in data.get("verification") or []:
+        name = str((v or {}).get("name", "")).strip()
+        cmd = str((v or {}).get("command", "")).strip()
+        if name and cmd:
+            checks.append({"name": name, "command": cmd})
+    if checks:
+        doc["verification"] = checks
+
+    parse_spec(doc)  # raises SpecError if invalid
+    Path(specs_dir).mkdir(parents=True, exist_ok=True)
+    path = os.path.join(specs_dir, f"{_slug(doc['name'])}.yaml")
+    Path(path).write_text(yaml.safe_dump(doc, sort_keys=False, width=88))
+    return path
+
+
+def list_artifacts(workspaces_dir: str) -> list[dict]:
+    base = Path(workspaces_dir)
+    out: list[dict] = []
+    if not base.is_dir():
+        return out
+    for d in sorted(base.iterdir()):
+        if not d.is_dir() or d.name.startswith("."):
+            continue
+        files = [p for p in d.rglob("*") if p.is_file()]
+        out.append({
+            "name": d.name,
+            "files": len(files),
+            "has_index": (d / "index.html").is_file(),
+        })
+    return out
+
+
+def _within(root: str, target: str) -> bool:
+    r = os.path.realpath(root)
+    t = os.path.realpath(target)
+    return t == r or t.startswith(r + os.sep)
+
+
+def workspace_tree(root: str) -> dict:
+    base = os.path.abspath(root)
+    files: list[dict] = []
+    if os.path.isdir(base):
+        for dirpath, dirs, names in os.walk(base):
+            dirs[:] = [d for d in dirs if d not in _SKIP_DIRS]
+            for n in sorted(names):
+                fp = os.path.join(dirpath, n)
+                try:
+                    size = os.path.getsize(fp)
+                except OSError:
+                    continue
+                files.append({"path": os.path.relpath(fp, base), "size": size})
+                if len(files) >= _TREE_CAP:
+                    return {"root": base, "files": sorted(files, key=lambda f: f["path"])}
+    return {"root": base, "files": sorted(files, key=lambda f: f["path"])}
+
+
+def read_workspace_file(root: str, rel: str, max_bytes: int = 200_000) -> str:
+    target = os.path.join(os.path.abspath(root), rel)
+    if not _within(root, target) or not os.path.isfile(target):
+        raise FileNotFoundError(rel)
+    data = Path(target).read_bytes()[:max_bytes]
+    try:
+        return data.decode("utf-8")
+    except UnicodeDecodeError:
+        return "<binary file>"
+
+
+# --- job runner -----------------------------------------------------------
+
 class Job:
-    def __init__(self, job_id: str):
+    def __init__(self, job_id: str, workspace: str):
         self.id = job_id
-        self.status = "running"  # running | passed | failed | error
+        self.workspace = workspace
+        self.status = "running"
         self.lines: list[str] = []
         self.done = threading.Event()
 
@@ -65,34 +173,37 @@ class _JobStream(io.TextIOBase):
 
 
 class Console:
-    """Serializes builds and tracks the current/last job."""
-
-    def __init__(self, specs_dir: str):
+    def __init__(self, specs_dir: str, workspaces_dir: str = "workspaces"):
         self.specs_dir = specs_dir
+        self.workspaces_dir = workspaces_dir
         self._lock = threading.Lock()
         self.jobs: dict[str, Job] = {}
+        self.current: Job | None = None
 
     def busy(self) -> bool:
         return self._lock.locked()
 
     def start(self, params: dict) -> Job:
-        job = Job(job_id=str(int(time.time() * 1000)))
+        spec_path = params["spec"]
+        workspace = os.path.abspath(
+            params.get("workspace") or os.path.join(self.workspaces_dir, Path(spec_path).stem)
+        )
+        job = Job(str(int(time.time() * 1000)), workspace)
         self.jobs[job.id] = job
+        self.current = job
         threading.Thread(target=self._run, args=(job, params), daemon=True).start()
         return job
 
     def _run(self, job: Job, params: dict) -> None:
-        acquired = self._lock.acquire(blocking=False)
-        if not acquired:
+        if not self._lock.acquire(blocking=False):
             job.status = "error"
             job.log("error: another build is already running")
             job.done.set()
             return
         try:
-            stream = _JobStream(job)
-            with contextlib.redirect_stdout(stream):
+            with contextlib.redirect_stdout(_JobStream(job)):
                 self._execute(job, params)
-        except Exception as exc:  # never let the thread die silently
+        except Exception as exc:
             job.status = "error"
             job.log(f"error: {type(exc).__name__}: {exc}")
         finally:
@@ -100,10 +211,7 @@ class Console:
             self._lock.release()
 
     def _execute(self, job: Job, params: dict) -> None:
-        spec_path = params["spec"]
-        workspace = os.path.abspath(params.get("workspace") or f"workspaces/{Path(spec_path).stem}")
-        spec = load_spec(spec_path, cwd=workspace)
-
+        spec = load_spec(params["spec"], cwd=job.workspace)
         if params.get("check_only"):
             report = run_suite(spec.checks, stop_on_failure=True)
             print(report.to_feedback() or "(no checks defined)")
@@ -114,32 +222,29 @@ class Console:
         provider = params.get("engine", "anthropic")
         model = params.get("model") or (DEFAULT_MODEL if provider == "anthropic" else "")
         engine = EngineConfig(
-            provider=provider,
-            model=model,
+            provider=provider, model=model,
             base_url=params.get("base_url") or (DEFAULT_LOCAL_BASE_URL if provider == "local" else None),
             api_key_env="ANTHROPIC_API_KEY" if provider == "anthropic" else "OPENAI_API_KEY",
         )
         config = HarnessConfig(
-            workspace=workspace,
-            engine=engine,
-            enable_review=bool(params.get("review")),
-            review_focus=params.get("review_focus", "quality"),
+            workspace=job.workspace, engine=engine,
+            enable_review=bool(params.get("review")), review_focus=params.get("review_focus", "quality"),
             learn=bool(params.get("learn")),
-            memory_path=params.get("memory") or os.path.join("workspaces", ".lessons.jsonl"),
+            memory_path=params.get("memory") or os.path.join(self.workspaces_dir, ".lessons.jsonl"),
         )
-        from harness.agent import build  # lazy: keeps check-only path SDK-free
+        from harness.agent import build
 
         print(f"engine={provider} model={model or '(unset)'} kind={spec.kind}")
         result = asyncio.run(build(spec, config, echo=True))
         job.status = "passed" if result.ok else "failed"
-        print(f"RESULT: {job.status.upper()} after {result.rounds} round(s)")
+        print(f"RESULT: {job.status.upper()} ({result.stop_reason}) after {result.rounds} round(s)")
 
 
 # --- HTTP layer -----------------------------------------------------------
 
 def make_handler(console: Console):
     class Handler(BaseHTTPRequestHandler):
-        def log_message(self, *args):  # quiet
+        def log_message(self, *args):
             pass
 
         def _send(self, code, body: bytes, ctype="application/json"):
@@ -153,37 +258,87 @@ def make_handler(console: Console):
             self._send(code, json.dumps(obj).encode())
 
         def do_GET(self):
-            if self.path == "/" or self.path == "/index.html":
+            u = urlparse(self.path)
+            path, q = u.path, parse_qs(u.query)
+            if path in ("/", "/index.html"):
                 return self._file("index.html", "text/html")
-            if self.path.startswith("/static/"):
-                return self._file(self.path[len("/static/"):], None)
-            if self.path == "/api/specs":
-                return self._json({"specs": list_specs(console.specs_dir)})
-            if self.path == "/api/health":
+            if path.startswith("/static/"):
+                return self._file(path[len("/static/"):], None)
+            if path.startswith("/artifact/"):
+                return self._artifact(path[len("/artifact/"):])
+            if path == "/api/health":
                 return self._json({"ok": True, "busy": console.busy()})
-            if self.path.startswith("/api/jobs/") and self.path.endswith("/events"):
-                return self._sse(self.path.split("/")[3])
+            if path == "/api/specs":
+                return self._json({"specs": list_specs(console.specs_dir)})
+            if path == "/api/spec":
+                try:
+                    return self._json(read_spec(q.get("path", [""])[0]))
+                except (SpecError, OSError) as e:
+                    return self._json({"error": str(e)}, 400)
+            if path == "/api/artifacts":
+                return self._json({"artifacts": list_artifacts(console.workspaces_dir)})
+            if path == "/api/current":
+                j = console.current
+                return self._json({"job": j.id if j else None,
+                                   "status": j.status if j else None,
+                                   "workspace": j.workspace if j else None,
+                                   "name": os.path.basename(j.workspace) if j else None,
+                                   "busy": console.busy()})
+            if path == "/api/workspace":
+                root = self._ws_root(q.get("dir", [""])[0])
+                return self._json(workspace_tree(root))
+            if path == "/api/workspace/file":
+                root = self._ws_root(q.get("dir", [""])[0])
+                try:
+                    return self._json({"content": read_workspace_file(root, q.get("file", [""])[0])})
+                except (FileNotFoundError, OSError):
+                    return self._json({"error": "not found"}, 404)
+            if path.startswith("/api/jobs/") and path.endswith("/events"):
+                return self._sse(path.split("/")[3])
             self._send(404, b'{"error":"not found"}')
 
         def do_POST(self):
-            if self.path == "/api/builds":
-                length = int(self.headers.get("Content-Length", 0))
-                params = json.loads(self.rfile.read(length) or b"{}")
-                if not params.get("spec"):
+            u = urlparse(self.path)
+            length = int(self.headers.get("Content-Length", 0))
+            body = json.loads(self.rfile.read(length) or b"{}")
+            if u.path == "/api/builds":
+                if not body.get("spec"):
                     return self._json({"error": "spec is required"}, 400)
-                job = console.start(params)
-                return self._json({"id": job.id})
+                job = console.start(body)
+                return self._json({"id": job.id, "workspace": job.workspace})
+            if u.path == "/api/specs":
+                try:
+                    p = save_spec(console.specs_dir, body)
+                    return self._json({"ok": True, "path": p, "name": Path(p).stem})
+                except SpecError as e:
+                    return self._json({"error": str(e)}, 400)
             self._send(404, b'{"error":"not found"}')
 
+        # helpers
+        def _ws_root(self, name: str) -> str:
+            name = os.path.basename(name or "")
+            return os.path.join(os.path.abspath(console.workspaces_dir), name)
+
         def _file(self, rel, ctype):
-            path = (WEB_DIR / rel).resolve()
-            if not str(path).startswith(str(WEB_DIR.resolve())) or not path.is_file():
+            p = (WEB_DIR / rel).resolve()
+            if not str(p).startswith(str(WEB_DIR.resolve())) or not p.is_file():
                 return self._send(404, b"not found", "text/plain")
-            if ctype is None:
-                ext = path.suffix
-                ctype = {".css": "text/css", ".js": "text/javascript",
-                         ".html": "text/html"}.get(ext, "application/octet-stream")
-            self._send(200, path.read_bytes(), ctype)
+            ctype = ctype or {".css": "text/css", ".js": "text/javascript",
+                              ".html": "text/html"}.get(p.suffix, "application/octet-stream")
+            self._send(200, p.read_bytes(), ctype)
+
+        def _artifact(self, rest):
+            parts = rest.split("/", 1)
+            if len(parts) != 2:
+                return self._send(404, b"not found", "text/plain")
+            name, rel = os.path.basename(parts[0]), parts[1]
+            root = os.path.join(os.path.abspath(console.workspaces_dir), name)
+            target = os.path.join(root, rel)
+            if not _within(root, target) or not os.path.isfile(target):
+                return self._send(404, b"not found", "text/plain")
+            mime = {".html": "text/html", ".css": "text/css", ".js": "text/javascript",
+                    ".json": "application/json", ".svg": "image/svg+xml", ".png": "image/png"}
+            self._send(200, Path(target).read_bytes(), mime.get(Path(target).suffix, "text/plain"))
 
         def _sse(self, job_id):
             job = console.jobs.get(job_id)
@@ -211,8 +366,8 @@ def make_handler(console: Console):
     return Handler
 
 
-def serve(host: str, port: int, specs_dir: str) -> None:
-    console = Console(specs_dir)
+def serve(host: str, port: int, specs_dir: str, workspaces_dir: str = "workspaces") -> None:
+    console = Console(specs_dir, workspaces_dir)
     httpd = ThreadingHTTPServer((host, port), make_handler(console))
     print(f"Agent1-Harness console on http://{host}:{port}  (specs: {specs_dir})")
     try:
@@ -225,9 +380,10 @@ def main(argv: list[str] | None = None) -> int:
     p = argparse.ArgumentParser(prog="appbuilder-web", description=__doc__)
     p.add_argument("--host", default="127.0.0.1")
     p.add_argument("--port", type=int, default=8765)
-    p.add_argument("--specs", default="specs", help="Directory of spec files")
+    p.add_argument("--specs", default="specs")
+    p.add_argument("--workspaces", default="workspaces")
     args = p.parse_args(argv)
-    serve(args.host, args.port, args.specs)
+    serve(args.host, args.port, args.specs, args.workspaces)
     return 0
 
 

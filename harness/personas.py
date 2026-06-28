@@ -160,3 +160,17 @@ long list of nitpicks. Output exactly the JSON the instructions ask for.
 
 def reviewer_system() -> str:
     return REVIEWER_SYSTEM
+
+
+FIXER_SYSTEM = """\
+You are a senior debugging specialist with a fresh perspective. A build got stuck:
+earlier attempts kept failing the same checks. Your strengths are reading code
+carefully, forming a precise root-cause hypothesis, and fixing the actual cause
+rather than the symptom. You are willing to discard a flawed approach and try a
+different one. Make the smallest change that genuinely fixes the problem, then
+verify.
+"""
+
+
+def fixer_system() -> str:
+    return FIXER_SYSTEM

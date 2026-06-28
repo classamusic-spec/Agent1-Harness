@@ -1,115 +1,193 @@
 "use strict";
+const $ = (s) => document.querySelector(s);
+const $$ = (s) => document.querySelectorAll(s);
 
-const $ = (sel) => document.querySelector(sel);
+let currentWorkspaceName = null;
+let wsTimer = null;
+let selectedFile = null;
 
+/* ---------- tabs ---------- */
+function showTab(name) {
+  $$(".tab").forEach((t) => t.classList.toggle("active", t.dataset.tab === name));
+  $$(".panel").forEach((p) => (p.hidden = p.id !== `panel-${name}`));
+  if (location.hash !== "#" + name) history.replaceState(null, "", "#" + name);
+  if (name === "gallery") loadArtifacts();
+  if (name === "workspace") pollWorkspace();
+}
+$$(".tab").forEach((t) => t.addEventListener("click", () => showTab(t.dataset.tab)));
+function applyHash() {
+  const h = (location.hash.replace("#", "") || "build");
+  if (["build", "spec", "gallery", "workspace"].includes(h)) showTab(h);
+}
+window.addEventListener("hashchange", applyHash);
+
+/* ---------- health ---------- */
+async function health() {
+  try {
+    const j = await (await fetch("/api/health")).json();
+    $("#health").textContent = j.busy ? "building…" : "ready";
+  } catch { $("#health").textContent = "offline"; }
+}
+
+/* ---------- build ---------- */
 async function loadSpecs() {
   try {
-    const res = await fetch("/api/specs");
-    const { specs } = await res.json();
+    const { specs } = await (await fetch("/api/specs")).json();
     const sel = $("#spec");
     sel.innerHTML = "";
     for (const s of specs) {
-      const opt = document.createElement("option");
-      opt.value = s.path;
-      opt.textContent = `${s.name}  ·  ${s.kind}`;
-      opt.dataset.name = s.name;
-      sel.appendChild(opt);
+      const o = document.createElement("option");
+      o.value = s.path; o.textContent = `${s.name}  ·  ${s.kind}`; o.dataset.name = s.name;
+      sel.appendChild(o);
     }
     syncWorkspace();
-  } catch (e) {
-    setStatus("error", "could not load specs");
-  }
+  } catch {}
 }
-
 function syncWorkspace() {
-  const opt = $("#spec").selectedOptions[0];
-  if (opt) $("#workspace").placeholder = `workspaces/${opt.dataset.name}`;
+  const o = $("#spec").selectedOptions[0];
+  if (o) $("#workspace").placeholder = `workspaces/${o.dataset.name}`;
 }
-
-async function health() {
-  try {
-    const res = await fetch("/api/health");
-    const j = await res.json();
-    $("#health").textContent = j.busy ? "busy" : "ready";
-  } catch {
-    $("#health").textContent = "offline";
-  }
-}
-
-function setStatus(state, text) {
-  const el = $("#status");
-  el.dataset.state = state;
-  el.textContent = text || state;
-}
-
-function appendLog(line) {
-  const log = $("#log");
-  log.textContent += line + "\n";
-  log.scrollTop = log.scrollHeight;
-}
-
-function engine() {
-  return document.querySelector('input[name="engine"]:checked').value;
-}
-function focus() {
-  return document.querySelector('input[name="focus"]:checked').value;
-}
-
-function payload() {
-  return {
-    spec: $("#spec").value,
-    workspace: $("#workspace").value || null,
-    engine: engine(),
-    model: $("#model").value || null,
-    base_url: $("#baseurl").value || null,
-    review: $("#review").checked,
-    review_focus: focus(),
-    learn: $("#learn").checked,
-    check_only: $("#checkonly").checked,
-  };
-}
+function setStatus(state, text) { const e = $("#status"); e.dataset.state = state; e.textContent = text || state; }
+function appendLog(line) { const l = $("#log"); l.textContent += line + "\n"; l.scrollTop = l.scrollHeight; }
+const radio = (n) => document.querySelector(`input[name="${n}"]:checked`).value;
 
 async function run() {
-  $("#log").textContent = "";
-  setStatus("running", "running");
-  $("#run").disabled = true;
+  $("#log").textContent = ""; setStatus("running", "running"); $("#run").disabled = true;
+  const body = {
+    spec: $("#spec").value, workspace: $("#workspace").value || null,
+    engine: radio("engine"), model: $("#model").value || null, base_url: $("#baseurl").value || null,
+    review: $("#review").checked, review_focus: radio("focus"),
+    learn: $("#learn").checked, check_only: $("#checkonly").checked,
+  };
   try {
-    const res = await fetch("/api/builds", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload()),
-    });
-    const j = await res.json();
-    if (j.error) {
-      setStatus("error", j.error);
-      appendLog("error: " + j.error);
-      $("#run").disabled = false;
-      return;
-    }
+    const j = await (await fetch("/api/builds", {
+      method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body),
+    })).json();
+    if (j.error) { setStatus("error", j.error); appendLog("error: " + j.error); $("#run").disabled = false; return; }
+    currentWorkspaceName = j.workspace.split("/").pop();
     stream(j.id);
-  } catch (e) {
-    setStatus("error", "request failed");
-    $("#run").disabled = false;
-  }
+    showTab("workspace"); // jump to the live view to watch the agent work
+  } catch { setStatus("error", "request failed"); $("#run").disabled = false; }
 }
-
 function stream(id) {
   const es = new EventSource(`/api/jobs/${id}/events`);
   es.onmessage = (ev) => appendLog(ev.data);
   es.addEventListener("done", (ev) => {
-    setStatus(ev.data, ev.data);
-    $("#run").disabled = false;
-    es.close();
-    health();
+    setStatus(ev.data, ev.data); $("#run").disabled = false; es.close(); health(); pollWorkspace();
   });
-  es.onerror = () => {
-    $("#run").disabled = false;
-    es.close();
-  };
+  es.onerror = () => { $("#run").disabled = false; es.close(); };
 }
 
+/* ---------- new spec ---------- */
+function parseLines(text, sep) {
+  return text.split("\n").map((l) => l.trim()).filter(Boolean).map((l) => {
+    if (!sep) return l;
+    const i = l.indexOf(sep);
+    return i === -1 ? null : { name: l.slice(0, i).trim(), command: l.slice(i + 1).trim() };
+  }).filter(Boolean);
+}
+async function saveSpec() {
+  const body = {
+    name: $("#s-name").value, kind: $("#s-kind").value, language: $("#s-lang").value,
+    description: $("#s-desc").value,
+    constraints: parseLines($("#s-constraints").value, null),
+    verification: parseLines($("#s-verify").value, ":"),
+  };
+  const msg = $("#spec-msg");
+  try {
+    const j = await (await fetch("/api/specs", {
+      method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body),
+    })).json();
+    if (j.error) { msg.textContent = "✗ " + j.error; msg.style.color = "var(--bad)"; return; }
+    msg.textContent = `✓ Saved ${j.name}.yaml`; msg.style.color = "var(--good)";
+    await loadSpecs();
+  } catch { msg.textContent = "✗ request failed"; msg.style.color = "var(--bad)"; }
+}
+
+/* ---------- gallery ---------- */
+async function loadArtifacts() {
+  const ul = $("#artifacts"); ul.innerHTML = "";
+  try {
+    const { artifacts } = await (await fetch("/api/artifacts")).json();
+    if (!artifacts.length) { ul.innerHTML = '<li class="empty-row">No builds yet.</li>'; return; }
+    for (const a of artifacts) {
+      const li = document.createElement("li");
+      li.className = "row";
+      li.innerHTML = `<span>${a.name}</span><span class="muted">${a.files} files${a.has_index ? " · web" : ""}</span>`;
+      li.addEventListener("click", () => {
+        $$("#artifacts .row").forEach((r) => r.classList.remove("sel"));
+        li.classList.add("sel");
+        $("#preview-title").textContent = a.name;
+        $("#preview").src = a.has_index ? `/artifact/${encodeURIComponent(a.name)}/index.html` : "about:blank";
+      });
+      ul.appendChild(li);
+    }
+    if (!$("#artifacts .sel")) ul.querySelector(".row")?.click(); // auto-preview first
+  } catch {}
+}
+
+/* ---------- workspace (live) ---------- */
+async function pollWorkspace() {
+  try {
+    const cur = await (await fetch("/api/current")).json();
+    if (cur.name) currentWorkspaceName = cur.name;
+    if (!currentWorkspaceName) {
+      const { artifacts } = await (await fetch("/api/artifacts")).json();
+      if (artifacts.length) currentWorkspaceName = artifacts[0].name; // show the latest build
+    }
+    $("#ws-title").textContent = currentWorkspaceName ? `Workspace · ${currentWorkspaceName}` : "Workspace";
+    const live = $("#ws-live");
+    live.dataset.state = cur.busy ? "running" : "idle";
+    live.textContent = cur.busy ? "live" : (cur.status || "idle");
+    if (!currentWorkspaceName) { $("#tree").innerHTML = '<li class="empty-row">Start a build to watch it here.</li>'; return; }
+
+    const tree = await (await fetch(`/api/workspace?dir=${encodeURIComponent(currentWorkspaceName)}`)).json();
+    const ul = $("#tree"); ul.innerHTML = "";
+    if (!tree.files.length) { ul.innerHTML = '<li class="empty-row">(empty — waiting for files…)</li>'; }
+    for (const f of tree.files) {
+      const li = document.createElement("li");
+      li.className = "row" + (f.path === selectedFile ? " sel" : "");
+      li.innerHTML = `<span>${f.path}</span><span class="muted">${f.size}</span>`;
+      li.addEventListener("click", () => openFile(f.path));
+      ul.appendChild(li);
+    }
+    if (!selectedFile && tree.files.length) {
+      const idx = tree.files.find((f) => f.path === "index.html") || tree.files[0];
+      openFile(idx.path);
+    } else if (selectedFile) {
+      refreshFile();
+    }
+    const ifr = $("#ws-preview");
+    if (!ifr.hidden) ifr.src = `/artifact/${encodeURIComponent(currentWorkspaceName)}/index.html?t=${Date.now()}`;
+  } catch {}
+
+  clearTimeout(wsTimer);
+  if (!$("#panel-workspace").hidden) wsTimer = setTimeout(pollWorkspace, 1500);
+}
+async function openFile(path) {
+  selectedFile = path;
+  $("#ws-preview").hidden = true; $("#ws-file").hidden = false;
+  $("#ws-file-title").textContent = path;
+  refreshFile();
+}
+async function refreshFile() {
+  if (!currentWorkspaceName || !selectedFile) return;
+  try {
+    const j = await (await fetch(`/api/workspace/file?dir=${encodeURIComponent(currentWorkspaceName)}&file=${encodeURIComponent(selectedFile)}`)).json();
+    if (j.content !== undefined) $("#ws-file").textContent = j.content;
+  } catch {}
+}
+$("#ws-preview-btn").addEventListener("click", () => {
+  const ifr = $("#ws-preview"), pre = $("#ws-file");
+  const show = ifr.hidden;
+  ifr.hidden = !show; pre.hidden = show;
+  $("#ws-file-title").textContent = show ? "Live preview" : (selectedFile || "File");
+  if (show && currentWorkspaceName) ifr.src = `/artifact/${encodeURIComponent(currentWorkspaceName)}/index.html?t=${Date.now()}`;
+});
+
+/* ---------- wire up ---------- */
 $("#spec").addEventListener("change", syncWorkspace);
 $("#run").addEventListener("click", run);
-loadSpecs();
-health();
-setInterval(health, 5000);
+$("#save-spec").addEventListener("click", saveSpec);
+$("#refresh-gallery").addEventListener("click", loadArtifacts);
+loadSpecs(); health(); setInterval(health, 4000); applyHash();

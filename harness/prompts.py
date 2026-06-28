@@ -51,11 +51,36 @@ def review_repair_prompt(verdict, attempt: int, max_attempts: int) -> str:
     )
 
 
-def repair_prompt(report: VerificationReport, attempt: int, max_attempts: int) -> str:
+def _context_blocks(diff: str, delta: str) -> str:
+    out = ""
+    if delta:
+        out += f"\nWhat changed since the last round: {delta}\n"
+    if diff:
+        out += f"\nDiff of your last change (review it — a fix may have caused a regression):\n```diff\n{diff}\n```\n"
+    return out
+
+
+def repair_prompt(report: VerificationReport, attempt: int, max_attempts: int,
+                  *, diff: str = "", delta: str = "") -> str:
     return (
         f"Verification failed (repair attempt {attempt}/{max_attempts}). "
         "Here is the authoritative report from the harness:\n\n"
-        f"{report.to_feedback()}\n\n"
-        "Diagnose the root cause and fix it. Change only what is needed to make "
+        f"{report.to_feedback()}\n"
+        f"{_context_blocks(diff, delta)}\n"
+        "Diagnose the ROOT CAUSE and fix it. Change only what is needed to make "
         "the failing checks pass. Then run the `verify` tool to confirm."
+    )
+
+
+def escalation_prompt(report: VerificationReport, attempt: int, max_attempts: int,
+                      *, diff: str = "", delta: str = "") -> str:
+    return (
+        "You are a fresh debugging specialist brought in because previous attempts "
+        f"got STUCK — the same checks keep failing (escalation {attempt}/{max_attempts}).\n\n"
+        "Do not assume the earlier approach was correct. Re-read the relevant files, "
+        "form a new hypothesis about the real root cause, and take a DIFFERENT approach "
+        "than what's already been tried.\n\n"
+        f"Current verification report:\n\n{report.to_feedback()}\n"
+        f"{_context_blocks(diff, delta)}\n"
+        "Fix the root cause, then run the `verify` tool to confirm."
     )

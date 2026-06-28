@@ -62,7 +62,13 @@ def _parse_args(argv: list[str]) -> argparse.Namespace:
                    help="Disable model-driven reflection (use mechanical lessons only)")
     # Loop convergence guards
     p.add_argument("--stall-limit", type=int, default=3,
-                   help="Stop after N consecutive identical failing rounds (default: 3)")
+                   help="Consecutive identical failing rounds before escalate/stop (default: 3)")
+    p.add_argument("--max-escalations", type=int, default=1,
+                   help="Fresh-fixer attempts on a stall before giving up (default: 1)")
+    p.add_argument("--escalation-model", default=None,
+                   help="Stronger model for the escalation fixer (default: builder model)")
+    p.add_argument("--no-diff", action="store_true",
+                   help="Disable diff-aware repair prompts")
     p.add_argument("--deadline", type=float, default=None,
                    help="Overall wall-clock budget in seconds (default: unlimited)")
     p.add_argument("--check-only", action="store_true",
@@ -149,6 +155,9 @@ def main(argv: list[str] | None = None) -> int:
         reflect=not args.no_reflect,
         stall_limit=args.stall_limit,
         deadline_seconds=args.deadline,
+        diff_aware=not args.no_diff,
+        max_escalations=args.max_escalations,
+        escalation_model=args.escalation_model,
     )
 
     gates = "verify" + ("+review:" + args.review_focus if args.review else "")
@@ -161,6 +170,8 @@ def main(argv: list[str] | None = None) -> int:
           f"after {result.rounds} round(s)")
     if result.progress:
         print(f"Failing checks per round: {result.progress}")
+    if result.escalations:
+        print(f"Escalations used: {result.escalations}")
     if result.report and not result.ok:
         print("\nRemaining failures:")
         for f in result.report.failures:

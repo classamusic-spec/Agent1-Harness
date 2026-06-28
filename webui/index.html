@@ -18,51 +18,117 @@
     <span class="pill" id="health">connecting…</span>
   </header>
 
-  <main class="layout">
-    <section class="card" aria-labelledby="cfg-h">
-      <h2 id="cfg-h">Build</h2>
+  <nav class="tabs" role="tablist">
+    <button class="tab active" data-tab="build" role="tab">Build</button>
+    <button class="tab" data-tab="spec" role="tab">New Spec</button>
+    <button class="tab" data-tab="gallery" role="tab">Gallery</button>
+    <button class="tab" data-tab="workspace" role="tab">Workspace</button>
+  </nav>
 
-      <label for="spec">Spec</label>
-      <div class="select-wrap">
-        <select id="spec" aria-describedby="spec-hint"></select>
+  <main>
+    <!-- BUILD -->
+    <section class="panel layout active" id="panel-build" role="tabpanel">
+      <div class="card">
+        <h2>Build</h2>
+        <label for="spec">Spec</label>
+        <div class="select-wrap"><select id="spec"></select></div>
+        <p class="hint">The kind selects the design/engineering persona.</p>
+
+        <label for="workspace">Workspace</label>
+        <input id="workspace" type="text" placeholder="workspaces/<spec>" />
+
+        <fieldset>
+          <legend>Engine</legend>
+          <div class="segmented" role="radiogroup" aria-label="Engine">
+            <label><input type="radio" name="engine" value="anthropic" checked /><span>Claude</span></label>
+            <label><input type="radio" name="engine" value="local" /><span>Local LLM</span></label>
+          </div>
+          <label for="model">Model</label>
+          <input id="model" type="text" placeholder="claude-opus-4-8  ·  qwen2.5-coder" />
+          <label for="baseurl">Base URL <span class="muted">(local)</span></label>
+          <input id="baseurl" type="text" placeholder="http://localhost:11434/v1" />
+        </fieldset>
+
+        <fieldset>
+          <legend>Gates &amp; learning</legend>
+          <label class="toggle"><input type="checkbox" id="review" /> <span>Reviewer / Sentry gate</span></label>
+          <div class="segmented small" role="radiogroup" aria-label="Review focus">
+            <label><input type="radio" name="focus" value="quality" checked /><span>Quality</span></label>
+            <label><input type="radio" name="focus" value="bugs" /><span>Bug hunt</span></label>
+          </div>
+          <label class="toggle"><input type="checkbox" id="learn" /> <span>Learn from past builds</span></label>
+          <label class="toggle"><input type="checkbox" id="checkonly" /> <span>Verify only (no model)</span></label>
+        </fieldset>
+
+        <button id="run" class="primary">Build</button>
       </div>
-      <p class="hint" id="spec-hint">Choose what to build. The kind selects the design/engineering persona.</p>
 
-      <label for="workspace">Workspace</label>
-      <input id="workspace" type="text" placeholder="workspaces/<spec>" />
-
-      <fieldset>
-        <legend>Engine</legend>
-        <div class="segmented" role="radiogroup" aria-label="Engine">
-          <label><input type="radio" name="engine" value="anthropic" checked /><span>Claude</span></label>
-          <label><input type="radio" name="engine" value="local" /><span>Local LLM</span></label>
-        </div>
-        <label for="model">Model</label>
-        <input id="model" type="text" placeholder="claude-opus-4-8  ·  qwen2.5-coder" />
-        <label for="baseurl">Base URL <span class="muted">(local)</span></label>
-        <input id="baseurl" type="text" placeholder="http://localhost:11434/v1" />
-      </fieldset>
-
-      <fieldset>
-        <legend>Gates &amp; learning</legend>
-        <label class="toggle"><input type="checkbox" id="review" /> <span>Reviewer / Sentry gate</span></label>
-        <div class="segmented small" role="radiogroup" aria-label="Review focus">
-          <label><input type="radio" name="focus" value="quality" checked /><span>Quality</span></label>
-          <label><input type="radio" name="focus" value="bugs" /><span>Bug hunt</span></label>
-        </div>
-        <label class="toggle"><input type="checkbox" id="learn" /> <span>Learn from past builds</span></label>
-        <label class="toggle"><input type="checkbox" id="checkonly" /> <span>Verify only (no model)</span></label>
-      </fieldset>
-
-      <button id="run" class="primary">Build</button>
+      <div class="card log-card">
+        <div class="log-head"><h2>Log</h2><span class="badge" id="status" data-state="idle">idle</span></div>
+        <pre id="log" class="log" tabindex="0" aria-live="polite" data-empty="Logs will appear here once a build starts."></pre>
+      </div>
     </section>
 
-    <section class="card log-card" aria-labelledby="log-h">
-      <div class="log-head">
-        <h2 id="log-h">Log</h2>
-        <span class="badge" id="status" data-state="idle">idle</span>
+    <!-- NEW SPEC -->
+    <section class="panel center" id="panel-spec" role="tabpanel" hidden>
+      <div class="card form-card">
+        <h2>New Spec</h2>
+        <label for="s-name">Name</label>
+        <input id="s-name" type="text" placeholder="my-app" />
+        <div class="two">
+          <div>
+            <label for="s-kind">Kind</label>
+            <div class="select-wrap"><select id="s-kind">
+              <option>fullstack</option><option>frontend</option><option>backend</option>
+              <option>react</option><option>react-native</option><option>swiftui</option>
+              <option>cli</option><option>api</option><option>library</option>
+            </select></div>
+          </div>
+          <div>
+            <label for="s-lang">Language</label>
+            <input id="s-lang" type="text" placeholder="python / typescript / html-css-js" />
+          </div>
+        </div>
+        <label for="s-desc">Description</label>
+        <textarea id="s-desc" rows="6" placeholder="Plain-language description of what to build…"></textarea>
+        <label for="s-constraints">Constraints <span class="muted">(one per line)</span></label>
+        <textarea id="s-constraints" rows="3" placeholder="Standard library only.&#10;No network at runtime."></textarea>
+        <label for="s-verify">Verification <span class="muted">(one per line · name: command)</span></label>
+        <textarea id="s-verify" rows="4" placeholder="tests: pytest -q&#10;types: mypy ."></textarea>
+        <button id="save-spec" class="primary">Save spec</button>
+        <p id="spec-msg" class="hint"></p>
       </div>
-      <pre id="log" class="log" tabindex="0" aria-live="polite" data-empty="Logs will appear here once a build starts."></pre>
+    </section>
+
+    <!-- GALLERY -->
+    <section class="panel split" id="panel-gallery" role="tabpanel" hidden>
+      <div class="card">
+        <div class="log-head"><h2>Artifacts</h2><button id="refresh-gallery" class="ghost">Refresh</button></div>
+        <ul id="artifacts" class="rows"></ul>
+      </div>
+      <div class="card preview-card">
+        <h2 id="preview-title">Preview</h2>
+        <iframe id="preview" class="preview" title="App preview"></iframe>
+      </div>
+    </section>
+
+    <!-- WORKSPACE (live) -->
+    <section class="panel split" id="panel-workspace" role="tabpanel" hidden>
+      <div class="card">
+        <div class="log-head">
+          <h2 id="ws-title">Workspace</h2>
+          <span class="badge" id="ws-live" data-state="idle">idle</span>
+        </div>
+        <ul id="tree" class="rows mono"></ul>
+      </div>
+      <div class="card preview-card">
+        <div class="log-head">
+          <h2 id="ws-file-title">File</h2>
+          <button id="ws-preview-btn" class="ghost">Live preview</button>
+        </div>
+        <pre id="ws-file" class="log" data-empty="Select a file, or open the live preview."></pre>
+        <iframe id="ws-preview" class="preview" title="Live preview" hidden></iframe>
+      </div>
     </section>
   </main>
 

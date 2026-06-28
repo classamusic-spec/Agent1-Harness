@@ -85,6 +85,25 @@ class VerificationReport:
         return "\n\n".join(r.summary() for r in self.results)
 
 
+def failure_delta(prev: "VerificationReport | None", cur: VerificationReport) -> str:
+    """Describe how the set of failing checks changed between two rounds."""
+    cur_fail = {r.name for r in cur.failures}
+    if prev is None:
+        return ""
+    prev_fail = {r.name for r in prev.failures}
+    fixed = sorted(prev_fail - cur_fail)
+    new = sorted(cur_fail - prev_fail)
+    still = sorted(cur_fail & prev_fail)
+    parts = []
+    if fixed:
+        parts.append("now passing: " + ", ".join(fixed))
+    if new:
+        parts.append("newly broken: " + ", ".join(new))
+    if still:
+        parts.append("still failing: " + ", ".join(still))
+    return "; ".join(parts)
+
+
 def run_check(check: Check) -> CheckResult:
     """Run a single check as a subprocess. Never raises — failures are data."""
     try:
