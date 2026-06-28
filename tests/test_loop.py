@@ -365,3 +365,33 @@ def test_learning_records_lessons(tmp_path):
     assert result.lessons_learned >= 1
     store = LessonStore(str(mem))
     assert store.load()  # a lesson about the first failing 'exists' check was saved
+
+
+def test_spec_scaffold_materializes_and_gates(tmp_path):
+    """A spec's `scaffold:` field (not just the --scaffold flag) must materialize
+    the base and drive the gate. The static scaffold supplies index.html + checks,
+    so a no-op builder still goes green."""
+    ws = tmp_path / "ws"
+    spec = Spec(name="demo", description="d", kind="frontend", language="javascript",
+                scaffold="static")
+    cfg = _config(ws)  # config.scaffold is None — the scaffold comes from the spec
+    builder = FakeEngine(str(ws), [_noop, _noop, _noop, _noop])
+    result = asyncio.run(build(spec, cfg, echo=False, builder_factory=lambda s, c: builder))
+    assert result.ok, result.stop_reason
+    assert (Path(ws) / "index.html").is_file()  # scaffold was applied from spec.scaffold
+
+
+def test_spec_checks_override_scaffold_checks(tmp_path):
+    """When the spec carries its own checks, they win over the scaffold's defaults
+    (a transforming build can change the API the scaffold shipped checks for)."""
+    ws = tmp_path / "ws"
+    spec = Spec(name="demo", description="d", kind="frontend", language="javascript",
+                scaffold="static",
+                checks=[Check(name="custom", command="test -f does_not_exist")])
+    cfg = _config(ws, max_repairs=0)
+    builder = FakeEngine(str(ws), [_noop])
+    result = asyncio.run(build(spec, cfg, echo=False, builder_factory=lambda s, c: builder))
+    assert not result.ok
+    names = {r.name for r in result.report.results}
+    assert names == {"custom"}  # the scaffold's own checks were NOT forced
+    assert (Path(ws) / "index.html").is_file()  # files still materialized from the scaffold

@@ -318,24 +318,30 @@ async def build(
             c.cwd = ws
 
         # Scaffold: start from a known-good base. It owns the run command + checks.
+        # Honor either the --scaffold flag (config) or a spec's `scaffold:` field.
         scaffold_note = ""
-        if config.scaffold:
+        scaffold_name = config.scaffold or spec.scaffold
+        if scaffold_name:
             from harness import scaffolds
             from harness.verifier import Check
-            sc = scaffolds.apply(config.scaffold, ws)
+            sc = scaffolds.apply(scaffold_name, ws)
             if sc:
                 scaffold_note = sc.note
                 if not spec.run:
                     spec.run = sc.run
-                spec.checks = [Check(name=c["name"], command=c["command"], cwd=ws,
-                                     needs_server=bool(c.get("needs_server")),
-                                     allow_failure=bool(c.get("allow_failure")))
-                               for c in sc.checks]
+                # Spec-defined checks win; the scaffold's checks are the default
+                # (a transforming build can change the API surface the scaffold
+                # shipped, so its resource-specific checks shouldn't be forced).
+                if not spec.checks:
+                    spec.checks = [Check(name=c["name"], command=c["command"], cwd=ws,
+                                         needs_server=bool(c.get("needs_server")),
+                                         allow_failure=bool(c.get("allow_failure")))
+                                   for c in sc.checks]
                 if echo:
                     print(_banner(f"scaffold: {sc.label}  (run: {sc.run})"), flush=True)
 
         # Test-first: derive the verification suite from the spec before building.
-        if config.test_first and not config.scaffold:
+        if config.test_first and not scaffold_name:
             planner = planner_factory(spec, run_config)
             async with planner:
                 proposed = await propose_checks(planner, spec, echo=echo)
