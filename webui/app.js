@@ -13,11 +13,16 @@ function showTab(name) {
   if (location.hash !== "#" + name) history.replaceState(null, "", "#" + name);
   if (name === "gallery") loadArtifacts();
   if (name === "workspace") pollWorkspace();
+  if (name === "office" && window.OfficeView) {
+    window.OfficeView.init(document.getElementById("office-canvas"));
+    setTimeout(() => window.OfficeView.resize(), 50);
+  }
 }
 $$(".tab").forEach((t) => t.addEventListener("click", () => showTab(t.dataset.tab)));
 function applyHash() {
-  const h = (location.hash.replace("#", "") || "build");
-  if (["build", "spec", "gallery", "workspace"].includes(h)) showTab(h);
+  const q = new URLSearchParams(location.search).get("tab");
+  const h = q || location.hash.replace("#", "") || "build";
+  if (["build", "spec", "gallery", "workspace", "office"].includes(h)) showTab(h);
 }
 window.addEventListener("hashchange", applyHash);
 
@@ -243,6 +248,7 @@ async function pollCurrent() {
     $("#stat").textContent = c.tokens ? `${c.tokens} tokens · ${c.elapsed}s` : "";
     $("#controls").hidden = !c.busy;
     updateMeters(c);
+    if (window.OfficeView) window.OfficeView.setState(c);
     const banner = $("#approval");
     if (c.pending) {
       banner.hidden = false;

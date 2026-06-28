@@ -27,8 +27,12 @@ Ordered by impact-to-effort.
   JSON checkpoint let an interrupted build continue to green (Resume in the Gallery).
 - **Live run controls** — pause / cancel a running build from the console; pause
   leaves a checkpoint so it's resumable.
+- **Live run controls** — pause / cancel a running build from the console.
+- **3D Office (three.js)** — a futuristic tab where an agent character works at a
+  desk and animates with the build pipeline (idle / building / passed / failed).
+- **CI** — GitHub Actions runs the full suite on Python 3.10–3.12 every push/PR.
 - Web console with tabs: Build, **New Spec** (authoring), **Gallery** (artifact
-  preview + Resume), and a **live Workspace view** (watch files appear/change as it builds).
+  preview + Resume), a **live Workspace view**, and the **3D Office**.
 - Design-check templates (Playwright/axe/Lighthouse).
 
 ## Next — correctness & convergence

@@ -24,6 +24,7 @@
     <button class="tab" data-tab="spec" role="tab">New Spec</button>
     <button class="tab" data-tab="gallery" role="tab">Gallery</button>
     <button class="tab" data-tab="workspace" role="tab">Workspace</button>
+    <button class="tab" data-tab="office" role="tab">Office</button>
   </nav>
 
   <div id="approval" class="approval" hidden role="alertdialog" aria-live="assertive">
@@ -179,8 +180,20 @@
         <iframe id="ws-preview" class="preview" title="Live preview" hidden></iframe>
       </div>
     </section>
+
+    <!-- OFFICE (3D) -->
+    <section class="panel office-panel" id="panel-office" role="tabpanel" hidden>
+      <div class="office-hud">
+        <div class="office-brand">AGENT OFFICE</div>
+        <div id="office-status" class="office-state" data-mode="idle">Idle — awaiting work</div>
+        <div id="office-sub" class="office-sub"></div>
+        <div class="office-hint">drag to orbit · starts a build from the Build tab</div>
+      </div>
+      <canvas id="office-canvas" class="office-canvas"></canvas>
+    </section>
   </main>
 
   <script src="/static/app.js"></script>
+  <script type="module" src="/static/office.js"></script>
 </body>
 </html>

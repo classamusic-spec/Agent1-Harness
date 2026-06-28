@@ -26,6 +26,10 @@ The build console (`appbuilder-web`) — clean, Apple-inspired, automatic light/
 
 ![Build console](docs/screenshots/console-build-options.png)
 
+**Office (3D)** — a futuristic three.js scene where a little agent character works at a desk; it animates live with your pipeline (idle → building → passed/failed):
+
+![3D agent office](docs/screenshots/console-office.png)
+
 **Color-coded live log + budget meters** — passes/failures/gates at a glance, with live token & time budget bars:
 
 ![Color-coded log and budget meters](docs/screenshots/console-budget-meters.png)
@@ -61,6 +65,8 @@ The build console (`appbuilder-web`) — clean, Apple-inspired, automatic light/
 | **Telemetry & budgets** | engines + `agent.py` | Tokens + wall-clock per build; `--token-budget` / `--deadline` stop the loop when exceeded. The console shows **live token & time budget meters** that fill as the build runs (amber near the limit, red over). |
 | **Resumable builds** | `harness/checkpoint.py` | `--checkpoint PATH` writes a checkpoint each round; `--resume PATH` continues against the existing workspace (cumulative tokens/time carried forward). The console writes one automatically and shows a **Resume** button in the Gallery. |
 | **Live run controls** | `harness/control.py` | **Pause** or **Cancel** a running build from the console; the loop stops at the next round boundary. Pause leaves a checkpoint, so it's resumable. |
+| **3D Office** | `webui/office.js` (three.js) | A futuristic Office tab: an agent character works at a desk and animates with build state (idle / building / passed / failed), driven live by `/api/current`. three.js is vendored for offline use. |
+| **CI** | `.github/workflows/ci.yml` | Runs the full test suite on Python 3.10–3.12 on every push and PR. |
 | **Engines** | `harness/engines/` | `anthropic` (Claude Agent SDK) or `local` (any OpenAI-compatible server). |
 | **Personas** | `harness/personas.py` | Specialist system prompts by `kind`: frontend design, backend rigor, **React/React Native**, **SwiftUI (Apple-level)**. |
 | **Web console** | `harness/server.py` + `webui/` | Tabs: Build, **New Spec** (author specs), **Gallery** (preview built apps), and a **live Workspace view** (watch files appear/change as the agent works). Stdlib only. See `docs/screenshots/`. |
