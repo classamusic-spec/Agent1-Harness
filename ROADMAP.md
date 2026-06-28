@@ -4,6 +4,13 @@ Where the agent is strong today, and the highest-leverage things to add next.
 Ordered by impact-to-effort.
 
 ## Today (done)
+- **Multi-agent decomposition** — split a full-stack build across role specialists:
+  an architect writes a shared **contract** (API + data model + file ownership),
+  then a **backend** agent and a **frontend** agent build in parallel on isolated
+  worktrees, each running the normal verify/repair loop. Results are **merged by
+  ownership** (disjoint paths → conflict-free), then an **integration** agent is
+  driven to green on the full app suite. `harness/multiagent.py`, `--multi`
+  (`--multi-sequential`) / Studio "Multi-agent".
 - **Ship it** — package a built app for deployment: a stack-aware `Dockerfile`
   (node / python / static), a `docker-compose.yml` (port + `.env` wired in), a
   `.dockerignore`, and a downloadable `.zip` (excludes secrets/DBs/caches, ships
@@ -98,9 +105,6 @@ Ordered by impact-to-effort.
 - Web console with tabs: Build, **New Spec** (authoring), **Gallery** (artifact
   preview + Resume), a **live Workspace view**, and the **3D Office**.
 - Design-check templates (Playwright/axe/Lighthouse).
-
-## Next — full-stack (building on the runtime)
-- **Multi-agent decomposition** — backend/frontend/test agents on a worktree.
 
 ## Next — correctness & convergence
 1. **Security review focus** — a dedicated reviewer for secrets, injection,

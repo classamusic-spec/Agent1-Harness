@@ -598,6 +598,8 @@ class Console:
             scaffold=spec.scaffold,
             plan=bool(params.get("plan")),
             max_milestones=int(params.get("max_milestones") or 6),
+            multi=bool(params.get("multi")),
+            multi_parallel=not bool(params.get("multi_sequential")),
         )
         job.token_budget = params.get("token_budget")
         job.deadline = params.get("deadline")

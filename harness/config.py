@@ -100,6 +100,11 @@ class HarnessConfig:
     # Milestone planner: decompose a big app into ordered milestones, verifying each.
     plan: bool = False
     max_milestones: int = 6
+    # Multi-agent decomposition: split a full-stack build across role specialists
+    # (backend / frontend) on isolated worktrees, merge by ownership, then drive an
+    # integration agent to green on the full suite.
+    multi: bool = False
+    multi_parallel: bool = True  # run role agents concurrently (vs. sequentially)
     # Visual-diff refinement: after a build, screenshot it, ask the vision model how
     # it differs from the reference, and repair — up to max_visual_repairs times.
     visual_check: bool = False

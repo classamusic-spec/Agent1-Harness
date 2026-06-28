@@ -73,6 +73,7 @@ class BuildResult:
     progress: list[int] = field(default_factory=list)
     transcript: list[str] = field(default_factory=list)
     milestones: list = field(default_factory=list)  # per-milestone outcomes (planned builds)
+    roles: list = field(default_factory=list)  # per-role outcomes (multi-agent builds)
 
 
 def _default_builder(spec: Spec, config: HarnessConfig) -> Engine:
@@ -296,6 +297,13 @@ async def build(
     control=None,
 ) -> BuildResult:
     """Run the full self-improving build loop for a spec."""
+    if config.multi:
+        from harness.multiagent import build_multi
+        return await build_multi(
+            spec, config, echo=echo, builder_factory=builder_factory,
+            reviewer_factory=reviewer_factory, fixer_factory=fixer_factory,
+            planner_factory=planner_factory, approval=approval,
+            on_progress=on_progress, control=control)
     if config.plan:
         return await _build_planned(
             spec, config, echo=echo, builder_factory=builder_factory,
