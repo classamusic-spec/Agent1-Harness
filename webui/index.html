@@ -25,6 +25,18 @@
     <button class="tab" data-tab="workspace" role="tab">Workspace</button>
   </nav>
 
+  <div id="approval" class="approval" hidden role="alertdialog" aria-live="assertive">
+    <div class="approval-body">
+      <strong id="approval-title">Approval needed</strong>
+      <pre id="approval-detail" class="mono"></pre>
+      <input id="approval-msg" type="text" placeholder="Optional message (e.g. why you're rejecting)…" />
+      <div class="approval-actions">
+        <button id="reject" class="ghost">Reject</button>
+        <button id="approve" class="primary">Approve</button>
+      </div>
+    </div>
+  </div>
+
   <main>
     <!-- BUILD -->
     <section class="panel layout active" id="panel-build" role="tabpanel">
@@ -57,14 +69,22 @@
             <label><input type="radio" name="focus" value="bugs" /><span>Bug hunt</span></label>
           </div>
           <label class="toggle"><input type="checkbox" id="learn" /> <span>Learn from past builds</span></label>
+          <label class="toggle"><input type="checkbox" id="testfirst" /> <span>Test-first (derive checks)</span></label>
+          <label class="toggle"><input type="checkbox" id="approveplan" /> <span>Approve test plan</span></label>
+          <label class="toggle"><input type="checkbox" id="approvebuild" /> <span>Approve final build</span></label>
           <label class="toggle"><input type="checkbox" id="checkonly" /> <span>Verify only (no model)</span></label>
+          <label for="tokenbudget">Token budget <span class="muted">(0 = none)</span></label>
+          <input id="tokenbudget" type="number" min="0" placeholder="0" />
         </fieldset>
 
         <button id="run" class="primary">Build</button>
       </div>
 
       <div class="card log-card">
-        <div class="log-head"><h2>Log</h2><span class="badge" id="status" data-state="idle">idle</span></div>
+        <div class="log-head">
+          <h2>Log</h2>
+          <div class="head-right"><span class="stat" id="stat"></span><span class="badge" id="status" data-state="idle">idle</span></div>
+        </div>
         <pre id="log" class="log" tabindex="0" aria-live="polite" data-empty="Logs will appear here once a build starts."></pre>
       </div>
     </section>

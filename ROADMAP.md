@@ -16,13 +16,17 @@ Ordered by impact-to-effort.
   throwaway **Docker** container with the workspace bind-mounted.
 - **Test-first (red→green)** — derive the verification suite from the spec before
   building, then drive the build to green against it.
+- **Human-in-the-loop approval** — `--approve-plan` / `--approve-build` pause for
+  sign-off (stdin or an Approve/Reject banner in the console).
+- **Cost/time telemetry + budgets** — tokens + wall-clock per build, shown in the
+  console; `--token-budget` / `--deadline` stop the loop when exceeded.
 - Web console with tabs: Build, **New Spec** (authoring), **Gallery** (artifact
   preview), and a **live Workspace view** (watch files appear/change as it builds).
 - Design-check templates (Playwright/axe/Lighthouse).
 
 ## Next — correctness & convergence
-1. **Human-in-the-loop approval** — optionally require sign-off on the proposed
-   test-first suite, and/or on the final build, before it's accepted.
+1. **Feedback-driven rejection** — when a human rejects a build with a message,
+   feed it back as a targeted repair turn instead of just stopping.
 
 ## Next — quality & trust
 4. **Multi-reviewer panel** — run quality + sentry + a11y reviewers in parallel

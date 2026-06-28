@@ -264,4 +264,33 @@ textarea:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 4
 }
 .ghost:hover { background: var(--field-2); }
 
+/* number input matches text input */
+input[type="number"] {
+  width: 100%; padding: 11px 13px; font: inherit; color: var(--text);
+  background: var(--field); border: 1px solid var(--hairline-strong); border-radius: var(--radius-sm);
+}
+input[type="number"]:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 4px rgba(0,113,227,0.15); }
+
+/* telemetry stat + log head */
+.head-right { display: flex; align-items: center; gap: var(--sp); }
+.stat { font-size: 0.76rem; color: var(--muted); font-variant-numeric: tabular-nums; }
+
+/* approval banner */
+.approval {
+  position: sticky; top: 110px; z-index: 6; margin: calc(var(--sp) * 2) auto 0; max-width: 1160px;
+  padding: 0 calc(var(--sp) * 4);
+}
+.approval-body {
+  background: var(--surface-solid); border: 1px solid var(--accent);
+  border-radius: var(--radius); padding: calc(var(--sp) * 2) calc(var(--sp) * 2.5);
+  box-shadow: var(--shadow); display: grid; gap: var(--sp);
+}
+.approval-body strong { font-size: 0.95rem; }
+#approval-detail { margin: 0; max-height: 160px; overflow: auto; font-family: var(--mono);
+  font-size: 0.78rem; color: var(--text); white-space: pre-wrap; }
+#approval-msg { width: 100%; padding: 9px 12px; font: inherit; color: var(--text);
+  background: var(--field); border: 1px solid var(--hairline-strong); border-radius: var(--radius-sm); }
+.approval-actions { display: flex; justify-content: flex-end; gap: var(--sp); }
+.approval-actions .primary { width: auto; margin: 0; padding: 9px 18px; }
+
 @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }

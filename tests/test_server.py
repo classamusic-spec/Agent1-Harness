@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import time
+
 import pytest
 
 from harness.server import (
@@ -68,6 +70,34 @@ def test_read_workspace_file_confined(tmp_path):
     (tmp_path / "secret").mkdir()
     with pytest.raises(FileNotFoundError):
         read_workspace_file(str(tmp_path / "secret"), "../a.txt")
+
+
+def test_server_approval_roundtrip():
+    import asyncio
+    import threading
+    from harness.approval import Decision
+    from harness.server import Job, ServerApproval
+
+    job = Job("j1", "/tmp/ws")
+    gate = ServerApproval(job, timeout=5)
+    result = {}
+
+    def run():
+        result["decision"] = asyncio.run(gate.request("build", {"workspace": "/tmp/ws"}))
+
+    t = threading.Thread(target=run)
+    t.start()
+    # Wait for the gate to register the pending request, then approve it.
+    for _ in range(50):
+        if job.pending:
+            break
+        time.sleep(0.02)
+    assert job.pending and job.pending["kind"] == "build"
+    job.decision = Decision(True, "ship it")
+    job.approve_event.set()
+    t.join(timeout=5)
+    assert result["decision"].approved is True
+    assert job.pending is None
 
 
 def test_console_check_only_job(tmp_path):

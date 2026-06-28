@@ -42,6 +42,7 @@ class LocalEngine(Engine):
         self._toolbox = ToolBox(config.workspace, spec, runner=build_runner(config))
         self._messages: list[dict] = [{"role": "system", "content": system_prompt}]
         self._client = None  # created on __aenter__
+        self.total_tokens = 0
 
     async def __aenter__(self) -> "LocalEngine":
         try:
@@ -74,6 +75,10 @@ class LocalEngine(Engine):
                 tool_choice="auto",
                 temperature=self._engine_cfg.temperature,
             )
+            usage = getattr(resp, "usage", None)
+            if usage is not None:
+                self.total_tokens += getattr(usage, "total_tokens", 0) or 0
+
             msg = resp.choices[0].message
             self._messages.append(_assistant_to_dict(msg))
 

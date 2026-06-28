@@ -58,6 +58,14 @@ def _parse_args(argv: list[str]) -> argparse.Namespace:
     # Test-first
     p.add_argument("--test-first", action="store_true",
                    help="Derive the verification suite from the spec before building (red->green)")
+    # Human-in-the-loop approval
+    p.add_argument("--approve-plan", action="store_true",
+                   help="Pause for sign-off on the test-first suite before building")
+    p.add_argument("--approve-build", action="store_true",
+                   help="Pause for sign-off on the finished build before accepting")
+    # Budgets
+    p.add_argument("--token-budget", type=int, default=None,
+                   help="Stop the build once this many tokens are used")
     # Reviewer / Sentry gate
     p.add_argument("--review", action="store_true", help="Enable the reviewer/sentry second gate")
     p.add_argument("--review-focus", choices=["quality", "bugs"], default="quality",
@@ -169,7 +177,15 @@ def main(argv: list[str] | None = None) -> int:
         diff_aware=not args.no_diff,
         max_escalations=args.max_escalations,
         escalation_model=args.escalation_model,
+        approve_plan=args.approve_plan,
+        approve_build=args.approve_build,
+        max_tokens_budget=args.token_budget,
     )
+
+    approval = None
+    if args.approve_plan or args.approve_build:
+        from harness.approval import CLIApproval
+        approval = CLIApproval()
 
     gates = "verify" + ("+review:" + args.review_focus if args.review else "")
     extras = []
@@ -180,7 +196,7 @@ def main(argv: list[str] | None = None) -> int:
     print(f"engine: {engine.provider} | model: {engine.model or '(unset)'} | kind: {spec.kind} | "
           f"isolation: {args.isolation} | gates: {gates}"
           + (" | " + " ".join(extras) if extras else ""))
-    result = asyncio.run(build(spec, config, echo=not args.no_echo))
+    result = asyncio.run(build(spec, config, echo=not args.no_echo, approval=approval))
 
     print("\n" + "=" * 40)
     print(f"BUILD {'SUCCEEDED' if result.ok else 'FAILED'} ({result.stop_reason}) "
@@ -189,6 +205,7 @@ def main(argv: list[str] | None = None) -> int:
         print(f"Failing checks per round: {result.progress}")
     if result.escalations:
         print(f"Escalations used: {result.escalations}")
+    print(f"Telemetry: {result.tokens_used} tokens · {result.elapsed_seconds:.1f}s")
     if result.report and not result.ok:
         print("\nRemaining failures:")
         for f in result.report.failures:

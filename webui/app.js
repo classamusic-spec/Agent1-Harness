@@ -53,11 +53,15 @@ const radio = (n) => document.querySelector(`input[name="${n}"]:checked`).value;
 
 async function run() {
   $("#log").textContent = ""; setStatus("running", "running"); $("#run").disabled = true;
+  const tb = Number($("#tokenbudget").value) || 0;
   const body = {
     spec: $("#spec").value, workspace: $("#workspace").value || null,
     engine: radio("engine"), model: $("#model").value || null, base_url: $("#baseurl").value || null,
     review: $("#review").checked, review_focus: radio("focus"),
     learn: $("#learn").checked, check_only: $("#checkonly").checked,
+    test_first: $("#testfirst").checked,
+    approve_plan: $("#approveplan").checked, approve_build: $("#approvebuild").checked,
+    token_budget: tb > 0 ? tb : null,
   };
   try {
     const j = await (await fetch("/api/builds", {
@@ -185,9 +189,43 @@ $("#ws-preview-btn").addEventListener("click", () => {
   if (show && currentWorkspaceName) ifr.src = `/artifact/${encodeURIComponent(currentWorkspaceName)}/index.html?t=${Date.now()}`;
 });
 
+/* ---------- telemetry + approval (global poll) ---------- */
+let currentJobId = null;
+async function pollCurrent() {
+  try {
+    const c = await (await fetch("/api/current")).json();
+    currentJobId = c.job;
+    $("#stat").textContent = c.tokens ? `${c.tokens} tokens · ${c.elapsed}s` : "";
+    const banner = $("#approval");
+    if (c.pending) {
+      banner.hidden = false;
+      $("#approval-title").textContent = `Approve the ${c.pending.kind}?`;
+      $("#approval-detail").textContent = formatPending(c.pending);
+    } else {
+      banner.hidden = true;
+    }
+  } catch {}
+}
+function formatPending(p) {
+  if (p.kind === "plan") return (p.payload.checks || []).map((c) => `${c[0]}: ${c[1]}`).join("\n");
+  return `workspace: ${p.payload.workspace || ""}\n${p.payload.reason || ""}`;
+}
+async function decide(approved) {
+  if (!currentJobId) return;
+  const message = $("#approval-msg").value;
+  $("#approval").hidden = true; $("#approval-msg").value = "";
+  await fetch(`/api/jobs/${currentJobId}/approve`, {
+    method: "POST", headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ approved, message }),
+  });
+}
+$("#approve").addEventListener("click", () => decide(true));
+$("#reject").addEventListener("click", () => decide(false));
+
 /* ---------- wire up ---------- */
 $("#spec").addEventListener("change", syncWorkspace);
 $("#run").addEventListener("click", run);
 $("#save-spec").addEventListener("click", saveSpec);
 $("#refresh-gallery").addEventListener("click", loadArtifacts);
-loadSpecs(); health(); setInterval(health, 4000); applyHash();
+loadSpecs(); health(); setInterval(health, 4000);
+pollCurrent(); setInterval(pollCurrent, 1500); applyHash();

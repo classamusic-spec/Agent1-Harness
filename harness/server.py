@@ -157,10 +157,35 @@ class Job:
         self.status = "running"
         self.lines: list[str] = []
         self.done = threading.Event()
+        self.pending: dict | None = None  # awaiting human approval
+        self.decision = None
+        self.approve_event = threading.Event()
+        self.tokens = 0
+        self.elapsed = 0.0
 
     def log(self, text: str) -> None:
         for line in text.splitlines():
             self.lines.append(line)
+
+
+class ServerApproval:
+    """Approval gate that pauses the build until the UI posts a decision."""
+
+    def __init__(self, job: Job, timeout: float = 900.0):
+        self.job = job
+        self.timeout = timeout
+
+    async def request(self, kind: str, payload: dict):
+        from harness.approval import Decision
+        self.job.approve_event.clear()
+        self.job.decision = None
+        self.job.pending = {"kind": kind, "payload": payload}
+        self.job.log(f"[approval] waiting for sign-off on the {kind}…")
+        got = await asyncio.to_thread(self.job.approve_event.wait, self.timeout)
+        self.job.pending = None
+        if not got or self.job.decision is None:
+            return Decision(False, "approval timed out")
+        return self.job.decision
 
 
 class _JobStream(io.TextIOBase):
@@ -226,18 +251,26 @@ class Console:
             base_url=params.get("base_url") or (DEFAULT_LOCAL_BASE_URL if provider == "local" else None),
             api_key_env="ANTHROPIC_API_KEY" if provider == "anthropic" else "OPENAI_API_KEY",
         )
+        approve_plan = bool(params.get("approve_plan"))
+        approve_build = bool(params.get("approve_build"))
         config = HarnessConfig(
             workspace=job.workspace, engine=engine,
             enable_review=bool(params.get("review")), review_focus=params.get("review_focus", "quality"),
             learn=bool(params.get("learn")),
             memory_path=params.get("memory") or os.path.join(self.workspaces_dir, ".lessons.jsonl"),
+            test_first=bool(params.get("test_first")),
+            approve_plan=approve_plan, approve_build=approve_build,
+            max_tokens_budget=params.get("token_budget"),
         )
         from harness.agent import build
 
+        gate = ServerApproval(job) if (approve_plan or approve_build) else None
         print(f"engine={provider} model={model or '(unset)'} kind={spec.kind}")
-        result = asyncio.run(build(spec, config, echo=True))
+        result = asyncio.run(build(spec, config, echo=True, approval=gate))
         job.status = "passed" if result.ok else "failed"
+        job.tokens, job.elapsed = result.tokens_used, result.elapsed_seconds
         print(f"RESULT: {job.status.upper()} ({result.stop_reason}) after {result.rounds} round(s)")
+        print(f"Telemetry: {result.tokens_used} tokens · {result.elapsed_seconds:.1f}s")
 
 
 # --- HTTP layer -----------------------------------------------------------
@@ -283,6 +316,9 @@ def make_handler(console: Console):
                                    "status": j.status if j else None,
                                    "workspace": j.workspace if j else None,
                                    "name": os.path.basename(j.workspace) if j else None,
+                                   "pending": j.pending if j else None,
+                                   "tokens": j.tokens if j else 0,
+                                   "elapsed": round(j.elapsed, 1) if j else 0.0,
                                    "busy": console.busy()})
             if path == "/api/workspace":
                 root = self._ws_root(q.get("dir", [""])[0])
@@ -312,6 +348,14 @@ def make_handler(console: Console):
                     return self._json({"ok": True, "path": p, "name": Path(p).stem})
                 except SpecError as e:
                     return self._json({"error": str(e)}, 400)
+            if u.path.startswith("/api/jobs/") and u.path.endswith("/approve"):
+                from harness.approval import Decision
+                job = console.jobs.get(u.path.split("/")[3])
+                if not job:
+                    return self._json({"error": "unknown job"}, 404)
+                job.decision = Decision(bool(body.get("approved")), str(body.get("message", "")))
+                job.approve_event.set()
+                return self._json({"ok": True})
             self._send(404, b'{"error":"not found"}')
 
         # helpers

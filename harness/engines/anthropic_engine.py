@@ -42,6 +42,7 @@ class AnthropicEngine(Engine):
             mcp_servers={"harness": build_tool_server(spec)},
         )
         self._client: ClaudeSDKClient | None = None
+        self.total_tokens = 0
 
     async def __aenter__(self) -> "AnthropicEngine":
         self._client = ClaudeSDKClient(options=self._options)
@@ -63,4 +64,8 @@ class AnthropicEngine(Engine):
                 out.append(text)
                 if echo:
                     print(text, flush=True)
+            usage = getattr(message, "usage", None)
+            if usage is not None:
+                self.total_tokens += (getattr(usage, "input_tokens", 0) or 0)
+                self.total_tokens += (getattr(usage, "output_tokens", 0) or 0)
         return "\n".join(out)

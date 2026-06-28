@@ -58,6 +58,13 @@ class HarnessConfig:
     # Test-first: derive the verification suite from the spec before building.
     test_first: bool = False
 
+    # Human-in-the-loop approval gates.
+    approve_plan: bool = False   # sign off on the test-first suite before building
+    approve_build: bool = False  # sign off on the finished build before accepting
+
+    # Token budget (wall-clock budget is deadline_seconds above).
+    max_tokens_budget: int | None = None
+
     # Reviewer / Sentry second gate.
     enable_review: bool = False
     review_focus: str = "quality"  # "quality" | "bugs"

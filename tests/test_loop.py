@@ -21,9 +21,10 @@ class FakeEngine(Engine):
     """Consumes a list of actions; each action(workspace, prompt) -> str and may
     mutate the workspace to simulate the model writing/fixing code."""
 
-    def __init__(self, workspace, actions):
+    def __init__(self, workspace, actions, total_tokens=0):
         self.workspace = workspace
         self.actions = list(actions)
+        self.total_tokens = total_tokens
 
     async def __aenter__(self):
         return self
@@ -184,6 +185,56 @@ def test_test_first_generates_then_builds_to_green(tmp_path):
     assert result.ok and result.stop_reason == "verified"
     assert [c.name for c in spec.checks] == ["exists"]  # suite came from the planner
     assert result.progress == [0]
+
+
+def test_plan_approval_rejected_stops(tmp_path):
+    from harness.approval import CallbackApproval
+    spec = _spec()
+    cfg = _config(tmp_path / "ws", approve_plan=True)
+    builder = FakeEngine(str(tmp_path / "ws"), [_writer("never")])
+    gate = CallbackApproval(lambda k, p: k != "plan")  # reject plan only
+    result = asyncio.run(build(spec, cfg, echo=False,
+                              builder_factory=lambda s, c: builder, approval=gate))
+    assert not result.ok and result.stop_reason == "plan-rejected"
+
+
+def test_build_approval_rejected(tmp_path):
+    from harness.approval import CallbackApproval
+    spec = _spec()
+    cfg = _config(tmp_path / "ws", approve_build=True)
+    builder = FakeEngine(str(tmp_path / "ws"), [_writer("ok")])
+    gate = CallbackApproval(lambda k, p: False)  # reject the finished build
+    result = asyncio.run(build(spec, cfg, echo=False,
+                              builder_factory=lambda s, c: builder, approval=gate))
+    assert not result.ok and result.stop_reason == "build-rejected"
+
+
+def test_build_approval_accepted(tmp_path):
+    from harness.approval import CallbackApproval
+    spec = _spec()
+    cfg = _config(tmp_path / "ws", approve_build=True)
+    builder = FakeEngine(str(tmp_path / "ws"), [_writer("ok")])
+    gate = CallbackApproval(lambda k, p: True)
+    result = asyncio.run(build(spec, cfg, echo=False,
+                              builder_factory=lambda s, c: builder, approval=gate))
+    assert result.ok and result.stop_reason == "verified"
+
+
+def test_token_budget_stops(tmp_path):
+    spec = _spec()
+    cfg = _config(tmp_path / "ws", max_repairs=5, max_tokens_budget=10, max_escalations=0)
+    builder = FakeEngine(str(tmp_path / "ws"), [_noop, _noop], total_tokens=50)
+    result = asyncio.run(build(spec, cfg, echo=False, builder_factory=lambda s, c: builder))
+    assert not result.ok and result.stop_reason == "token-budget"
+
+
+def test_telemetry_reported(tmp_path):
+    spec = _spec()
+    cfg = _config(tmp_path / "ws")
+    builder = FakeEngine(str(tmp_path / "ws"), [_writer("ok")], total_tokens=123)
+    result = asyncio.run(build(spec, cfg, echo=False, builder_factory=lambda s, c: builder))
+    assert result.tokens_used == 123
+    assert result.elapsed_seconds >= 0
 
 
 def test_learning_records_lessons(tmp_path):
