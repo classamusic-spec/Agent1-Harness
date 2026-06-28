@@ -4,6 +4,13 @@ Where the agent is strong today, and the highest-leverage things to add next.
 Ordered by impact-to-effort.
 
 ## Today (done)
+- **Ship it** — package a built app for deployment: a stack-aware `Dockerfile`
+  (node / python / static), a `docker-compose.yml` (port + `.env` wired in), a
+  `.dockerignore`, and a downloadable `.zip` (excludes secrets/DBs/caches, ships
+  `.env.example`, materialises a local `.env`). `harness/ship.py`, `--ship` /
+  `--ship-zip`, and a Studio **Ship ↧** dialog (preview files, add to project,
+  download zip). Verified live: the generated artifacts `docker build` + `docker
+  compose up` and serve the app (migrations run on boot).
 - **Data layer** — a SQLite migration runner (`harness/migrations.py`: ordered,
   idempotent `migrations/*.sql`, tracked in `schema_migrations`, `seed()` + CLI)
   and `.env`/secrets handling (`harness/env.py`: tolerant `load_dotenv`,
@@ -94,7 +101,6 @@ Ordered by impact-to-effort.
 
 ## Next — full-stack (building on the runtime)
 - **Multi-agent decomposition** — backend/frontend/test agents on a worktree.
-- **Ship it** — Dockerfile + compose, zip/PR export, optional deploy.
 
 ## Next — correctness & convergence
 1. **Security review focus** — a dedicated reviewer for secrets, injection,

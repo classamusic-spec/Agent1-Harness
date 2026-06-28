@@ -101,6 +101,13 @@ def _parse_args(argv: list[str]) -> argparse.Namespace:
     p.add_argument("--visual-check", action="store_true",
                    help="After building, screenshot it, compare to --reference-image with the "
                         "vision model, and repair visual differences (needs a vision model + Chrome)")
+    # Ship it — package the built app for deployment
+    p.add_argument("--ship", action="store_true",
+                   help="After a successful build, write a stack-aware Dockerfile, "
+                        "docker-compose.yml, and .dockerignore into the workspace")
+    p.add_argument("--ship-zip", default=None, metavar="PATH",
+                   help="After a successful build, write a deployment .zip (excludes "
+                        "secrets/DBs/caches, includes the generated deploy files) to PATH")
     # Learning memory
     p.add_argument("--learn", action="store_true", help="Record and reuse lessons from past builds")
     p.add_argument("--memory", default=None, help="Path to the JSONL lesson store (implies --learn)")
@@ -296,6 +303,17 @@ def main(argv: list[str] | None = None) -> int:
         rounds, _ = asyncio.run(visual_refine(spec, refine_cfg, echo=not args.no_echo))
         if rounds:
             print(f"\nVisual refinement: {rounds} repair round(s) against the reference image.")
+    if result.ok and (args.ship or args.ship_zip):
+        from harness import ship
+        run_cmd = config.run_command or spec.run
+        if args.ship:
+            written = ship.write_export(workspace, name=spec.name, run_command=run_cmd)
+            print("\nShip it — wrote: " + (", ".join(written) if written else "(all present)"))
+            print(f"  Run locally:  docker compose up --build   (in {workspace})")
+        if args.ship_zip:
+            path = ship.export_zip(workspace, args.ship_zip, name=spec.name, run_command=run_cmd)
+            size = os.path.getsize(path)
+            print(f"\nShip it — wrote deployment zip: {path} ({size // 1024} KB)")
     return _summarize(result, workspace=workspace, learn=learn)
 
 

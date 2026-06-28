@@ -490,6 +490,53 @@
     } catch { strip.innerHTML = '<span class="chip bad">test run failed</span>'; }
   }
 
+  let shipFiles = {};
+  async function openShip() {
+    if (!project) return;
+    const dlg = $("#ship-dialog");
+    $("#ship-msg").textContent = "";
+    $("#ship-preview").textContent = "Generating deployment files…";
+    $("#ship-tabs").innerHTML = "";
+    $("#ship-zip").href = `/api/ship/zip?dir=${encodeURIComponent(project)}`;
+    $("#ship-zip").setAttribute("download", `${project}.zip`);
+    if (typeof dlg.showModal === "function") dlg.showModal(); else dlg.setAttribute("open", "");
+    try {
+      const r = await (await fetch(`/api/ship?dir=${encodeURIComponent(project)}`)).json();
+      if (r.error) { $("#ship-preview").textContent = r.error; return; }
+      shipFiles = r.files || {};
+      $("#ship-stack").textContent = r.stack || "";
+      const names = Object.keys(shipFiles);
+      $("#ship-tabs").innerHTML = names.map((n, i) =>
+        `<button class="ship-tab${i === 0 ? " active" : ""}" data-f="${n}">${n}</button>`).join("");
+      $$("#ship-tabs .ship-tab").forEach((b) => b.addEventListener("click", () => {
+        $$("#ship-tabs .ship-tab").forEach((x) => x.classList.remove("active"));
+        b.classList.add("active");
+        $("#ship-preview").textContent = shipFiles[b.dataset.f] || "";
+      }));
+      $("#ship-preview").textContent = names.length ? shipFiles[names[0]] : "(nothing to generate)";
+    } catch { $("#ship-preview").textContent = "failed to generate deployment files"; }
+  }
+  async function shipAdd() {
+    if (!project) return;
+    $("#ship-msg").textContent = "Writing files…";
+    try {
+      const r = await (await fetch("/api/ship", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ workspace: project }),
+      })).json();
+      if (r.error) { $("#ship-msg").textContent = r.error; return; }
+      const w = r.written || [];
+      $("#ship-msg").textContent = w.length
+        ? `Added to project: ${w.join(", ")}. Run \`docker compose up --build\`.`
+        : "All deployment files already present.";
+      loadFiles();
+    } catch { $("#ship-msg").textContent = "failed to write files"; }
+  }
+  function closeShip() {
+    const dlg = $("#ship-dialog");
+    if (typeof dlg.close === "function") dlg.close(); else dlg.removeAttribute("open");
+  }
+
   function wire() {
     $("#st-engine").addEventListener("change", onEngineChange);
     $("#st-scaffold").addEventListener("change", onScaffoldChange);
@@ -502,6 +549,9 @@
     $("#st-refresh").addEventListener("click", () => { loadFiles(); reloadPreview(); });
     $("#st-reload").addEventListener("click", reloadPreview);
     $("#st-test").addEventListener("click", runTests);
+    $("#st-ship").addEventListener("click", openShip);
+    $("#ship-close").addEventListener("click", closeShip);
+    $("#ship-add").addEventListener("click", shipAdd);
     $("#st-mode-files").addEventListener("click", () => setMode("files"));
     $("#st-mode-diff").addEventListener("click", () => setMode("diff"));
     $("#st-from").addEventListener("change", showDiff);

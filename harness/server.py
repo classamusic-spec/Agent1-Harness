@@ -702,6 +702,32 @@ def make_handler(console: Console):
                     return self._json({"files": versions.diff(root, frm, to)})
                 except (ValueError, OSError) as e:
                     return self._json({"error": str(e)}, 400)
+            if path == "/api/ship":
+                from harness import ship
+                root = self._ws_root(q.get("dir", [""])[0])
+                if not os.path.isdir(root):
+                    return self._json({"error": "unknown workspace"}, 404)
+                meta = studio_meta(root)
+                files = ship.export_files(root, name=os.path.basename(root),
+                                          run_command=meta.get("run"))
+                from harness import stacks
+                return self._json({"stack": stacks.detect_stack(root), "files": files})
+            if path == "/api/ship/zip":
+                from harness import ship
+                name = os.path.basename(q.get("dir", [""])[0])
+                root = self._ws_root(name)
+                if not os.path.isdir(root):
+                    return self._json({"error": "unknown workspace"}, 404)
+                meta = studio_meta(root)
+                data = ship.zip_bytes(root, name=name or "app", run_command=meta.get("run"))
+                self.send_response(200)
+                self.send_header("Content-Type", "application/zip")
+                self.send_header("Content-Disposition",
+                                 f'attachment; filename="{name or "app"}.zip"')
+                self.send_header("Content-Length", str(len(data)))
+                self.end_headers()
+                self.wfile.write(data)
+                return
             if path == "/api/runtime/status":
                 name = os.path.basename(q.get("dir", [""])[0])
                 svc = console.runtime.for_workspace(name)
@@ -757,6 +783,17 @@ def make_handler(console: Console):
                 except SpecError as e:
                     return self._json({"error": str(e)}, 400)
                 return self._json({"id": job.id, "workspace": job.workspace})
+            if u.path == "/api/ship":
+                from harness import ship
+                name = os.path.basename(body.get("workspace") or "")
+                root = self._ws_root(name)
+                if not os.path.isdir(root):
+                    return self._json({"error": "unknown workspace"}, 404)
+                meta = studio_meta(root)
+                written = ship.write_export(root, name=name or "app",
+                                            run_command=meta.get("run"),
+                                            overwrite=bool(body.get("overwrite")))
+                return self._json({"ok": True, "written": written})
             if u.path == "/api/iterate":
                 if not body.get("workspace") or not body.get("instruction"):
                     return self._json({"error": "workspace and instruction are required"}, 400)

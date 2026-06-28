@@ -289,9 +289,17 @@ class H(BaseHTTPRequestHandler):
 
 
 if __name__ == "__main__":
+    # Apply migrations on startup so a fresh deploy (e.g. a container) has its
+    # schema before serving a request. Idempotent — a no-op once up to date.
+    try:
+        import migrate
+        migrate.main()
+    except Exception as exc:
+        print(f"[warn] migrations did not run: {exc}")
     port = int(os.environ.get("PORT", "8000"))
-    print(f"db={db_path()}  serving on http://127.0.0.1:{port}")
-    ThreadingHTTPServer(("127.0.0.1", port), H).serve_forever()
+    host = os.environ.get("HOST", "0.0.0.0")
+    print(f"db={db_path()}  serving on http://{host}:{port}")
+    ThreadingHTTPServer((host, port), H).serve_forever()
 '''
 
 _PYDB_MIGRATE = '''"""Self-contained SQLite migration runner — applies migrations/*.sql in order,

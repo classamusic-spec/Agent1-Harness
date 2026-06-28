@@ -632,3 +632,30 @@ input[type="number"]:focus { outline: none; border-color: var(--accent); box-sha
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { transition: none !important; animation: none !important; }
 }
+
+/* Ship it dialog */
+.ship-dialog {
+  width: min(760px, 92vw); max-height: 86vh; border: 1px solid var(--hairline-strong);
+  border-radius: var(--radius); padding: 0; color: var(--text);
+  background: var(--surface-solid); box-shadow: 0 24px 70px rgba(0,0,0,.35);
+}
+.ship-dialog::backdrop { background: rgba(8, 10, 18, 0.55); backdrop-filter: blur(3px); }
+.ship-head { display: flex; align-items: center; justify-content: space-between;
+  padding: 16px 18px 10px; }
+.ship-head strong { font-size: 1.05rem; display: flex; align-items: center; gap: 10px; }
+.ship-sub { margin: 0 18px 12px; color: var(--muted); font-size: .86rem; line-height: 1.5; }
+.ship-sub code { background: var(--surface); padding: 1px 5px; border-radius: 6px; }
+.ship-tabs { display: flex; gap: 6px; padding: 0 18px; flex-wrap: wrap; }
+.ship-tab { font: inherit; font-size: .82rem; cursor: pointer; padding: 6px 11px;
+  border: 1px solid var(--hairline); border-radius: var(--radius-sm) var(--radius-sm) 0 0;
+  background: transparent; color: var(--muted); border-bottom: none; }
+.ship-tab.active { color: var(--text); background: var(--surface);
+  border-color: var(--hairline-strong); }
+.ship-preview { margin: 0 18px; padding: 14px; background: var(--surface);
+  border: 1px solid var(--hairline-strong); border-radius: 0 var(--radius-sm) var(--radius-sm);
+  overflow: auto; max-height: 42vh; font: 12.5px/1.55 ui-monospace, SFMono-Regular, Menlo, monospace;
+  white-space: pre; color: var(--text); }
+.ship-actions { display: flex; align-items: center; gap: 10px; padding: 14px 18px 6px; flex-wrap: wrap; }
+.ship-cmd { margin-left: auto; color: var(--muted); font-size: .8rem;
+  background: var(--surface); padding: 5px 9px; border-radius: 7px; }
+.ship-msg { padding: 0 18px 16px; color: var(--muted); font-size: .84rem; min-height: 1em; }

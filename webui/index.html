@@ -192,6 +192,7 @@
               </div>
               <div class="preview-actions">
                 <button id="st-test" class="ghost">Run tests</button>
+                <button id="st-ship" class="ghost" title="Package this app for deployment">Ship ↧</button>
                 <button id="st-reload" class="ghost">Reload</button>
                 <a id="st-open" class="ghost" target="_blank" rel="noopener">Open ↗</a>
               </div>
@@ -220,6 +221,25 @@
             </div>
           </div>
         </section>
+
+        <!-- SHIP IT dialog -->
+        <dialog id="ship-dialog" class="ship-dialog">
+          <div class="ship-head">
+            <strong>Ship it <span id="ship-stack" class="pill"></span></strong>
+            <button id="ship-close" class="ghost" type="button">Close</button>
+          </div>
+          <p class="ship-sub">Package this app for deployment — a stack-aware Dockerfile,
+            <code>docker-compose.yml</code>, and <code>.dockerignore</code>. The zip excludes
+            secrets and local DBs (ships <code>.env.example</code>).</p>
+          <div class="ship-tabs" id="ship-tabs"></div>
+          <pre class="ship-preview" id="ship-preview"></pre>
+          <div class="ship-actions">
+            <button id="ship-add" class="primary" type="button">Add files to project</button>
+            <a id="ship-zip" class="ghost" download>Download .zip</a>
+            <code class="ship-cmd">docker compose up --build</code>
+          </div>
+          <div id="ship-msg" class="ship-msg"></div>
+        </dialog>
 
         <!-- BUILD -->
         <section class="panel layout" id="panel-build" role="tabpanel" hidden>
