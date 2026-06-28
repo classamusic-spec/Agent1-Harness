@@ -4,6 +4,11 @@ Where the agent is strong today, and the highest-leverage things to add next.
 Ordered by impact-to-effort.
 
 ## Today (done)
+- **Milestone planner** — `--plan` decomposes a big app into an ordered plan
+  (schema → API → UI → integration) and drives each milestone to green before the
+  next (own build/verify/repair loop, fresh context, shared workspace); the final
+  milestone is gated on the full app suite. `harness/planner.py`, `--plan` /
+  Studio "Plan milestones".
 - **Scaffolds** — start from a known-good base (`static`, `python-api` stdlib
   full-stack, `vite-react`, `fastapi`) that owns its run command + checks, so the
   agent edits a working app and the full-stack gate has a real toolchain.
@@ -79,8 +84,6 @@ Ordered by impact-to-effort.
 - Design-check templates (Playwright/axe/Lighthouse).
 
 ## Next — full-stack (building on the runtime)
-- **Milestone planner** — decompose into schema → API → UI → integration, verify
-  each milestone before the next.
 - **Data layer** — ORM + migrations (generate/apply/seed) + `.env`/secrets.
 - **Multi-agent decomposition** — backend/frontend/test agents on a worktree.
 - **Ship it** — Dockerfile + compose, zip/PR export, optional deploy.

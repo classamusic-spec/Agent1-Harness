@@ -30,11 +30,14 @@ class Milestone:
     checks: list[dict] = field(default_factory=list)
 
 
-def plan_prompt(spec: Spec, max_milestones: int) -> str:
+def plan_prompt(spec: Spec, max_milestones: int, scaffold_note: str = "") -> str:
+    base = (f"\nStarting base (plan milestones that EXTEND this — keep its stack, structure, and "
+            f"run command; do not switch frameworks):\n{scaffold_note}\n") if scaffold_note else ""
     return (
         f"Plan the build of this application as an ordered list of milestones.\n\n"
         f"App: **{spec.name}** (kind: {spec.kind}, stack: {spec.language})\n"
-        f"Specification:\n{spec.description}\n\n"
+        f"Specification:\n{spec.description}\n"
+        f"{base}\n"
         f"Rules:\n"
         f"- Between 2 and {max_milestones} milestones, ordered so each builds on the last and "
         f"leaves the app runnable (e.g. data/model → backend API → frontend → integration → polish).\n"
@@ -71,10 +74,17 @@ def parse_plan(text: str, max_milestones: int) -> list[Milestone]:
 async def make_plan(spec: Spec, config: HarnessConfig, *, echo: bool = True) -> list[Milestone]:
     """Ask the engine for a milestone plan. Falls back to a single milestone."""
     from harness.engines.base import make_engine
+    scaffold_note = ""
+    if config.scaffold:
+        from harness import scaffolds
+        sc = scaffolds.get(config.scaffold)
+        if sc:
+            scaffold_note = sc.note
     engine = make_engine(spec, config, system_prompt_override=PLANNER_SYSTEM)
     try:
         async with engine:
-            text = await engine.send(plan_prompt(spec, config.max_milestones), echo=False)
+            text = await engine.send(
+                plan_prompt(spec, config.max_milestones, scaffold_note), echo=False)
     except Exception as exc:
         if echo:
             print(f"[planner] planning failed ({type(exc).__name__}: {exc}); building in one pass.",

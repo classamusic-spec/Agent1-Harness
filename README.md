@@ -118,6 +118,7 @@ hand-quality HTML/CSS/JS, no libraries:
 | **Live run controls** | `harness/control.py` | **Pause** or **Cancel** a running build from the console; the loop stops at the next round boundary. Pause leaves a checkpoint, so it's resumable. |
 | **3D Office** | `webui/office.js` (three.js) | A futuristic Office tab: an agent character works at a desk beside an **AI rig** whose fans spin and GPU cards glow cyan while a model runs. Animates with build state (idle / building / passed / failed), driven live by `/api/current`. three.js is vendored for offline use. |
 | **CI** | `.github/workflows/ci.yml` | Runs the full test suite on Python 3.10–3.12 on every push and PR. |
+| **Milestone planner** | `harness/planner.py` | For big apps, `--plan` first asks the engine for an ordered plan (schema → API → UI → integration), then drives **each milestone to green** before the next — each is its own build/verify/repair loop with fresh context, sharing the workspace. Per-milestone checks (incl. server-backed); the final milestone is gated on the full app suite; stops at the first failed milestone. |
 | **Scaffolds** | `harness/scaffolds.py` | Start from a known-good base instead of cold: `static` (vanilla SPA), `python-api` (stdlib full-stack: JSON API + frontend, zero deps), `vite-react` (Vite+React+TS), `fastapi` (FastAPI+SQLite). The scaffold sets the run command + verification; the agent edits a working, runnable app. `--scaffold` / Studio "Start from". |
 | **Runtime (live full-stack preview)** | `harness/runtime.py` | Runs the project's real dev server (`npm run dev`, `uvicorn`, or a static server — auto-detected), allocates a port, health-checks it, and **reverse-proxies the Studio preview to it** (same-origin, so the devtools console works on the live app). Server stdout/stderr stream into the console. One live server at a time; `--preview`-style controls in Studio (Run / Stop). |
 | **Studio (live preview)** | `harness/server.py` + `webui/studio.js` | A Replit/Lovable-style surface: describe an app → it builds → **live preview** (Desktop / Mobile device frame, reload, open) with a **Run tests** chip; then **chat to iterate** (`/api/iterate` runs one engine turn on the workspace and re-verifies). A **project switcher** jumps between built apps, a **Stop** button cancels a run, and **version history + diffs** (`harness/versions.py`) snapshot every turn so you can review the colorized diff and **Restore** any version. Freeform prompts become first-class specs. |
@@ -206,6 +207,34 @@ appbuilder specs/landing-page.yaml -w workspaces/landing --engine claude-cli
 appbuilder specs/landing-page.yaml -w workspaces/landing \
     --engine local --base-url http://localhost:11434/v1 --model glm-4
 ```
+
+### Plan a big app in milestones
+
+One giant implement turn is brittle for large apps. With `--plan` (or Studio's "Plan
+milestones"), the harness asks the engine for an ordered plan, then drives **each
+milestone to green** before the next — each milestone is its own build/verify/repair
+loop (fresh context), and they share the workspace so later milestones build on earlier
+ones. The final milestone is gated on the full app suite.
+
+```bash
+appbuilder specs/app.yaml -w ws/app --engine claude-cli --scaffold python-api --plan
+```
+
+Verified live: a planned full-stack **bookmarks** build on the `python-api` scaffold
+decomposed into 2 milestones and converged —
+
+```
+======== plan: 2 milestone(s) ========
+======== milestone 1/2: Bookmark API ========
+[PASS] compiles · [PASS] api health · [PASS] app responds   → milestone 1 PASSED
+======== milestone 2/2: Frontend UI ========
+[FAIL] app builds → agent self-corrects → [PASS] app builds · [PASS] app responds
+RESULT: PASSED
+```
+
+…producing a working app (add bookmark, filter-by-tag, JSON API + disk storage):
+
+![Planned full-stack build — bookmarks app, live](docs/screenshots/studio-planned.png)
 
 ### Start from a scaffold
 

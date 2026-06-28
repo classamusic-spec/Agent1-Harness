@@ -1,0 +1,8 @@
+name: bookmarks
+kind: fullstack
+language: html-css-js
+description: A bookmarks manager. Save links with a title, URL, and space-separated tags;
+  list them as cards; filter by clicking a tag; delete a bookmark. Clean UI, JSON API under
+  /api, persisted to disk. Build on the stdlib scaffold (server.py + public/), staying dependency-free.
+run: python server.py
+scaffold: python-api
