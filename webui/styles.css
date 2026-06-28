@@ -519,6 +519,14 @@ input[type="number"]:focus { outline: none; border-color: var(--accent); box-sha
 .preview-actions { display: inline-flex; gap: 6px; align-items: center; }
 .preview-actions .ghost { text-decoration: none; }
 
+.run-bar { display: flex; gap: 8px; align-items: center; margin-top: var(--sp); }
+.run-bar input { flex: 1; min-width: 0; font-size: 0.78rem; padding: 8px 11px; }
+.run-bar .ghost { flex: none; }
+.run-status { flex: none; font-size: 0.72rem; padding: 4px 10px; border-radius: 999px;
+  border: 1px solid var(--hairline); background: var(--field-2); color: var(--muted); }
+.run-status[data-state="ready"] { color: var(--good); border-color: rgba(18, 147, 106, 0.3); }
+.run-status[data-state="run"] { color: var(--warn); border-color: rgba(192, 106, 0, 0.3); }
+
 .test-strip { display: flex; flex-wrap: wrap; gap: 6px; margin-top: var(--sp); }
 .chip { font-size: 0.74rem; padding: 4px 9px; border-radius: 999px;
   border: 1px solid var(--hairline); background: var(--field-2); color: var(--muted);

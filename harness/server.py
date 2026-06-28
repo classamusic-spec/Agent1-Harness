@@ -24,9 +24,13 @@ import os
 import re
 import threading
 import time
+import urllib.error
+import urllib.request
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import parse_qs, urlparse
+
+from harness.runtime import RuntimeManager, detect_command
 
 import yaml
 
@@ -69,6 +73,17 @@ def _inject_devtools(html: bytes) -> bytes:
     else:  # no <head> — drop it at the very top
         pos = 0
     return (text[:pos] + _DEVTOOLS_SNIPPET + text[pos:]).encode("utf-8")
+
+
+def _inject_preview(html: bytes, name: str) -> bytes:
+    """For proxied live previews: a <base> so relative URLs resolve under the proxy
+    prefix, plus the devtools capture agent (same-origin, so it works)."""
+    text = html.decode("utf-8", "replace")
+    base = f'<base href="/preview/{name}/">'
+    lower = text.lower()
+    i = lower.find("<head>")
+    pos = i + len("<head>") if i != -1 else 0
+    return (text[:pos] + base + _DEVTOOLS_SNIPPET + text[pos:]).encode("utf-8")
 
 
 # --- testable helpers -----------------------------------------------------
@@ -372,6 +387,7 @@ class Console:
         self._lock = threading.Lock()
         self.jobs: dict[str, Job] = {}
         self.current: Job | None = None
+        self.runtime = RuntimeManager()  # the live dev server for full-stack preview
 
     def busy(self) -> bool:
         return self._lock.locked()
@@ -657,6 +673,28 @@ def make_handler(console: Console):
                     return self._json({"files": versions.diff(root, frm, to)})
                 except (ValueError, OSError) as e:
                     return self._json({"error": str(e)}, 400)
+            if path == "/api/runtime/status":
+                name = os.path.basename(q.get("dir", [""])[0])
+                svc = console.runtime.for_workspace(name)
+                ws = self._ws_root(name)
+                det = detect_command(ws) if os.path.isdir(ws) else None
+                return self._json({
+                    "running": bool(svc), "info": svc.info() if svc else None,
+                    "detected": (det or {}).get("command"),
+                })
+            if path == "/api/runtime/logs":
+                name = os.path.basename(q.get("dir", [""])[0])
+                svc = console.runtime.for_workspace(name)
+                since = int(q.get("since", ["0"])[0] or 0)
+                if not svc:
+                    return self._json({"lines": [], "next": 0, "status": "stopped"})
+                lines, nxt = svc.logs(since)
+                return self._json({"lines": lines, "next": nxt, "status": svc.status})
+            if path.startswith("/preview/"):
+                rest = path[len("/preview/"):]
+                if u.query:
+                    rest += "?" + u.query
+                return self._preview(rest, "GET")
             if path.startswith("/api/jobs/") and path.endswith("/events"):
                 return self._sse(path.split("/")[3])
             self._send(404, b'{"error":"not found"}')
@@ -664,7 +702,24 @@ def make_handler(console: Console):
         def do_POST(self):
             u = urlparse(self.path)
             length = int(self.headers.get("Content-Length", 0))
-            body = json.loads(self.rfile.read(length) or b"{}")
+            raw = self.rfile.read(length) if length else b""
+            if u.path.startswith("/preview/"):  # proxy app POSTs (raw body, not JSON)
+                rest = u.path[len("/preview/"):] + (("?" + u.query) if u.query else "")
+                return self._preview(rest, "POST", raw)
+            body = json.loads(raw or b"{}")
+            if u.path == "/api/runtime/start":
+                name = os.path.basename(body.get("workspace") or "")
+                ws = os.path.join(os.path.abspath(console.workspaces_dir), name)
+                if not os.path.isdir(ws):
+                    return self._json({"error": "unknown workspace"}, 404)
+                cmd = (body.get("command") or "").strip() or (detect_command(ws) or {}).get("command")
+                if not cmd:
+                    return self._json({"error": "no run command (none detected)"}, 400)
+                svc = console.runtime.start(ws, cmd, ready_path=body.get("ready_path", "/"))
+                return self._json({"ok": True, "info": svc.info()})
+            if u.path == "/api/runtime/stop":
+                console.runtime.stop()
+                return self._json({"ok": True})
             if u.path == "/api/builds":
                 if not body.get("spec") and not body.get("resume") and not body.get("prompt"):
                     return self._json({"error": "spec, prompt, or resume is required"}, 400)
@@ -765,6 +820,38 @@ def make_handler(console: Console):
             if suffix == ".html" and "__dev=1" in urlparse(self.path).query:
                 data = _inject_devtools(data)
             self._send(200, data, mime.get(suffix, "text/plain"))
+
+        def _preview(self, rest, method="GET", body=b""):
+            parts = rest.split("/", 1)
+            name = os.path.basename(parts[0])
+            rel = parts[1] if len(parts) > 1 else ""
+            svc = console.runtime.for_workspace(name)
+            if not svc or not svc.port:
+                return self._send(502, b"no dev server running for this project", "text/plain")
+            target = f"http://127.0.0.1:{svc.port}/{rel}"
+            req = urllib.request.Request(target, data=(body or None), method=method)
+            ct = self.headers.get("Content-Type")
+            if ct and method == "POST":
+                req.add_header("Content-Type", ct)
+            try:
+                resp = urllib.request.urlopen(req, timeout=30)
+                status, data = resp.status, resp.read()
+                ctype = resp.headers.get("Content-Type", "text/html")
+            except urllib.error.HTTPError as e:
+                status, data = e.code, e.read()
+                ctype = e.headers.get("Content-Type", "text/plain")
+            except Exception as e:  # dev server not up / connection refused
+                return self._send(502, f"dev server error: {e}".encode(), "text/plain")
+            if "text/html" in ctype:
+                data = _inject_preview(data, name)
+            self.send_response(status)
+            self.send_header("Content-Type", ctype)
+            self.send_header("Content-Length", str(len(data)))
+            self.end_headers()
+            try:
+                self.wfile.write(data)
+            except (BrokenPipeError, ConnectionResetError):
+                pass
 
         def _sse(self, job_id):
             job = console.jobs.get(job_id)

@@ -191,6 +191,11 @@
               </div>
             </div>
             <div id="st-tests" class="test-strip" hidden></div>
+            <div class="run-bar">
+              <input id="st-run-cmd" type="text" placeholder="Run command (e.g. npm run dev) — blank = auto-detect" />
+              <button id="st-run-btn" class="ghost" type="button">Run server</button>
+              <span class="run-status" id="st-run-status" data-state="off">static</span>
+            </div>
             <div class="preview-stage" id="st-stage" data-device="desktop">
               <div class="device-frame">
                 <iframe id="st-preview" class="preview" title="Live app preview"></iframe>

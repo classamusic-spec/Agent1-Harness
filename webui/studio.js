@@ -87,9 +87,87 @@
   function reloadPreview() {
     if (!project) return;
     clearConsole();
-    $("#st-preview").src = `/artifact/${encodeURIComponent(project)}/index.html?__dev=1&t=${Date.now()}`;
-    $("#st-open").href = `/artifact/${encodeURIComponent(project)}/index.html`;
+    if (serverRunning) {
+      $("#st-preview").src = `/preview/${encodeURIComponent(project)}/?t=${Date.now()}`;
+      $("#st-open").href = `/preview/${encodeURIComponent(project)}/`;
+    } else {
+      $("#st-preview").src = `/artifact/${encodeURIComponent(project)}/index.html?__dev=1&t=${Date.now()}`;
+      $("#st-open").href = `/artifact/${encodeURIComponent(project)}/index.html`;
+    }
     $("#st-preview-empty").hidden = true;
+  }
+
+  // --- live dev server (full-stack preview) --------------------------------
+  let serverRunning = false;
+  let runtimeTimer = null;
+  let runLogSince = 0;
+  function setRunStatus(state, text) {
+    const e = $("#st-run-status"); e.dataset.state = state; e.textContent = text;
+  }
+  async function refreshRuntime() {
+    if (!project) return;
+    try {
+      const s = await (await fetch(`/api/runtime/status?dir=${encodeURIComponent(project)}`)).json();
+      serverRunning = !!s.running;
+      if (s.running) {
+        $("#st-run-cmd").value = s.info.command;
+        $("#st-run-btn").textContent = "Stop server";
+        setRunStatus(s.info.status === "ready" ? "ready" : "run", s.info.status + " :" + s.info.port);
+        startRuntimePoll();
+      } else {
+        $("#st-run-btn").textContent = "Run server";
+        setRunStatus("off", "static");
+        if (s.detected && !$("#st-run-cmd").value) $("#st-run-cmd").placeholder = s.detected;
+      }
+    } catch {}
+  }
+  async function toggleServer() {
+    if (serverRunning) {
+      stopRuntimePoll();
+      try { await fetch("/api/runtime/stop", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ workspace: project }) }); } catch {}
+      serverRunning = false; $("#st-run-btn").textContent = "Run server"; setRunStatus("off", "static");
+      reloadPreview();
+      return;
+    }
+    const command = $("#st-run-cmd").value.trim();
+    setRunStatus("run", "starting…"); $("#st-run-btn").disabled = true;
+    try {
+      const r = await (await fetch("/api/runtime/start", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ workspace: project, command }),
+      })).json();
+      if (r.error) { setRunStatus("off", r.error); $("#st-run-btn").disabled = false; return; }
+      serverRunning = true; runLogSince = 0;
+      $("#st-run-cmd").value = r.info.command; $("#st-run-btn").textContent = "Stop server";
+      reloadPreview(); startRuntimePoll();
+    } catch { setRunStatus("off", "start failed"); }
+    $("#st-run-btn").disabled = false;
+  }
+  function startRuntimePoll() { stopRuntimePoll(); runtimeTimer = setInterval(pollRuntime, 1500); pollRuntime(); }
+  function stopRuntimePoll() { if (runtimeTimer) clearInterval(runtimeTimer); runtimeTimer = null; }
+  let runReady = false;
+  async function pollRuntime() {
+    if (!project) return;
+    try {
+      const r = await (await fetch(`/api/runtime/logs?dir=${encodeURIComponent(project)}&since=${runLogSince}`)).json();
+      (r.lines || []).forEach((ln) => appendServerLog(ln));
+      runLogSince = r.next || runLogSince;
+      if (r.status) setRunStatus(r.status === "ready" ? "ready" : "run", r.status);
+      if (r.status === "ready" && !runReady) { runReady = true; reloadPreview(); }
+      if (r.status === "stopped" || r.status === "failed") { stopRuntimePoll(); serverRunning = false; }
+    } catch {}
+  }
+  function appendServerLog(text) {
+    consoleCount++;
+    const c = $("#st-console-count"); if (c) { c.textContent = String(consoleCount); c.dataset.has = "1"; }
+    const body = $("#st-console-body"); if (!body) return;
+    const d = document.createElement("div");
+    d.className = "cline lvl-net";
+    d.innerHTML = '<span class="ctag">SRV</span>';
+    d.appendChild(document.createTextNode(" " + text));
+    body.appendChild(d);
+    while (body.childElementCount > 400) body.removeChild(body.firstChild);
+    body.scrollTop = body.scrollHeight;
   }
   function setDevice(d) { device = d; $("#st-stage").dataset.device = d; }
 
@@ -211,10 +289,11 @@
   }
   function setProject(name) {
     project = name; currentFile = null; versions = [];
+    serverRunning = false; runReady = false; stopRuntimePoll();
     selectLabel(name);
     intoIterateMode();
     setMode("files");
-    loadFiles(); reloadPreview(); runTests();
+    loadFiles(); reloadPreview(); runTests(); refreshRuntime();
   }
 
   async function send() {
@@ -402,6 +481,7 @@
     $("#st-console-clear").addEventListener("click", clearConsole);
     $("#st-ref-file").addEventListener("change", onRefFile);
     $("#st-ref-clear").addEventListener("click", clearRef);
+    $("#st-run-btn").addEventListener("click", toggleServer);
     window.addEventListener("message", onPreviewMessage);
     $$('input[name="st-dev"]').forEach((r) => r.addEventListener("change", () => setDevice(r.value)));
     $("#st-prompt").addEventListener("keydown", (e) => {

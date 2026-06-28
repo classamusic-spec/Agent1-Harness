@@ -4,6 +4,11 @@ Where the agent is strong today, and the highest-leverage things to add next.
 Ordered by impact-to-effort.
 
 ## Today (done)
+- **Runtime — live full-stack preview** — run the project's real dev server
+  (`npm run dev` / `uvicorn` / static, auto-detected), health-check it, and
+  reverse-proxy the Studio preview to it; server logs stream into the console.
+  `harness/runtime.py` + Run/Stop in Studio. (Foundation for full-stack: real
+  toolchain verification, scaffolds, and a milestone planner build on this.)
 - **Studio (Replit / Lovable-style)** — describe an app → it builds → **live
   preview** (Desktop / Mobile device frame, reload, Run tests) → **chat to
   iterate** (one engine turn on the workspace, re-verified). A **project
@@ -62,6 +67,17 @@ Ordered by impact-to-effort.
 - Web console with tabs: Build, **New Spec** (authoring), **Gallery** (artifact
   preview + Resume), a **live Workspace view**, and the **3D Office**.
 - Design-check templates (Playwright/axe/Lighthouse).
+
+## Next — full-stack (building on the runtime)
+- **Real toolchain verification** — run npm/pip install, build, `tsc`, `eslint`,
+  `pytest`, and Playwright e2e against the *running* app; API contract checks.
+- **Scaffolds** — known-good starters (Vite+React+TS, FastAPI/Express+SQLite) so
+  the agent edits a working base instead of generating cold.
+- **Milestone planner** — decompose into schema → API → UI → integration, verify
+  each milestone before the next.
+- **Data layer** — ORM + migrations (generate/apply/seed) + `.env`/secrets.
+- **Multi-agent decomposition** — backend/frontend/test agents on a worktree.
+- **Ship it** — Dockerfile + compose, zip/PR export, optional deploy.
 
 ## Next — correctness & convergence
 1. **Security review focus** — a dedicated reviewer for secrets, injection,

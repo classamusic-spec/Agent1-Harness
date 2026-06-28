@@ -117,6 +117,7 @@ hand-quality HTML/CSS/JS, no libraries:
 | **Live run controls** | `harness/control.py` | **Pause** or **Cancel** a running build from the console; the loop stops at the next round boundary. Pause leaves a checkpoint, so it's resumable. |
 | **3D Office** | `webui/office.js` (three.js) | A futuristic Office tab: an agent character works at a desk beside an **AI rig** whose fans spin and GPU cards glow cyan while a model runs. Animates with build state (idle / building / passed / failed), driven live by `/api/current`. three.js is vendored for offline use. |
 | **CI** | `.github/workflows/ci.yml` | Runs the full test suite on Python 3.10–3.12 on every push and PR. |
+| **Runtime (live full-stack preview)** | `harness/runtime.py` | Runs the project's real dev server (`npm run dev`, `uvicorn`, or a static server — auto-detected), allocates a port, health-checks it, and **reverse-proxies the Studio preview to it** (same-origin, so the devtools console works on the live app). Server stdout/stderr stream into the console. One live server at a time; `--preview`-style controls in Studio (Run / Stop). |
 | **Studio (live preview)** | `harness/server.py` + `webui/studio.js` | A Replit/Lovable-style surface: describe an app → it builds → **live preview** (Desktop / Mobile device frame, reload, open) with a **Run tests** chip; then **chat to iterate** (`/api/iterate` runs one engine turn on the workspace and re-verifies). A **project switcher** jumps between built apps, a **Stop** button cancels a run, and **version history + diffs** (`harness/versions.py`) snapshot every turn so you can review the colorized diff and **Restore** any version. Freeform prompts become first-class specs. |
 | **Engines** | `harness/engines/` | `anthropic` (Claude Agent SDK), `local` (any OpenAI-compatible server — GLM / MiniMax / Qwen / …), or **`claude-cli`** — drives your installed, authenticated **Claude Code CLI** as the builder (no API key/SDK needed). |
 | **Vision (image → UI)** | `harness/vision.py`, `harness/screenshot.py` | Reference a UI screenshot when building. **Two-stage:** a local **vision** model writes a design brief injected into the **coder**'s prompt. **Direct:** a multimodal coder reads the image — Claude Code reads the staged file, or a local VL model gets it inline (`--multimodal`). **Visual-match loop** (`--visual-check`): screenshot the build, vision-compare to the reference, repair the differences. CLI flags + Studio upload/toggles. |
@@ -175,6 +176,12 @@ The **Studio** tab is the conversational surface:
 5. **History & diff** — every turn is snapshotted. The **Diff** tab shows a colorized
    per-version diff of what changed, and **Restore** rolls back to any earlier version
    (non-destructively — the current state is saved first).
+6. **Run the real stack** — for full-stack apps, hit **Run server** (auto-detects `npm run
+   dev` / `uvicorn` / a static server, or type your own). The preview proxies to the live
+   dev server, the status pill goes green when it's healthy, and the server's logs stream
+   into the Console alongside the browser logs. *(Naive HTTP proxy: WebSocket HMR and
+   absolute-asset SPAs may need "Open ↗" to the direct port; SSR/API/relative-asset apps
+   proxy cleanly.)*
 
 The console wears a modern **glassmorphic** theme: a soft gradient-mesh backdrop,
 translucent frosted cards, and a gradient-accent primary — premium, with automatic
