@@ -118,6 +118,51 @@
       $("#st-open").href = `/artifact/${encodeURIComponent(project)}/index.html`;
     }
     $("#st-preview-empty").hidden = true;
+    lastMtime = 0;  // re-baseline hot-reload after an explicit reload
+  }
+
+  // --- point & edit: click an element in the preview, then describe the change
+  let pickMode = false;
+  let pickTarget = null;
+  function setPick(on) {
+    pickMode = on;
+    $("#st-pick").classList.toggle("active", on);
+    const win = $("#st-preview").contentWindow;
+    try { win && win.postMessage({ __harnessPick: 1, on }, "*"); } catch {}
+  }
+  function togglePick() {
+    if (!project) return;
+    setPick(!pickMode);
+  }
+  function onElementPicked(d) {
+    pickTarget = { selector: d.selector || "", label: d.label || d.selector || "element",
+                   text: d.text || "", html: d.html || "" };
+    $("#st-target-label").textContent = pickTarget.label;
+    $("#st-target").hidden = false;
+    setPick(false);
+    const ta = $("#st-prompt");
+    ta.focus();
+    if (!ta.value.trim()) ta.placeholder = `Describe the change to ${pickTarget.label}…`;
+  }
+  function clearTarget() {
+    pickTarget = null;
+    $("#st-target").hidden = true;
+  }
+
+  // --- hot reload: poll the workspace mtime; reload the preview when files change
+  let lastMtime = 0;
+  let hotTimer = null;
+  async function pollMtime() {
+    if (!project || document.hidden) return;
+    try {
+      const r = await (await fetch(`/api/workspace/mtime?dir=${encodeURIComponent(project)}`)).json();
+      if (r.mtime && lastMtime && r.mtime > lastMtime) { lastMtime = r.mtime; reloadPreview(); }
+      else if (r.mtime && !lastMtime) { lastMtime = r.mtime; }
+    } catch {}
+  }
+  function startHotReload() {
+    if (hotTimer) return;
+    hotTimer = setInterval(pollMtime, 1500);
   }
 
   // --- live dev server (full-stack preview) --------------------------------
@@ -206,6 +251,7 @@
   }
   function onPreviewMessage(e) {
     const d = e && e.data;
+    if (d && d.__harnessPicked) { onElementPicked(d); return; }
     if (!d || !d.__harnessLog) return;
     consoleCount++;
     const c = $("#st-console-count");
@@ -331,7 +377,9 @@
     const runCmd = ($("#st-run-cmd").value || "").trim() || null;
     let url, body;
     if (project) {
-      url = "/api/iterate"; body = { workspace: project, instruction: prompt, ...eng, ...ref };
+      url = "/api/iterate";
+      body = { workspace: project, instruction: prompt, ...eng, ...ref };
+      if (pickTarget) body.target = pickTarget;
     } else {
       url = "/api/builds";
       body = { prompt, name: ($("#st-name").value || "app").trim(), kind: $("#st-kind").value,
@@ -348,7 +396,7 @@
       project = project || j.workspace.split("/").pop();
       selectLabel(project);
       $("#st-prompt").value = "";
-      clearRef();
+      clearRef(); clearTarget();
       stream(j.id); startPoll();
     } catch { setStatus("error", "request failed"); runningUI(false); }
   }
@@ -550,6 +598,8 @@
     $("#st-refresh").addEventListener("click", () => { loadFiles(); reloadPreview(); });
     $("#st-reload").addEventListener("click", reloadPreview);
     $("#st-test").addEventListener("click", runTests);
+    $("#st-pick").addEventListener("click", togglePick);
+    $("#st-target-clear").addEventListener("click", clearTarget);
     $("#st-ship").addEventListener("click", openShip);
     $("#ship-close").addEventListener("click", closeShip);
     $("#ship-add").addEventListener("click", shipAdd);
@@ -574,6 +624,7 @@
     if (!wired) { wire(); wired = true; }
     onEngineChange();
     loadScaffolds();
+    startHotReload();
     const names = await populateProjects();
     // Deep-link support: /?tab=studio&proj=<name>&dev=mobile
     const qs = new URLSearchParams(location.search);

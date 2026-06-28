@@ -666,3 +666,13 @@ input[type="number"]:focus { outline: none; border-color: var(--accent); box-sha
 #persona-prompt { max-height: 60vh; overflow: auto; white-space: pre-wrap; font-size: 12.5px; line-height: 1.55; }
 .gal-thumb { width: 100%; border-radius: var(--radius-sm); border: 1px solid var(--hairline);
   background: #fff; display: block; }
+
+/* Point & edit: target chip + active toggle */
+#st-pick.active { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+.target-chip { display: flex; align-items: center; gap: 8px; margin: 0 0 8px;
+  padding: 6px 10px; border: 1px solid var(--accent); border-radius: var(--radius-sm);
+  background: color-mix(in srgb, var(--accent) 12%, transparent); font-size: .82rem; }
+.target-chip .target-ico { color: var(--accent); font-weight: 700; }
+.target-chip code { color: var(--text); background: transparent; padding: 0;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; }
+.target-chip .ref-x { margin-left: auto; }

@@ -4,6 +4,15 @@ Where the agent is strong today, and the highest-leverage things to add next.
 Ordered by impact-to-effort.
 
 ## Today (done)
+- **Point & edit (inline element targeting)** — click an element in the live
+  preview, then describe the change in plain language; the harness anchors the
+  iterate to that exact element (selector + the markup you pointed at) so the
+  change lands where you mean. An injected, same-origin picker highlights on hover
+  and posts the descriptor to the Studio. `harness/server.py` (`_PICKER_SNIPPET`),
+  Studio "⌖ Point & edit".
+- **Hot reload** — the preview auto-reloads the moment workspace files change
+  (`/api/workspace/mtime` poll), so edits and iterations show instantly without a
+  manual Reload.
 - **Spec authoring in the UI** — the New Spec panel now edits existing specs (load
   via a picker), picks `kind`, scaffold, and run command, and shows a **live
   persona preview** (the composed system prompt for the kind, via `/api/persona`).

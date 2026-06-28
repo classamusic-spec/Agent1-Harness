@@ -65,6 +65,36 @@ _DEVTOOLS_SNIPPET = (
 )
 
 
+# "Point & edit": when the Studio turns on pick mode, the user hovers to highlight
+# and clicks an element; we post a descriptor (selector + label + outerHTML snippet)
+# to the parent so the next iterate can target exactly that element. Same-origin.
+_PICKER_SNIPPET = (
+    "<script>(function(){if(window.__harnessPick)return;window.__harnessPick=1;"
+    "var on=false,ov=null;"
+    "function box(){if(ov)return ov;ov=document.createElement('div');"
+    "ov.style.cssText='position:fixed;z-index:2147483647;pointer-events:none;border:2px solid #5e8cff;"
+    "background:rgba(94,140,255,.15);border-radius:3px;transition:all .05s';document.body.appendChild(ov);return ov}"
+    "function sel(el){if(el.id)return '#'+el.id;var p=[],n=el;"
+    "while(n&&n.nodeType===1&&p.length<4){var s=n.tagName.toLowerCase();"
+    "if(n.id){s='#'+n.id;p.unshift(s);break}"
+    "if(n.className&&typeof n.className==='string'){var c=n.className.trim().split(/\\s+/).slice(0,2).join('.');"
+    "if(c)s+='.'+c}var par=n.parentNode;if(par){var same=[].filter.call(par.children,function(x){return x.tagName===n.tagName});"
+    "if(same.length>1)s+=':nth-of-type('+([].indexOf.call(par.children,n)+1)+')'}p.unshift(s);n=n.parentNode}return p.join(' > ')}"
+    "function move(e){if(!on)return;var el=e.target;if(!el||el===ov)return;var r=el.getBoundingClientRect();"
+    "var b=box();b.style.left=r.left+'px';b.style.top=r.top+'px';b.style.width=r.width+'px';b.style.height=r.height+'px';b.style.display='block'}"
+    "function click(e){if(!on)return;e.preventDefault();e.stopPropagation();var el=e.target;"
+    "var label=el.tagName.toLowerCase()+(el.id?'#'+el.id:'')+(el.className&&typeof el.className==='string'?"
+    "'.'+el.className.trim().split(/\\s+/).slice(0,2).join('.'):'');"
+    "var html=(el.outerHTML||'').slice(0,600);var text=(el.textContent||'').trim().slice(0,120);"
+    "try{parent.postMessage({__harnessPicked:1,selector:sel(el),label:label,text:text,html:html},'*')}catch(x){}"
+    "setMode(false)}"
+    "function setMode(v){on=v;document.body.style.cursor=v?'crosshair':'';if(!v&&ov){ov.style.display='none'}}"
+    "document.addEventListener('mousemove',move,true);document.addEventListener('click',click,true);"
+    "window.addEventListener('message',function(e){var d=e.data;if(d&&d.__harnessPick)setMode(!!d.on)});"
+    "})();</script>"
+)
+
+
 def _inject_devtools(html: bytes) -> bytes:
     text = html.decode("utf-8", "replace")
     lower = text.lower()
@@ -73,7 +103,7 @@ def _inject_devtools(html: bytes) -> bytes:
         pos = i + len("<head>")
     else:  # no <head> — drop it at the very top
         pos = 0
-    return (text[:pos] + _DEVTOOLS_SNIPPET + text[pos:]).encode("utf-8")
+    return (text[:pos] + _DEVTOOLS_SNIPPET + _PICKER_SNIPPET + text[pos:]).encode("utf-8")
 
 
 def _inject_preview(html: bytes, name: str) -> bytes:
@@ -84,7 +114,7 @@ def _inject_preview(html: bytes, name: str) -> bytes:
     lower = text.lower()
     i = lower.find("<head>")
     pos = i + len("<head>") if i != -1 else 0
-    return (text[:pos] + base + _DEVTOOLS_SNIPPET + text[pos:]).encode("utf-8")
+    return (text[:pos] + base + _DEVTOOLS_SNIPPET + _PICKER_SNIPPET + text[pos:]).encode("utf-8")
 
 
 # --- testable helpers -----------------------------------------------------
@@ -153,6 +183,28 @@ def save_spec(specs_dir: str, data: dict) -> str:
     path = os.path.join(specs_dir, f"{_slug(doc['name'])}.yaml")
     Path(path).write_text(yaml.safe_dump(doc, sort_keys=False, width=88))
     return path
+
+
+_MTIME_SKIP = {".studio", ".git", "node_modules", "__pycache__", ".pytest_cache"}
+
+
+def workspace_mtime(workspace_dir: str) -> float:
+    """Newest source-file mtime in a workspace (for hot-reloading the preview).
+    Skips caches/VCS so a rebuild's file writes register but noise doesn't."""
+    root = Path(workspace_dir)
+    if not root.is_dir():
+        return 0.0
+    newest = 0.0
+    for dp, dirnames, filenames in os.walk(root):
+        dirnames[:] = [d for d in dirnames if d not in _MTIME_SKIP]
+        for fn in filenames:
+            try:
+                m = os.path.getmtime(os.path.join(dp, fn))
+            except OSError:
+                continue
+            if m > newest:
+                newest = m
+    return round(newest, 3)
 
 
 def list_artifacts(workspaces_dir: str) -> list[dict]:
@@ -469,6 +521,20 @@ class Console:
             print("error: instruction is required")
             return
 
+        # "Point & edit": the user clicked an element in the live preview, so anchor
+        # the change to that element (selector + the actual markup they pointed at).
+        tgt = params.get("target") or {}
+        if isinstance(tgt, dict) and (tgt.get("selector") or tgt.get("html")):
+            label = str(tgt.get("label") or tgt.get("selector") or "the selected element")
+            block = (f"\n\nThe user pointed at this element in the live preview — apply the "
+                     f"change to it (and closely related markup/styles):\n"
+                     f"- selector: {tgt.get('selector', '')}\n- label: {label}")
+            if tgt.get("text"):
+                block += f"\n- text: {str(tgt['text'])[:160]}"
+            if tgt.get("html"):
+                block += f"\n- current markup:\n{str(tgt['html'])[:600]}"
+            instruction = instruction + block
+
         meta = studio_meta(job.workspace)
         kind = params.get("kind") or meta.get("kind") or "frontend"
         provider = params.get("engine") or meta.get("engine") or "claude-cli"
@@ -706,6 +772,9 @@ def make_handler(console: Console):
             if path == "/api/workspace":
                 root = self._ws_root(q.get("dir", [""])[0])
                 return self._json(workspace_tree(root))
+            if path == "/api/workspace/mtime":
+                root = self._ws_root(q.get("dir", [""])[0])
+                return self._json({"mtime": workspace_mtime(root)})
             if path == "/api/workspace/file":
                 root = self._ws_root(q.get("dir", [""])[0])
                 try:

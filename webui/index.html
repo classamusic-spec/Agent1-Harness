@@ -137,6 +137,11 @@
             </div>
 
             <label for="st-prompt" id="st-prompt-label">Describe the app to build</label>
+            <div id="st-target" class="target-chip" hidden>
+              <span class="target-ico">⌖</span>
+              <code id="st-target-label"></code>
+              <button type="button" id="st-target-clear" class="ref-x" aria-label="Clear target">×</button>
+            </div>
             <textarea id="st-prompt" rows="5" placeholder="e.g. A calm pomodoro timer with start/pause/reset, a circular progress ring, and a session counter. Local-only, no backend."></textarea>
 
             <div class="ref-controls">
@@ -193,6 +198,7 @@
                 <label><input type="radio" name="st-dev" value="mobile" /><span>Mobile</span></label>
               </div>
               <div class="preview-actions">
+                <button id="st-pick" class="ghost" title="Click an element in the preview, then describe the change">⌖ Point &amp; edit</button>
                 <button id="st-test" class="ghost">Run tests</button>
                 <button id="st-ship" class="ghost" title="Package this app for deployment">Ship ↧</button>
                 <button id="st-reload" class="ghost">Reload</button>
