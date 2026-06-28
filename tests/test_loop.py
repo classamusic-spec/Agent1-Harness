@@ -165,6 +165,27 @@ def test_progress_tracked(tmp_path):
     assert result.stop_reason == "verified"
 
 
+def test_test_first_generates_then_builds_to_green(tmp_path):
+    # Spec has NO verification; test-first derives it from a planner.
+    spec = Spec(name="demo", description="d", kind="cli", language="python")
+    cfg = _config(tmp_path / "ws", test_first=True)
+    builder = FakeEngine(str(tmp_path / "ws"), [_writer("ok")])
+
+    plan_json = '{"checks":[{"name":"exists","command":"test -f app.txt"}]}'
+
+    def planner_factory(s, c):
+        return FakeEngine(c.workspace, [lambda ws, p: plan_json])
+
+    result = asyncio.run(build(
+        spec, cfg, echo=False,
+        builder_factory=lambda s, c: builder,
+        planner_factory=planner_factory,
+    ))
+    assert result.ok and result.stop_reason == "verified"
+    assert [c.name for c in spec.checks] == ["exists"]  # suite came from the planner
+    assert result.progress == [0]
+
+
 def test_learning_records_lessons(tmp_path):
     mem = tmp_path / "lessons.jsonl"
     spec = _spec()

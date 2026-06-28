@@ -35,9 +35,13 @@ def _clip(text: str, limit: int = _MAX_TOOL_OUTPUT) -> str:
 class ToolBox:
     """Filesystem + shell + verify tools for one workspace."""
 
-    def __init__(self, workspace: str, spec: Spec):
+    def __init__(self, workspace: str, spec: Spec, runner=None):
         self.workspace = os.path.abspath(workspace)
         self.spec = spec
+        if runner is None:
+            from harness.sandbox import HostRunner
+            runner = HostRunner()
+        self.runner = runner
         os.makedirs(self.workspace, exist_ok=True)
 
     # --- path safety -----------------------------------------------------
@@ -110,10 +114,7 @@ class ToolBox:
         if reason:
             raise ToolError(reason)
         try:
-            proc = subprocess.run(
-                command, shell=True, cwd=self.workspace,
-                capture_output=True, text=True, timeout=timeout,
-            )
+            proc = self.runner.run(command, self.workspace, timeout)
         except subprocess.TimeoutExpired:
             raise ToolError(f"command timed out after {timeout}s") from None
         out = f"exit {proc.returncode}\n"
@@ -124,7 +125,7 @@ class ToolBox:
         return _clip(out)
 
     def verify(self) -> str:
-        report = run_suite(self.spec.checks, stop_on_failure=True)
+        report = run_suite(self.spec.checks, stop_on_failure=True, runner=self.runner)
         status = "ALL CHECKS PASSED" if report.ok else "VERIFICATION FAILED"
         return _clip(f"{status}\n\n{report.to_feedback() or '(no checks defined)'}")
 

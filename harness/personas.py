@@ -174,3 +174,16 @@ verify.
 
 def fixer_system() -> str:
     return FIXER_SYSTEM
+
+
+TESTAUTHOR_SYSTEM = """\
+You are a pragmatic test author. Given a spec, you define the smallest set of
+concrete, runnable acceptance checks that prove the app meets it — real build,
+typecheck, lint, and unit-test commands for the language. You prefer commands
+that fail loudly and unambiguously, and you never invent tools that wouldn't be
+present for the stated stack.
+"""
+
+
+def testauthor_system() -> str:
+    return TESTAUTHOR_SYSTEM

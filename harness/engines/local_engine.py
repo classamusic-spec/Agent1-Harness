@@ -14,6 +14,7 @@ from typing import Any
 from harness.config import HarnessConfig
 from harness.engines.base import Engine
 from harness.localtools import ToolBox
+from harness.sandbox import build_runner
 from harness.spec import Spec
 
 
@@ -38,7 +39,7 @@ class LocalEngine(Engine):
         self._spec = spec
         self._config = config
         self._engine_cfg = config.engine
-        self._toolbox = ToolBox(config.workspace, spec)
+        self._toolbox = ToolBox(config.workspace, spec, runner=build_runner(config))
         self._messages: list[dict] = [{"role": "system", "content": system_prompt}]
         self._client = None  # created on __aenter__
 

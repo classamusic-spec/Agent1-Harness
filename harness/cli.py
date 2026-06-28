@@ -50,6 +50,14 @@ def _parse_args(argv: list[str]) -> argparse.Namespace:
                    help="Per-build isolation mode (default: directory)")
     p.add_argument("--base-repo", default=None, help="Base git repo for --isolation worktree")
     p.add_argument("--cleanup", action="store_true", help="Remove a worktree workspace when done")
+    # Exec sandbox
+    p.add_argument("--sandbox", choices=["host", "docker"], default="host",
+                   help="Where verification/shell commands run (default: host)")
+    p.add_argument("--docker-image", default="python:3.12-slim",
+                   help="Image for --sandbox docker")
+    # Test-first
+    p.add_argument("--test-first", action="store_true",
+                   help="Derive the verification suite from the spec before building (red->green)")
     # Reviewer / Sentry gate
     p.add_argument("--review", action="store_true", help="Enable the reviewer/sentry second gate")
     p.add_argument("--review-focus", choices=["quality", "bugs"], default="quality",
@@ -147,6 +155,9 @@ def main(argv: list[str] | None = None) -> int:
         isolation=args.isolation,
         base_repo=args.base_repo,
         keep_workspace=not args.cleanup,
+        exec_sandbox=args.sandbox,
+        docker_image=args.docker_image,
+        test_first=args.test_first,
         enable_review=args.review,
         review_focus=args.review_focus,
         reviewer_model=args.reviewer_model,
@@ -161,8 +172,14 @@ def main(argv: list[str] | None = None) -> int:
     )
 
     gates = "verify" + ("+review:" + args.review_focus if args.review else "")
+    extras = []
+    if args.test_first:
+        extras.append("test-first")
+    if args.sandbox != "host":
+        extras.append(f"sandbox:{args.sandbox}")
     print(f"engine: {engine.provider} | model: {engine.model or '(unset)'} | kind: {spec.kind} | "
-          f"isolation: {args.isolation} | gates: {gates}")
+          f"isolation: {args.isolation} | gates: {gates}"
+          + (" | " + " ".join(extras) if extras else ""))
     result = asyncio.run(build(spec, config, echo=not args.no_echo))
 
     print("\n" + "=" * 40)

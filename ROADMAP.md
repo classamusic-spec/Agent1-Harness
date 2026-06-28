@@ -12,13 +12,17 @@ Ordered by impact-to-effort.
 - **Diff-aware repair** — repairs see a unified diff of the last change + the failure delta.
 - **Stall escalation** — a fresh-context "fixer" (optionally a stronger model) on a stall.
 - Per-build isolation (directory / git worktree).
+- **Exec sandbox** — run verification/shell commands on the host or inside a
+  throwaway **Docker** container with the workspace bind-mounted.
+- **Test-first (red→green)** — derive the verification suite from the spec before
+  building, then drive the build to green against it.
 - Web console with tabs: Build, **New Spec** (authoring), **Gallery** (artifact
   preview), and a **live Workspace view** (watch files appear/change as it builds).
 - Design-check templates (Playwright/axe/Lighthouse).
 
 ## Next — correctness & convergence
-1. **Test-first option** — generate the verification/tests from the spec first,
-   get them approved, then build against them (red→green).
+1. **Human-in-the-loop approval** — optionally require sign-off on the proposed
+   test-first suite, and/or on the final build, before it's accepted.
 
 ## Next — quality & trust
 4. **Multi-reviewer panel** — run quality + sentry + a11y reviewers in parallel
@@ -29,11 +33,9 @@ Ordered by impact-to-effort.
    unsafe deserialization, dependency risks.
 
 ## Next — isolation & ops
-7. **Docker isolation** — run builds (and their shell) in a throwaway container,
-   not just a directory/worktree.
-8. **Cost/time telemetry** — surface token + wall-clock usage per build from the
+7. **Cost/time telemetry** — surface token + wall-clock usage per build from the
    engine and enforce hard budgets; show it in the console.
-9. **Resumable builds** — persist loop state so a build can be paused/resumed.
+8. **Resumable builds** — persist loop state so a build can be paused/resumed.
 
 ## Next — reach & DX
 10. **Project scaffolds** — first-class starters for React (Vite), React Native

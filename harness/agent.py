@@ -33,7 +33,9 @@ from harness.diffing import diff_snapshots, snapshot
 from harness.engines import Engine, make_engine
 from harness.isolation import workspace_session
 from harness.memory import LessonStore, lessons_from_findings, lessons_from_report
-from harness.personas import fixer_system, reviewer_system
+from harness.personas import fixer_system, reviewer_system, testauthor_system
+from harness.sandbox import build_runner
+from harness.testfirst import propose_checks
 from harness.prompts import (
     build_prompt,
     escalation_prompt,
@@ -78,6 +80,10 @@ def _default_fixer(spec: Spec, config: HarnessConfig) -> Engine:
     return make_engine(spec, fconfig, system_prompt_override=fixer_system())
 
 
+def _default_planner(spec: Spec, config: HarnessConfig) -> Engine:
+    return make_engine(spec, config, system_prompt_override=testauthor_system())
+
+
 def _banner(text: str) -> str:
     return f"\n{'=' * 8} {text} {'=' * 8}"
 
@@ -98,6 +104,7 @@ async def build(
     builder_factory: Factory = _default_builder,
     reviewer_factory: Factory = _default_reviewer,
     fixer_factory: Factory = _default_fixer,
+    planner_factory: Factory = _default_planner,
 ) -> BuildResult:
     """Run the full self-improving build loop for a spec."""
     store = LessonStore(config.memory_path) if config.learn and config.memory_path else None
@@ -110,8 +117,23 @@ async def build(
         keep=config.keep_workspace,
     ) as ws:
         run_config = dataclasses.replace(config, workspace=ws)
+        runner = build_runner(run_config)
         for c in spec.checks:
             c.cwd = ws
+
+        # Test-first: derive the verification suite from the spec before building.
+        if config.test_first:
+            planner = planner_factory(spec, run_config)
+            async with planner:
+                proposed = await propose_checks(planner, spec, echo=echo)
+            if proposed:
+                spec.checks = proposed
+                for c in spec.checks:
+                    c.cwd = ws
+                if echo:
+                    print(_banner("test-first: proposed verification suite"), flush=True)
+                    for c in spec.checks:
+                        print(f"  - {c.name}: {c.command}", flush=True)
 
         lessons_text = store.render(spec.kind, spec.language) if store else ""
         transcript: list[str] = []
@@ -146,7 +168,7 @@ async def build(
             stall = 0
 
             while True:
-                report = run_suite(spec.checks, stop_on_failure=config.stop_on_failure)
+                report = run_suite(spec.checks, stop_on_failure=config.stop_on_failure, runner=runner)
                 progress.append(len(report.failures))
                 if first_report is None and not report.ok:
                     first_report = report

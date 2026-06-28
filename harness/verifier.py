@@ -104,17 +104,13 @@ def failure_delta(prev: "VerificationReport | None", cur: VerificationReport) ->
     return "; ".join(parts)
 
 
-def run_check(check: Check) -> CheckResult:
-    """Run a single check as a subprocess. Never raises — failures are data."""
+def run_check(check: Check, runner=None) -> CheckResult:
+    """Run a single check via a CommandRunner. Never raises — failures are data."""
+    if runner is None:
+        from harness.sandbox import HostRunner
+        runner = HostRunner()
     try:
-        proc = subprocess.run(
-            check.command,
-            shell=True,
-            cwd=check.cwd,
-            capture_output=True,
-            text=True,
-            timeout=check.timeout,
-        )
+        proc = runner.run(check.command, check.cwd, check.timeout)
     except subprocess.TimeoutExpired as exc:
         return CheckResult(
             name=check.name,
@@ -147,7 +143,7 @@ def run_check(check: Check) -> CheckResult:
     )
 
 
-def run_suite(checks: list[Check], stop_on_failure: bool = True) -> VerificationReport:
+def run_suite(checks: list[Check], stop_on_failure: bool = True, runner=None) -> VerificationReport:
     """Run all checks in order.
 
     With `stop_on_failure` (the default), the first hard failure stops the run
@@ -172,7 +168,7 @@ def run_suite(checks: list[Check], stop_on_failure: bool = True) -> Verification
             )
             continue
 
-        result = run_check(check)
+        result = run_check(check, runner=runner)
         report.results.append(result)
         if not result.ok and not check.allow_failure and stop_on_failure:
             halted = True

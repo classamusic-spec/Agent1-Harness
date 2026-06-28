@@ -46,10 +46,17 @@ class HarnessConfig:
     allowed_tools: list[str] = field(default_factory=lambda: list(DEFAULT_ALLOWED_TOOLS))
     stop_on_failure: bool = True
 
-    # Isolation: "directory" (default) or "worktree" (git worktree off base_repo).
+    # Workspace isolation: "directory" (default) or "worktree" (git worktree).
     isolation: str = "directory"
     base_repo: str | None = None
     keep_workspace: bool = True
+
+    # Exec sandbox: where commands run — "host" (default) or "docker".
+    exec_sandbox: str = "host"
+    docker_image: str = "python:3.12-slim"
+
+    # Test-first: derive the verification suite from the spec before building.
+    test_first: bool = False
 
     # Reviewer / Sentry second gate.
     enable_review: bool = False
