@@ -62,6 +62,17 @@ def _parse_args(argv: list[str]) -> argparse.Namespace:
                    help="Where verification/shell commands run (default: host)")
     p.add_argument("--docker-image", default="python:3.12-slim",
                    help="Image for --sandbox docker")
+    # Docker sandbox hardening (only relevant with --sandbox docker)
+    p.add_argument("--docker-network", default=None,
+                   help="Container network for the docker sandbox (e.g. 'none' to isolate)")
+    p.add_argument("--docker-cpus", default=None, help="CPU cap, e.g. 1.5")
+    p.add_argument("--docker-memory", default=None, help="Memory cap, e.g. 512m")
+    p.add_argument("--docker-pids-limit", type=int, default=None, help="Max processes in the container")
+    p.add_argument("--docker-read-only", action="store_true",
+                   help="Read-only container rootfs (+ tmpfs scratch)")
+    p.add_argument("--docker-user", default=None, help="Run as a non-root uid:gid, e.g. 1000:1000")
+    p.add_argument("--docker-allow-caps", action="store_true",
+                   help="Do NOT drop Linux capabilities / no-new-privileges (relax the safe defaults)")
     # Test-first
     p.add_argument("--test-first", action="store_true",
                    help="Derive the verification suite from the spec before building (red->green)")
@@ -259,6 +270,14 @@ def main(argv: list[str] | None = None) -> int:
         keep_workspace=not args.cleanup,
         exec_sandbox=args.sandbox,
         docker_image=args.docker_image,
+        docker_network=args.docker_network,
+        docker_cpus=args.docker_cpus,
+        docker_memory=args.docker_memory,
+        docker_pids_limit=args.docker_pids_limit,
+        docker_read_only=args.docker_read_only,
+        docker_user=args.docker_user,
+        docker_cap_drop_all=not args.docker_allow_caps,
+        docker_no_new_privileges=not args.docker_allow_caps,
         test_first=args.test_first,
         enable_review=args.review or bool(args.review_panel),
         review_focus=args.review_focus,

@@ -55,6 +55,15 @@ class HarnessConfig:
     # Exec sandbox: where commands run — "host" (default) or "docker".
     exec_sandbox: str = "host"
     docker_image: str = "python:3.12-slim"
+    # Docker exec sandbox hardening / resource policy (used when exec_sandbox=docker).
+    docker_network: str | None = None       # None = default bridge; "none" isolates
+    docker_cpus: str | None = None          # e.g. "1.5"
+    docker_memory: str | None = None        # e.g. "512m"
+    docker_pids_limit: int | None = None    # cap process count
+    docker_cap_drop_all: bool = True        # drop all Linux capabilities (safe default)
+    docker_no_new_privileges: bool = True   # block privilege escalation (safe default)
+    docker_read_only: bool = False          # read-only rootfs (+ tmpfs); opt-in
+    docker_user: str | None = None          # non-root uid:gid, e.g. "1000:1000"; opt-in
 
     # Test-first: derive the verification suite from the spec before building.
     test_first: bool = False

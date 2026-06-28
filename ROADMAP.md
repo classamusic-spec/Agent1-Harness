@@ -4,6 +4,12 @@ Where the agent is strong today, and the highest-leverage things to add next.
 Ordered by impact-to-effort.
 
 ## Today (done)
+- **Container isolation hardening** — the Docker exec sandbox drops all Linux
+  capabilities and sets `no-new-privileges` by default, and supports a read-only
+  rootfs (+ tmpfs scratch), a non-root `--user`, CPU/memory/pids caps, and a
+  per-build network policy (`--network none` to isolate). `harness/sandbox.py`
+  (`DockerLimits`), `--docker-network/-cpus/-memory/-pids-limit/-read-only/-user`,
+  `--docker-allow-caps` to relax the safe defaults.
 - **Patch-level review** — with `--patch-review`, the reviewer/sentry panel gets the
   unified diff of the last change and concentrates its verdict on what changed
   (faster, sharper on iterative builds); the first pass still reads the full tree.
@@ -116,10 +122,6 @@ Ordered by impact-to-effort.
 - Web console with tabs: Build, **New Spec** (authoring), **Gallery** (artifact
   preview + Resume), a **live Workspace view**, and the **3D Office**.
 - Design-check templates (Playwright/axe/Lighthouse).
-
-## Next — isolation & ops
-7. **Container isolation hardening** — non-root, read-only rootfs, capped CPU/mem
-   for the Docker exec sandbox; per-build network policy.
 
 ## Next — reach & DX
 10. **Project scaffolds** — first-class starters for React (Vite), React Native
