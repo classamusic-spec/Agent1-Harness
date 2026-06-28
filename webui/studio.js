@@ -335,7 +335,8 @@
     } else {
       url = "/api/builds";
       body = { prompt, name: ($("#st-name").value || "app").trim(), kind: $("#st-kind").value,
-               scaffold: ($("#st-scaffold").value || null), run_command: runCmd, ...eng, ...ref };
+               scaffold: ($("#st-scaffold").value || null), plan: $("#st-plan").checked,
+               run_command: runCmd, ...eng, ...ref };
     }
     try {
       const j = await (await fetch(url, {

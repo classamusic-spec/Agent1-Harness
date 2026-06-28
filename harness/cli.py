@@ -92,6 +92,9 @@ def _parse_args(argv: list[str]) -> argparse.Namespace:
                    help="The local coder is vision-capable: attach --reference-image to it directly")
     p.add_argument("--scaffold", default=None,
                    help="Start from a known-good base: static | python-api | vite-react | fastapi")
+    p.add_argument("--plan", action="store_true",
+                   help="Decompose the app into milestones and build each to green in turn")
+    p.add_argument("--max-milestones", type=int, default=6, help="Cap on planned milestones")
     p.add_argument("--run", default=None,
                    help="Dev-server command for server-backed checks (e2e/smoke) & preview "
                         "(auto-detected if omitted; spec 'run:' is also honored)")
@@ -262,6 +265,8 @@ def main(argv: list[str] | None = None) -> int:
         visual_check=args.visual_check,
         run_command=args.run,
         scaffold=args.scaffold,
+        plan=args.plan,
+        max_milestones=args.max_milestones,
     )
 
     approval = None

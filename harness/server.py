@@ -596,6 +596,8 @@ class Console:
             checkpoint_path=cp_path,
             run_command=run_cmd,
             scaffold=spec.scaffold,
+            plan=bool(params.get("plan")),
+            max_milestones=int(params.get("max_milestones") or 6),
         )
         job.token_budget = params.get("token_budget")
         job.deadline = params.get("deadline")

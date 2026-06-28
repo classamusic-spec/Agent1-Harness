@@ -97,6 +97,9 @@ class HarnessConfig:
     run_command: str | None = None
     # Start from a known-good scaffold (see harness/scaffolds.py) instead of cold.
     scaffold: str | None = None
+    # Milestone planner: decompose a big app into ordered milestones, verifying each.
+    plan: bool = False
+    max_milestones: int = 6
     # Visual-diff refinement: after a build, screenshot it, ask the vision model how
     # it differs from the reference, and repair — up to max_visual_repairs times.
     visual_check: bool = False

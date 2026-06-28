@@ -52,7 +52,7 @@ from harness.prompts import (
 from harness.reflect import reflect
 from harness.review import ReviewVerdict, run_panel
 from harness.spec import Spec, parse_spec, spec_to_dict
-from harness.verifier import VerificationReport, failure_delta, run_suite
+from harness.verifier import Check, VerificationReport, failure_delta, run_suite
 
 Factory = Callable[[Spec, HarnessConfig], Engine]
 
@@ -72,6 +72,7 @@ class BuildResult:
     elapsed_seconds: float = 0.0
     progress: list[int] = field(default_factory=list)
     transcript: list[str] = field(default_factory=list)
+    milestones: list = field(default_factory=list)  # per-milestone outcomes (planned builds)
 
 
 def _default_builder(spec: Spec, config: HarnessConfig) -> Engine:
@@ -200,6 +201,87 @@ async def visual_refine(spec: Spec, config: HarnessConfig, *, echo: bool = True,
     return (rounds, tokens)
 
 
+async def _build_planned(spec, config, *, echo, builder_factory, reviewer_factory,
+                         fixer_factory, planner_factory, approval, on_progress, control):
+    """Plan the app into milestones, then drive each to green (own build/verify loop)."""
+    from harness import planner, stacks
+    ws = config.workspace
+    start = time.monotonic()
+    plan = await planner.make_plan(spec, config, echo=echo)
+    if echo:
+        print(_banner(f"plan: {len(plan)} milestone(s)"), flush=True)
+        for i, m in enumerate(plan):
+            print(f"  {i + 1}. {m.title} — {m.goal[:70]}", flush=True)
+
+    committed = 0  # tokens from finished milestones
+    outcomes: list[dict] = []
+    last: BuildResult | None = None
+
+    def relay(p):
+        if on_progress:
+            on_progress({"tokens": committed + p.get("tokens", 0),
+                         "elapsed": round(time.monotonic() - start, 2),
+                         "round": p.get("round", 0)})
+
+    if spec.checks:
+        base_gate = list(spec.checks)
+    else:
+        base_gate = stacks.default_checks(ws, spec.kind)
+    for c in base_gate:
+        c.cwd = ws
+
+    for i, m in enumerate(plan):
+        if control is not None and control.requested():
+            break
+        if config.max_tokens_budget and committed >= config.max_tokens_budget:
+            if echo:
+                print(_banner("token budget reached — stopping the plan"), flush=True)
+            break
+        is_last = i == len(plan) - 1
+        checks = ([Check(name=c["name"], command=c["command"], cwd=ws,
+                         needs_server=bool(c.get("needs_server"))) for c in m.checks])
+        if is_last:
+            checks = base_gate  # final acceptance = the full app gate
+        remaining_deadline = None
+        if config.deadline_seconds is not None:
+            remaining_deadline = max(1.0, config.deadline_seconds - (time.monotonic() - start))
+        sub_spec = Spec(
+            name=spec.name, description=planner.milestone_description(spec, plan, i),
+            language=spec.language, kind=spec.kind, constraints=list(spec.constraints),
+            checks=checks, run=spec.run, scaffold=(spec.scaffold if i == 0 else None))
+        sub_config = dataclasses.replace(
+            config, plan=False, isolation="directory", workspace=ws,
+            scaffold=(spec.scaffold if i == 0 else None), test_first=False,
+            approve_plan=False, approve_build=False, checkpoint_path=None,
+            deadline_seconds=remaining_deadline,
+            max_tokens_budget=(config.max_tokens_budget - committed
+                               if config.max_tokens_budget else None))
+        if echo:
+            print(_banner(f"milestone {i + 1}/{len(plan)}: {m.title}"), flush=True)
+        res = await build(sub_spec, sub_config, echo=echo, builder_factory=builder_factory,
+                          reviewer_factory=reviewer_factory, fixer_factory=fixer_factory,
+                          planner_factory=planner_factory, approval=None,
+                          on_progress=relay, control=control)
+        committed += res.tokens_used
+        last = res
+        outcomes.append({"title": m.title, "ok": res.ok, "tokens": res.tokens_used,
+                         "stop_reason": res.stop_reason})
+        if echo:
+            print(f"  milestone {i + 1}: {'PASSED' if res.ok else 'FAILED'} "
+                  f"({res.stop_reason}, {res.tokens_used} tokens)", flush=True)
+        if not res.ok:
+            break
+
+    ok = bool(outcomes) and all(o["ok"] for o in outcomes)
+    failed = next((o["title"] for o in outcomes if not o["ok"]), None)
+    return BuildResult(
+        ok=ok, rounds=len(outcomes),
+        stop_reason="verified" if ok else (f"milestone-failed: {failed}" if failed else "stopped"),
+        report=last.report if last else None, verdict=last.verdict if last else None,
+        workspace=ws, tokens_used=committed, elapsed_seconds=round(time.monotonic() - start, 2),
+        milestones=outcomes)
+
+
 async def build(
     spec: Spec,
     config: HarnessConfig,
@@ -214,6 +296,12 @@ async def build(
     control=None,
 ) -> BuildResult:
     """Run the full self-improving build loop for a spec."""
+    if config.plan:
+        return await _build_planned(
+            spec, config, echo=echo, builder_factory=builder_factory,
+            reviewer_factory=reviewer_factory, fixer_factory=fixer_factory,
+            planner_factory=planner_factory, approval=approval,
+            on_progress=on_progress, control=control)
     approval = approval or AutoApprove()
     store = LessonStore(config.memory_path) if config.learn and config.memory_path else None
 
