@@ -38,6 +38,61 @@ function makeAgent() {
   return g;
 }
 
+function makeRig() {
+  // A GPU server rack: cabinet, glowing GPU cards, and spinning fans.
+  const g = new THREE.Group();
+  const cabinet = new THREE.Mesh(new THREE.BoxGeometry(1.1, 2.0, 0.9),
+    new THREE.MeshStandardMaterial({ color: 0x0c1622, roughness: 0.5, metalness: 0.7 }));
+  cabinet.position.y = 1.0;
+  g.add(cabinet);
+
+  const cards = [];
+  const fans = [];
+  const cardMatProto = { color: 0x0a1118, roughness: 0.4, metalness: 0.8 };
+  for (let i = 0; i < 5; i++) {
+    const y = 0.45 + i * 0.32;
+    // GPU card body
+    const card = new THREE.Mesh(new THREE.BoxGeometry(1.16, 0.22, 0.94),
+      new THREE.MeshStandardMaterial({ ...cardMatProto }));
+    card.position.set(0, y, 0);
+    g.add(card);
+    // emissive LED strip on the front face
+    const led = new THREE.Mesh(new THREE.BoxGeometry(1.18, 0.04, 0.02),
+      new THREE.MeshStandardMaterial({ color: 0x07101c, emissive: PALETTE.idle, emissiveIntensity: 0.4 }));
+    led.position.set(0, y, 0.475);
+    g.add(led);
+    cards.push(led);
+    // two fans per card on the front
+    for (const fx of [-0.3, 0.3]) {
+      const fan = new THREE.Group();
+      const ring = new THREE.Mesh(new THREE.TorusGeometry(0.11, 0.02, 8, 18),
+        new THREE.MeshStandardMaterial({ color: 0x16222f, metalness: 0.6, roughness: 0.4 }));
+      const hub = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.03, 0.04, 10),
+        new THREE.MeshStandardMaterial({ color: 0x223344 }));
+      hub.rotation.x = Math.PI / 2;
+      const bladeMat = new THREE.MeshStandardMaterial({ color: 0x3a5168, roughness: 0.6 });
+      for (let b = 0; b < 5; b++) {
+        const blade = new THREE.Mesh(new THREE.BoxGeometry(0.015, 0.09, 0.02), bladeMat);
+        blade.position.y = 0.05;
+        blade.rotation.z = (b / 5) * Math.PI * 2;
+        // pivot blade around center
+        const pivot = new THREE.Group();
+        pivot.add(blade);
+        pivot.rotation.z = (b / 5) * Math.PI * 2;
+        fan.add(pivot);
+      }
+      fan.add(ring, hub);
+      fan.position.set(fx, y, 0.49);
+      g.add(fan);
+      fans.push(fan);
+    }
+  }
+  g.userData = { cards, fans };
+  g.position.set(-2.6, 0, -0.4);
+  g.rotation.y = 0.5;
+  return g;
+}
+
 function makeMonitor() {
   const g = new THREE.Group();
   const frame = new THREE.Mesh(new THREE.BoxGeometry(1.5, 0.95, 0.06),
@@ -117,6 +172,10 @@ function init(canvas) {
   agent.rotation.y = Math.PI; // face the monitor
   root.add(agent);
 
+  // the AI rig — GPU rack whose fans spin and cards light up while a model works
+  const rig = makeRig();
+  root.add(rig);
+
   // build ring above the desk
   const ring = new THREE.Mesh(new THREE.TorusGeometry(0.5, 0.045, 12, 48),
     new THREE.MeshStandardMaterial({ color: 0x07101c, emissive: PALETTE.idle, emissiveIntensity: 1.2 }));
@@ -140,7 +199,7 @@ function init(canvas) {
 
   const clock = new THREE.Clock();
   R = {
-    renderer, scene, camera, root, monitor, agent, ring, particles, accent, clock,
+    renderer, scene, camera, root, monitor, agent, rig, ring, particles, accent, clock,
     mode: "idle", targetColor: new THREE.Color(PALETTE.idle),
     autoRot: 0.12, dragRot: 0, dragging: false, lastX: 0, raf: 0,
   };
@@ -188,6 +247,16 @@ function animate() {
   // ring + particles
   R.ring.rotation.z += building ? 0.08 : 0.01;
   R.particles.rotation.y += building ? 0.0016 : 0.0004;
+
+  // AI rig: fans spin fast + GPU cards light up while a model works
+  const rig = R.rig.userData;
+  const fanSpin = building ? 0.55 : 0.04;
+  for (const fan of rig.fans) fan.rotation.z += fanSpin;
+  const ledTarget = building ? 1.7 + Math.sin(t * 5) * 0.25 : 0.35;
+  for (const led of rig.cards) {
+    led.material.emissive.lerp(R.targetColor, 0.08);
+    led.material.emissiveIntensity += (ledTarget - led.material.emissiveIntensity) * 0.1;
+  }
 
   // color lerp on screen + ring + accent
   const screenMat = R.monitor.userData.screen.material;

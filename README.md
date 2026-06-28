@@ -20,13 +20,14 @@ workspace.
 
 ## Screenshots
 
-The build console (`appbuilder-web`) — clean, Apple-inspired, automatic light/dark.
+The build console (`appbuilder-web`) — a ChatGPT / Hermes-style app shell: a left
+nav rail, a roomy content area, automatic light/dark.
 
 **Build tab** — pick spec/engine, toggle gates (review, test-first, approval), set budgets:
 
 ![Build console](docs/screenshots/console-build-options.png)
 
-**Office (3D)** — a futuristic three.js scene where a little agent character works at a desk; it animates live with your pipeline (idle → building → passed/failed):
+**Office (3D)** — a futuristic three.js scene where a little agent character works at a desk next to an **AI rig** (GPU rack). The fans spin and the GPU cards light up cyan whenever the frontier model or your local LLM is working; the whole scene animates live with the pipeline (idle → building → passed/failed):
 
 ![3D agent office](docs/screenshots/console-office.png)
 
@@ -65,7 +66,7 @@ The build console (`appbuilder-web`) — clean, Apple-inspired, automatic light/
 | **Telemetry & budgets** | engines + `agent.py` | Tokens + wall-clock per build; `--token-budget` / `--deadline` stop the loop when exceeded. The console shows **live token & time budget meters** that fill as the build runs (amber near the limit, red over). |
 | **Resumable builds** | `harness/checkpoint.py` | `--checkpoint PATH` writes a checkpoint each round; `--resume PATH` continues against the existing workspace (cumulative tokens/time carried forward). The console writes one automatically and shows a **Resume** button in the Gallery. |
 | **Live run controls** | `harness/control.py` | **Pause** or **Cancel** a running build from the console; the loop stops at the next round boundary. Pause leaves a checkpoint, so it's resumable. |
-| **3D Office** | `webui/office.js` (three.js) | A futuristic Office tab: an agent character works at a desk and animates with build state (idle / building / passed / failed), driven live by `/api/current`. three.js is vendored for offline use. |
+| **3D Office** | `webui/office.js` (three.js) | A futuristic Office tab: an agent character works at a desk beside an **AI rig** whose fans spin and GPU cards glow cyan while a model runs. Animates with build state (idle / building / passed / failed), driven live by `/api/current`. three.js is vendored for offline use. |
 | **CI** | `.github/workflows/ci.yml` | Runs the full test suite on Python 3.10–3.12 on every push and PR. |
 | **Engines** | `harness/engines/` | `anthropic` (Claude Agent SDK) or `local` (any OpenAI-compatible server). |
 | **Personas** | `harness/personas.py` | Specialist system prompts by `kind`: frontend design, backend rigor, **React/React Native**, **SwiftUI (Apple-level)**. |
@@ -105,7 +106,8 @@ appbuilder-web            # http://127.0.0.1:8765
 
 Pick a spec, choose engine/model, toggle the reviewer/sentry gate and learning,
 and watch the build stream live (SSE). The UI itself dogfoods the design
-persona — a cohesive token system, dark theme, keyboard focus, reduced-motion.
+persona — a ChatGPT / Hermes-style sidebar shell, a cohesive token system,
+automatic light/dark, keyboard focus, and reduced-motion support.
 
 ## Native targets — React Native & SwiftUI
 

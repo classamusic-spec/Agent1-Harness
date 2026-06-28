@@ -29,7 +29,11 @@ Ordered by impact-to-effort.
   leaves a checkpoint so it's resumable.
 - **Live run controls** — pause / cancel a running build from the console.
 - **3D Office (three.js)** — a futuristic tab where an agent character works at a
-  desk and animates with the build pipeline (idle / building / passed / failed).
+  desk beside an **AI rig** (GPU rack); its fans spin and cards glow when a model
+  is working, and the scene animates with the build pipeline (idle / building /
+  passed / failed).
+- **ChatGPT / Hermes-style console** — a left nav rail + roomy content shell with
+  a calm palette and automatic light/dark.
 - **CI** — GitHub Actions runs the full suite on Python 3.10–3.12 every push/PR.
 - Web console with tabs: Build, **New Spec** (authoring), **Gallery** (artifact
   preview + Resume), a **live Workspace view**, and the **3D Office**.
