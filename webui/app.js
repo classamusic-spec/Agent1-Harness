@@ -137,22 +137,91 @@ function parseLines(text, sep) {
     return i === -1 ? null : { name: l.slice(0, i).trim(), command: l.slice(i + 1).trim() };
   }).filter(Boolean);
 }
-async function saveSpec() {
-  const body = {
+function specBody() {
+  return {
     name: $("#s-name").value, kind: $("#s-kind").value, language: $("#s-lang").value,
     description: $("#s-desc").value,
+    scaffold: ($("#s-scaffold").value || null), run: ($("#s-run").value || null),
     constraints: parseLines($("#s-constraints").value, null),
     verification: parseLines($("#s-verify").value, ":"),
   };
+}
+async function saveSpec() {
   const msg = $("#spec-msg");
   try {
     const j = await (await fetch("/api/specs", {
-      method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body),
+      method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(specBody()),
     })).json();
-    if (j.error) { msg.textContent = "✗ " + j.error; msg.style.color = "var(--bad)"; return; }
+    if (j.error) { msg.textContent = "✗ " + j.error; msg.style.color = "var(--bad)"; return null; }
     msg.textContent = `✓ Saved ${j.name}.yaml`; msg.style.color = "var(--good)";
-    await loadSpecs();
-  } catch { msg.textContent = "✗ request failed"; msg.style.color = "var(--bad)"; }
+    await loadSpecs(); await loadSpecEditList();
+    return j;
+  } catch { msg.textContent = "✗ request failed"; msg.style.color = "var(--bad)"; return null; }
+}
+async function saveAndBuild() {
+  const j = await saveSpec();
+  if (!j) return;
+  showTab("build");
+  const sel = $("#spec");
+  for (const o of sel.options) if (o.dataset.name === j.name) { sel.value = o.value; break; }
+  syncWorkspace();
+}
+
+/* ---------- spec authoring: persona preview, scaffold list, edit existing ---------- */
+let personaTimer = null;
+async function refreshPersona() {
+  const kind = $("#s-kind").value;
+  $("#persona-kind").textContent = kind;
+  try {
+    const j = await (await fetch(`/api/persona?kind=${encodeURIComponent(kind)}`)).json();
+    $("#persona-prompt").textContent = j.prompt || "";
+  } catch {}
+}
+async function loadSpecScaffolds() {
+  try {
+    const { scaffolds } = await (await fetch("/api/scaffolds")).json();
+    const sel = $("#s-scaffold");
+    for (const s of scaffolds) {
+      const o = document.createElement("option");
+      o.value = s.name; o.textContent = s.label; sel.appendChild(o);
+    }
+  } catch {}
+}
+async function loadSpecEditList() {
+  try {
+    const { specs } = await (await fetch("/api/specs")).json();
+    const sel = $("#s-edit");
+    const cur = sel.value;
+    sel.innerHTML = '<option value="">+ New spec…</option>';
+    for (const s of specs) {
+      const o = document.createElement("option");
+      o.value = s.path; o.textContent = `${s.name} · ${s.kind}`; sel.appendChild(o);
+    }
+    sel.value = cur;
+  } catch {}
+}
+async function loadSpecForEdit(path) {
+  if (!path) { resetSpecForm(); return; }
+  try {
+    const s = await (await fetch(`/api/spec?path=${encodeURIComponent(path)}`)).json();
+    if (s.error) return;
+    $("#s-name").value = s.name || "";
+    $("#s-kind").value = s.kind || "fullstack";
+    $("#s-lang").value = s.language || "";
+    $("#s-scaffold").value = s.scaffold || "";
+    $("#s-run").value = s.run || "";
+    $("#s-desc").value = s.description || "";
+    $("#s-constraints").value = (s.constraints || []).join("\n");
+    $("#s-verify").value = (s.verification || s.checks || [])
+      .map((c) => `${c.name}: ${c.command}`).join("\n");
+    $("#spec-heading").textContent = `Edit: ${s.name}`;
+    refreshPersona();
+  } catch {}
+}
+function resetSpecForm() {
+  for (const id of ["s-name", "s-lang", "s-run", "s-desc", "s-constraints", "s-verify"]) $("#" + id).value = "";
+  $("#s-scaffold").value = ""; $("#spec-heading").textContent = "New Spec";
+  $("#spec-msg").textContent = "";
 }
 
 /* ---------- gallery ---------- */
@@ -177,16 +246,42 @@ async function loadArtifacts() {
         btn.addEventListener("click", (e) => { e.stopPropagation(); resumeBuild(a.name); });
         li.appendChild(btn);
       }
-      li.addEventListener("click", () => {
-        $$("#artifacts .row").forEach((r) => r.classList.remove("sel"));
-        li.classList.add("sel");
-        $("#preview-title").textContent = a.name;
-        $("#preview").src = a.has_index ? `/artifact/${encodeURIComponent(a.name)}/index.html` : "about:blank";
-      });
+      li.addEventListener("click", () => selectArtifact(a));
       ul.appendChild(li);
     }
     if (!$("#artifacts .sel")) ul.querySelector(".row")?.click(); // auto-preview first
   } catch {}
+}
+
+let selectedArtifact = null;
+function selectArtifact(a) {
+  selectedArtifact = a;
+  $$("#artifacts .row").forEach((r) => r.classList.remove("sel"));
+  [...$$("#artifacts .row")].find((r) => r.querySelector("span")?.textContent === a.name)?.classList.add("sel");
+  $("#preview-title").textContent = a.name;
+  const idx = `/artifact/${encodeURIComponent(a.name)}/index.html`;
+  $("#gal-thumb").hidden = true;
+  $("#preview").hidden = false;
+  $("#preview").src = a.has_index ? idx : "about:blank";
+  $("#gal-open").href = a.has_index ? idx : "#";
+  $("#gal-open").style.display = a.has_index ? "" : "none";
+  $("#gal-zip").href = `/api/ship/zip?dir=${encodeURIComponent(a.name)}`;
+  $("#gal-zip").setAttribute("download", `${a.name}.zip`);
+  $("#gal-shot").style.display = a.has_index ? "" : "none";
+}
+async function screenshotArtifact() {
+  if (!selectedArtifact) return;
+  const btn = $("#gal-shot"); const old = btn.textContent;
+  btn.textContent = "rendering…"; btn.disabled = true;
+  try {
+    const r = await fetch(`/api/screenshot?dir=${encodeURIComponent(selectedArtifact.name)}`);
+    if (!r.ok) { const e = await r.json().catch(() => ({})); btn.textContent = e.error || "no screenshot"; return; }
+    const blob = await r.blob();
+    const img = $("#gal-thumb");
+    img.src = URL.createObjectURL(blob);
+    img.hidden = false; $("#preview").hidden = true;
+    btn.textContent = old;
+  } catch { btn.textContent = "failed"; } finally { btn.disabled = false; }
 }
 
 async function resumeBuild(name) {
@@ -332,6 +427,13 @@ $("#cancel").addEventListener("click", () => control("cancel"));
 $("#spec").addEventListener("change", syncWorkspace);
 $("#run").addEventListener("click", run);
 $("#save-spec").addEventListener("click", saveSpec);
+$("#build-spec").addEventListener("click", saveAndBuild);
+$("#s-kind").addEventListener("change", () => {
+  clearTimeout(personaTimer); personaTimer = setTimeout(refreshPersona, 80);
+});
+$("#s-edit").addEventListener("change", (e) => loadSpecForEdit(e.target.value));
 $("#refresh-gallery").addEventListener("click", loadArtifacts);
-loadSpecs(); health(); setInterval(health, 4000);
+$("#gal-shot").addEventListener("click", screenshotArtifact);
+loadSpecs(); loadSpecScaffolds(); loadSpecEditList(); refreshPersona();
+health(); setInterval(health, 4000);
 pollCurrent(); setInterval(pollCurrent, 1500); applyHash();

@@ -4,6 +4,14 @@ Where the agent is strong today, and the highest-leverage things to add next.
 Ordered by impact-to-effort.
 
 ## Today (done)
+- **Spec authoring in the UI** — the New Spec panel now edits existing specs (load
+  via a picker), picks `kind`, scaffold, and run command, and shows a **live
+  persona preview** (the composed system prompt for the kind, via `/api/persona`).
+  "Save & build →" jumps straight into a build.
+- **Artifact gallery** — browse built apps and, per artifact, **Download .zip**
+  (the deployable package via Ship it), **Open** the live app, and render a
+  **Screenshot** (`/api/screenshot`, headless Chrome) — plus Resume for checkpointed
+  builds.
 - **Container isolation hardening** — the Docker exec sandbox drops all Linux
   capabilities and sets `no-new-privileges` by default, and supports a read-only
   rootfs (+ tmpfs scratch), a non-root `--user`, CPU/memory/pids caps, and a
@@ -124,10 +132,5 @@ Ordered by impact-to-effort.
 - Design-check templates (Playwright/axe/Lighthouse).
 
 ## Next — reach & DX
-10. **Project scaffolds** — first-class starters for React (Vite), React Native
-    (Expo), and SwiftUI (SwiftPM) so the model edits a known-good base.
-11. **Spec authoring in the UI** — create/edit specs and pick `kind` from the
-    console; live-preview the composed persona.
-12. **Artifact gallery** — browse/download built apps and screenshots from the UI.
-13. **Human-in-the-loop approval gate** — optional pause for sign-off before a
-    build is accepted or published (commit/PR).
+- **Expo (React Native) + SwiftUI scaffolds** — extend the scaffold set beyond
+  web/Python to mobile/native starters the model edits.

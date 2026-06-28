@@ -323,9 +323,16 @@
         </section>
 
         <!-- NEW SPEC -->
-        <section class="panel center" id="panel-spec" role="tabpanel" hidden>
+        <section class="panel split" id="panel-spec" role="tabpanel" hidden>
           <div class="card form-card">
-            <h2>New Spec</h2>
+            <div class="log-head">
+              <h2 id="spec-heading">New Spec</h2>
+              <div class="select-wrap small">
+                <select id="s-edit" title="Load an existing spec to edit">
+                  <option value="">+ New spec…</option>
+                </select>
+              </div>
+            </div>
             <label for="s-name">Name</label>
             <input id="s-name" type="text" placeholder="my-app" />
             <div class="two">
@@ -342,14 +349,36 @@
                 <input id="s-lang" type="text" placeholder="python / typescript / html-css-js" />
               </div>
             </div>
+            <div class="two">
+              <div>
+                <label for="s-scaffold">Scaffold <span class="muted">(optional base)</span></label>
+                <div class="select-wrap"><select id="s-scaffold"><option value="">None</option></select></div>
+              </div>
+              <div>
+                <label for="s-run">Run command <span class="muted">(optional)</span></label>
+                <input id="s-run" type="text" placeholder="auto-detect (e.g. npm run dev)" />
+              </div>
+            </div>
             <label for="s-desc">Description</label>
             <textarea id="s-desc" rows="6" placeholder="Plain-language description of what to build…"></textarea>
             <label for="s-constraints">Constraints <span class="muted">(one per line)</span></label>
             <textarea id="s-constraints" rows="3" placeholder="Standard library only.&#10;No network at runtime."></textarea>
             <label for="s-verify">Verification <span class="muted">(one per line · name: command)</span></label>
             <textarea id="s-verify" rows="4" placeholder="tests: pytest -q&#10;types: mypy ."></textarea>
-            <button id="save-spec" class="primary">Save spec</button>
+            <div class="row-actions">
+              <button id="save-spec" class="primary">Save spec</button>
+              <button id="build-spec" class="ghost" title="Save and start a build">Save &amp; build →</button>
+            </div>
             <p id="spec-msg" class="hint"></p>
+          </div>
+          <div class="card preview-card">
+            <div class="log-head">
+              <h2>Persona preview</h2>
+              <span class="pill" id="persona-kind"></span>
+            </div>
+            <p class="hint">The system prompt composed for the selected <b>kind</b> — the design /
+              engineering expertise the builder is given.</p>
+            <pre id="persona-prompt" class="log mono" data-empty="Pick a kind to preview its persona."></pre>
           </div>
         </section>
 
@@ -360,7 +389,15 @@
             <ul id="artifacts" class="rows"></ul>
           </div>
           <div class="card preview-card">
-            <h2 id="preview-title">Preview</h2>
+            <div class="log-head">
+              <h2 id="preview-title">Preview</h2>
+              <div class="preview-actions">
+                <button id="gal-shot" class="ghost" title="Render a screenshot">Screenshot</button>
+                <a id="gal-zip" class="ghost" download>Download .zip</a>
+                <a id="gal-open" class="ghost" target="_blank" rel="noopener">Open ↗</a>
+              </div>
+            </div>
+            <img id="gal-thumb" class="gal-thumb" alt="App screenshot" hidden />
             <iframe id="preview" class="preview" title="App preview"></iframe>
           </div>
         </section>

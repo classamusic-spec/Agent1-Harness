@@ -10,8 +10,9 @@ from harness.server import (
     Console,
     list_artifacts,
     list_specs,
-    read_workspace_file,
+    read_spec,
     save_spec,
+    read_workspace_file,
     workspace_tree,
 )
 from harness.spec import SpecError, load_spec
@@ -46,6 +47,27 @@ def test_save_spec_valid_then_loadable(tmp_path):
 def test_save_spec_invalid_rejected(tmp_path):
     with pytest.raises(SpecError):
         save_spec(str(tmp_path), {"name": "x"})  # no description
+
+
+def test_save_then_read_spec_round_trips_scaffold_and_run(tmp_path):
+    path = save_spec(str(tmp_path), {
+        "name": "Notes", "kind": "fullstack", "language": "python",
+        "description": "a notes app", "scaffold": "python-db", "run": "python server.py",
+        "verification": [{"name": "health", "command": "curl $APP_URL/api/health",
+                          "needs_server": True}],
+    })
+    s = read_spec(path)
+    assert s["scaffold"] == "python-db" and s["run"] == "python server.py"
+    assert s["kind"] == "fullstack"
+    assert s["verification"][0]["name"] == "health"
+
+
+def test_persona_prompt_varies_by_kind():
+    from harness import personas
+    fe = personas.system_prompt("frontend")
+    be = personas.system_prompt("backend")
+    assert fe != be
+    assert len(fe) > 100 and len(be) > 100  # real composed prompts, not labels
 
 
 def test_list_artifacts(tmp_path):

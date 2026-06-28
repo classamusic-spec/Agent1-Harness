@@ -659,3 +659,10 @@ input[type="number"]:focus { outline: none; border-color: var(--accent); box-sha
 .ship-cmd { margin-left: auto; color: var(--muted); font-size: .8rem;
   background: var(--surface); padding: 5px 9px; border-radius: 7px; }
 .ship-msg { padding: 0 18px 16px; color: var(--muted); font-size: .84rem; min-height: 1em; }
+
+/* Spec authoring + gallery additions */
+.row-actions { display: flex; gap: 10px; align-items: center; margin-top: 6px; }
+.select-wrap.small select { font-size: .82rem; padding: 5px 26px 5px 10px; }
+#persona-prompt { max-height: 60vh; overflow: auto; white-space: pre-wrap; font-size: 12.5px; line-height: 1.55; }
+.gal-thumb { width: 100%; border-radius: var(--radius-sm); border: 1px solid var(--hairline);
+  background: #fff; display: block; }

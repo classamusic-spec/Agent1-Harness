@@ -108,6 +108,7 @@ def read_spec(path: str) -> dict:
     return {
         "name": spec.name, "kind": spec.kind, "language": spec.language,
         "description": spec.description, "constraints": spec.constraints,
+        "scaffold": spec.scaffold, "run": spec.run,
         "verification": [{"name": c.name, "command": c.command} for c in spec.checks],
         "raw": Path(path).read_text(),
     }
@@ -671,6 +672,25 @@ def make_handler(console: Console):
                 return self._json({"artifacts": list_artifacts(console.workspaces_dir)})
             if path == "/api/scaffolds":
                 return self._json({"scaffolds": scaffolds.list_scaffolds()})
+            if path == "/api/persona":
+                from harness import personas
+                kind = (q.get("kind", ["fullstack"])[0] or "fullstack").strip()
+                return self._json({"kind": kind, "prompt": personas.system_prompt(kind)})
+            if path == "/api/screenshot":
+                from harness import screenshot
+                name = os.path.basename(q.get("dir", [""])[0])
+                index = os.path.join(self._ws_root(name), "index.html")
+                if not os.path.isfile(index):
+                    return self._json({"error": "no index.html to screenshot"}, 404)
+                png = screenshot.capture(index)
+                if not png:
+                    return self._json({"error": "no headless browser available"}, 503)
+                self.send_response(200)
+                self.send_header("Content-Type", "image/png")
+                self.send_header("Content-Length", str(len(png)))
+                self.end_headers()
+                self.wfile.write(png)
+                return
             if path == "/api/current":
                 j = console.current
                 return self._json({"job": j.id if j else None,
