@@ -47,6 +47,16 @@
       </nav>
 
       <div class="sidebar-foot">
+        <label for="theme" class="sr-only">Theme</label>
+        <div class="select-wrap theme-wrap">
+          <select id="theme" aria-label="Theme">
+            <option value="auto">◐ Auto theme</option>
+            <option value="light">☀ Light (glass)</option>
+            <option value="dark">☾ Dark (glass)</option>
+            <option value="solid">▢ Solid light</option>
+            <option value="solid-dark">▣ Solid dark</option>
+          </select>
+        </div>
         <span class="pill" id="health">connecting…</span>
       </div>
     </aside>
@@ -145,8 +155,10 @@
             </div>
             <div id="st-diff-pane" hidden>
               <div class="diff-head">
-                <div class="select-wrap"><select id="st-history" aria-label="Version history"></select></div>
-                <button id="st-restore" class="ghost">Restore</button>
+                <div class="select-wrap"><select id="st-from" aria-label="Compare from"></select></div>
+                <span class="diff-arrow" aria-hidden="true">→</span>
+                <div class="select-wrap"><select id="st-to" aria-label="Compare to"></select></div>
+                <button id="st-restore" class="ghost" title="Restore the right-hand version">Restore</button>
               </div>
               <pre id="st-diff" class="log mono diffview" data-empty="No changes yet — iterate to see a diff."></pre>
             </div>

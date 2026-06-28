@@ -222,31 +222,35 @@
     $("#st-mode-diff").classList.toggle("active", diff);
     if (diff) loadVersions();
   }
+  function optLabel(v) {
+    return `v${v.id} · ${v.label || "snapshot"}${v.instruction ? " — " + v.instruction.slice(0, 36) : ""}`;
+  }
   async function loadVersions(selectLatest = true) {
     if (!project) return;
     try {
       const r = await (await fetch(`/api/versions?dir=${encodeURIComponent(project)}`)).json();
       versions = r.versions || [];
-      const sel = $("#st-history"); sel.innerHTML = "";
-      // newest first
+      const fromSel = $("#st-from"), toSel = $("#st-to");
+      fromSel.innerHTML = ""; toSel.innerHTML = "";
+      // "from" can also be the empty baseline (everything added)
+      const base = document.createElement("option");
+      base.value = "0"; base.textContent = "v0 · (empty start)";
+      fromSel.appendChild(base);
       for (let i = versions.length - 1; i >= 0; i--) {
         const v = versions[i];
-        const o = document.createElement("option");
-        o.value = v.id;
-        o.textContent = `v${v.id} · ${v.label || "snapshot"}${v.instruction ? " — " + v.instruction.slice(0, 40) : ""}`;
-        sel.appendChild(o);
+        const a = document.createElement("option"); a.value = v.id; a.textContent = optLabel(v);
+        const b = a.cloneNode(true);
+        fromSel.appendChild(a); toSel.appendChild(b);
       }
       if (versions.length) {
-        if (selectLatest) sel.value = versions[versions.length - 1].id;
-        showDiff(Number(sel.value));
+        const latest = versions[versions.length - 1].id;
+        const prev = versions.length > 1 ? versions[versions.length - 2].id : 0;
+        if (selectLatest) { toSel.value = String(latest); fromSel.value = String(prev); }
+        showDiff();
       } else {
         $("#st-diff").textContent = "";
       }
     } catch {}
-  }
-  function prevIdOf(vid) {
-    const idx = versions.findIndex((v) => v.id === vid);
-    return idx > 0 ? versions[idx - 1].id : 0; // 0 = empty baseline (initial)
   }
   function renderDiff(files) {
     const box = $("#st-diff");
@@ -266,20 +270,22 @@
       return head + `<div class="diff-body">${lines}</div>`;
     }).join("");
   }
-  async function showDiff(vid) {
-    if (!project || !vid) return;
-    const from = prevIdOf(vid);
+  async function showDiff() {
+    if (!project) return;
+    const from = $("#st-from").value || "0";
+    const to = $("#st-to").value;
+    if (!to) { $("#st-diff").textContent = ""; return; }
     $("#st-diff").textContent = "loading diff…";
     try {
       const r = await (await fetch(
-        `/api/diff?dir=${encodeURIComponent(project)}&from=${from}&to=${vid}`)).json();
+        `/api/diff?dir=${encodeURIComponent(project)}&from=${from}&to=${to}`)).json();
       renderDiff(r.files);
     } catch { $("#st-diff").textContent = "could not load diff"; }
   }
   async function restoreVersion() {
-    const vid = Number($("#st-history").value);
+    const vid = Number($("#st-to").value);
     if (!vid) return;
-    if (!window.confirm(`Restore the app to v${vid}? Current state is saved as a new version first.`)) return;
+    if (!window.confirm(`Restore the app to v${vid}? The current state is saved as a new version first.`)) return;
     $("#st-restore").disabled = true;
     try {
       const r = await (await fetch("/api/restore", {
@@ -323,7 +329,8 @@
     $("#st-test").addEventListener("click", runTests);
     $("#st-mode-files").addEventListener("click", () => setMode("files"));
     $("#st-mode-diff").addEventListener("click", () => setMode("diff"));
-    $("#st-history").addEventListener("change", (e) => showDiff(Number(e.target.value)));
+    $("#st-from").addEventListener("change", showDiff);
+    $("#st-to").addEventListener("change", showDiff);
     $("#st-restore").addEventListener("click", restoreVersion);
     $$('input[name="st-dev"]').forEach((r) => r.addEventListener("change", () => setDevice(r.value)));
     $("#st-prompt").addEventListener("keydown", (e) => {

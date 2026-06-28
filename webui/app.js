@@ -27,6 +27,28 @@ function applyHash() {
 }
 window.addEventListener("hashchange", applyHash);
 
+/* ---------- theme ---------- */
+function applyTheme(t) {
+  if (!t || t === "auto") document.documentElement.removeAttribute("data-theme");
+  else document.documentElement.setAttribute("data-theme", t);
+}
+(function initTheme() {
+  let saved = "auto";
+  try { saved = localStorage.getItem("harness-theme") || "auto"; } catch {}
+  const q = new URLSearchParams(location.search).get("theme");
+  if (q) saved = q;  // URL override (shareable + screenshot-friendly)
+  applyTheme(saved);
+  const sel = $("#theme");
+  if (sel) {
+    sel.value = saved;
+    sel.addEventListener("change", () => {
+      applyTheme(sel.value);
+      try { localStorage.setItem("harness-theme", sel.value); } catch {}
+      if (window.OfficeView) setTimeout(() => window.OfficeView.resize && window.OfficeView.resize(), 60);
+    });
+  }
+})();
+
 /* ---------- health ---------- */
 async function health() {
   try {
