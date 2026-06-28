@@ -48,8 +48,27 @@ exactly what a change did (colorized unified diff), and **Restore** any earlier 
 
 ![Studio — per-version diff and restore](docs/screenshots/studio-diff.png)
 
-**A real app built by the harness** — the polished SVG-ring Pomodoro timer the Claude Code
-engine generated and verified end-to-end (then iterated to add the spacebar tip):
+**Devtools console** — the previewed app's own `console.*`, errors, and fetches stream into a
+panel under the preview, so you can debug as you test (here: a complex app's lifecycle logs):
+
+![Studio devtools console](docs/screenshots/studio-console.png)
+
+**Theme switcher + A↔B diff** — Auto / Light / Dark glass, or opaque Solid themes; compare any
+two versions:
+
+![Solid-dark theme with A to B diff](docs/screenshots/studio-dark-diff.png)
+
+### A complete app, built end-to-end by the harness
+
+**Streak** — a premium habit tracker the Claude Code engine built from a single prompt
+(splash → onboarding → home → stats → settings), verified, and snapshotted. ~85 KB of
+hand-quality HTML/CSS/JS, no libraries:
+
+| Splash | Onboarding | Home | Stats |
+|---|---|---|---|
+| ![splash](docs/screenshots/streak-splash.png) | ![onboarding](docs/screenshots/streak-onboarding.png) | ![home](docs/screenshots/streak-home.png) | ![stats](docs/screenshots/streak-stats.png) |
+
+**The polished SVG-ring Pomodoro timer** the engine generated and verified, then iterated:
 
 ![Pomodoro timer built by the harness](docs/screenshots/pomodoro-app.png)
 

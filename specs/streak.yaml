@@ -1,0 +1,34 @@
+name: streak
+kind: frontend
+language: html-css-js
+description: "Build 'Streak' \u2014 a premium habit tracker as a polished single-page web\
+  \ app (vanilla HTML/CSS/JS only: index.html, styles.css, app.js; no build step, no external\
+  \ libraries). Make it feel like a top-tier App Store app.\n\nFull experience:\n1) SPLASH\
+  \ SCREEN: an elegant animated launch screen \u2014 an SVG flame/spark logo with a soft gradient,\
+  \ the name 'Streak', and a tagline. Animates in, holds ~1.5s, then transitions to onboarding\
+  \ (first run) or home (returning users).\n2) ONBOARDING (first run only): a 3-slide carousel\
+  \ with large icons, headline + short copy per slide ('Build habits that stick','Track your\
+  \ streaks','Private \u2014 everything stays on your device'), animated progress dots, Back/Next,\
+  \ Skip, and a final 'Get Started'. Persist so it shows once.\n3) HOME: a warm greeting header\
+  \ with today's date; today's habits as cards \u2014 emoji icon, name, current streak (with\
+  \ a flame and number), a circular progress ring or weekly dots, and a satisfying animated\
+  \ check-off. A floating + button to add a habit. A confetti burst when all of today's habits\
+  \ are done. A friendly empty state.\n4) ADD/EDIT HABIT: a bottom-sheet modal \u2014 name,\
+  \ emoji picker, color, frequency (daily / specific weekdays), optional reminder time. Validate\
+  \ input.\n5) STATS: weekly + monthly completion chart (pure CSS/SVG bars), overall completion\
+  \ %, best streak, per-habit breakdown.\n6) SETTINGS: theme (System/Light/Dark), clear all\
+  \ data (with confirm), export-as-JSON.\nNavigation: a clean bottom tab bar (Home \xB7 Stats\
+  \ \xB7 Settings) with active states.\n\nPolish: cohesive design tokens; beautiful typography\
+  \ and spacing; light AND dark themes (respect prefers-color-scheme and the in-app setting);\
+  \ smooth transitions and micro-interactions; full keyboard accessibility, focus styles,\
+  \ ARIA, prefers-reduced-motion; mobile-first responsive that also looks great on desktop.\
+  \ Persist all data in localStorage.\n\nIMPORTANT testing hooks: support URL params to preview\
+  \ screens directly \u2014 ?screen=splash, ?screen=onboarding, ?screen=home, ?screen=stats,\
+  \ ?screen=settings, and ?seed=1 to load realistic sample habits with varied streaks. Also\
+  \ console.log key lifecycle events (e.g. 'splash shown', 'onboarding: step N', 'home ready\
+  \ (X habits)', 'habit completed: NAME', 'data saved'). Keep it to index.html, styles.css,\
+  \ app.js. Make it genuinely beautiful and complete."
+verification:
+- name: app builds
+  command: python3 -c "import pathlib,sys; p=pathlib.Path('index.html'); sys.exit(0 if p.is_file()
+    and p.stat().st_size>80 else 1)"
