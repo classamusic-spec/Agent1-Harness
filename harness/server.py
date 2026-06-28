@@ -133,9 +133,16 @@ def save_spec(specs_dir: str, data: dict) -> str:
         name = str((v or {}).get("name", "")).strip()
         cmd = str((v or {}).get("command", "")).strip()
         if name and cmd:
-            checks.append({"name": name, "command": cmd})
+            entry = {"name": name, "command": cmd}
+            if (v or {}).get("needs_server"):
+                entry["needs_server"] = True
+            if (v or {}).get("allow_failure"):
+                entry["allow_failure"] = True
+            checks.append(entry)
     if checks:
         doc["verification"] = checks
+    if data.get("run"):
+        doc["run"] = str(data["run"]).strip()
 
     parse_spec(doc)  # raises SpecError if invalid
     Path(specs_dir).mkdir(parents=True, exist_ok=True)
@@ -206,18 +213,15 @@ STUDIO_MARKER = ".studio.json"
 _WEB_KINDS = {"frontend", "fullstack", "web", "ui", "react", "react-native", "mobile"}
 
 
-def _default_checks(kind: str) -> list[dict]:
-    """A minimal verification gate so freeform web apps still pass a real check."""
-    if kind.strip().lower() in _WEB_KINDS:
-        return [{
-            "name": "app builds",
-            "command": (
-                "python3 -c \"import pathlib,sys; "
-                "p=pathlib.Path('index.html'); "
-                "sys.exit(0 if p.is_file() and p.stat().st_size>80 else 1)\""
-            ),
-        }]
-    return []
+def _check_to_dict(c) -> dict:
+    return {"name": c.name, "command": c.command, "needs_server": c.needs_server,
+            "allow_failure": c.allow_failure}
+
+
+def _default_checks(kind: str, workspace: str | None = None) -> list[dict]:
+    """Stack-aware default verification suite (incl. a server-backed smoke check)."""
+    from harness import stacks
+    return [_check_to_dict(c) for c in stacks.default_checks(workspace, kind)]
 
 
 def studio_meta(workspace_dir: str) -> dict:
@@ -308,13 +312,20 @@ def _snapshot(workspace_dir: str, label: str, instruction: str = "") -> None:
 def run_tests(workspace_dir: str, checks: list | None = None) -> dict:
     """Run the verification suite for a workspace on demand (for the Run tests button)."""
     from harness.spec import Check
+    meta = studio_meta(workspace_dir)
     if checks is None:
-        meta = studio_meta(workspace_dir)
-        checks = meta.get("checks") or _default_checks(meta.get("kind", "frontend"))
-    suite = [Check(name=c["name"], command=c["command"], cwd=workspace_dir) for c in checks]
+        checks = meta.get("checks") or _default_checks(meta.get("kind", "frontend"), workspace_dir)
+    suite = [Check(name=c["name"], command=c["command"], cwd=workspace_dir,
+                   needs_server=bool(c.get("needs_server")),
+                   allow_failure=bool(c.get("allow_failure"))) for c in checks]
     if not suite:
         return {"ok": True, "results": [], "note": "no checks defined"}
-    report = run_suite(suite, stop_on_failure=False)
+    if any(c.needs_server for c in suite):
+        from harness import fullstack
+        report = fullstack.verify_checks(suite, workspace_dir,
+                                         run_command=meta.get("run"), stop_on_failure=False)
+    else:
+        report = run_suite(suite, stop_on_failure=False)
     return {
         "ok": report.ok,
         "results": [
@@ -405,6 +416,7 @@ class Console:
                     "kind": params.get("kind") or "frontend",
                     "language": params.get("language") or "html-css-js",
                     "description": params["prompt"],
+                    "run": params.get("run_command") or None,
                     "verification": params.get("verification")
                     or _default_checks(params.get("kind") or "frontend"),
                 })
@@ -535,17 +547,20 @@ class Console:
         spec = load_spec(params["spec"], cwd=job.workspace)
         # Persist a Studio marker so conversational iterate / Run tests know the
         # project's persona, gate, and engine without the original spec file.
+        run_cmd = params.get("run_command") or spec.run or None
         write_studio_meta(job.workspace, {
             "kind": spec.kind,
             "engine": params.get("engine", "anthropic"),
             "model": params.get("model") or "",
             "base_url": params.get("base_url"),
-            "checks": [{"name": c.name, "command": c.command} for c in spec.checks],
+            "run": run_cmd,
+            "checks": [_check_to_dict(c) for c in spec.checks],
         })
         if params.get("check_only"):
-            report = run_suite(spec.checks, stop_on_failure=True)
-            print(report.to_feedback() or "(no checks defined)")
-            job.status = "passed" if report.ok else "failed"
+            report = run_tests(job.workspace, [_check_to_dict(c) for c in spec.checks])
+            for r in report.get("results", []):
+                print(f"[{'PASS' if r['ok'] else ('SKIP' if r.get('skipped') else 'FAIL')}] {r['name']}")
+            job.status = "passed" if report["ok"] else "failed"
             print("RESULT:", job.status.upper())
             return
 
@@ -571,6 +586,7 @@ class Console:
             max_tokens_budget=params.get("token_budget"),
             deadline_seconds=params.get("deadline"),
             checkpoint_path=cp_path,
+            run_command=run_cmd,
         )
         job.token_budget = params.get("token_budget")
         job.deadline = params.get("deadline")

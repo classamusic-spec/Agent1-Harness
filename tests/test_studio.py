@@ -19,10 +19,10 @@ from harness.spec import Spec
 
 
 def test_default_checks_only_for_web_kinds():
-    assert _default_checks("frontend")  # has a gate
+    assert _default_checks("frontend")  # has a gate (structure + smoke)
     assert _default_checks("react")
-    assert _default_checks("cli") == []
-    assert _default_checks("api") == []
+    assert _default_checks("api")  # an API should respond -> smoke check
+    assert _default_checks("cli") == []  # non-web, no files -> nothing
 
 
 def test_synth_spec_builds_valid_spec_with_default_gate():

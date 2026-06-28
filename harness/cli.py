@@ -90,6 +90,9 @@ def _parse_args(argv: list[str]) -> argparse.Namespace:
                    help="Base URL for the vision model (default: the local engine URL)")
     p.add_argument("--multimodal", action="store_true",
                    help="The local coder is vision-capable: attach --reference-image to it directly")
+    p.add_argument("--run", default=None,
+                   help="Dev-server command for server-backed checks (e2e/smoke) & preview "
+                        "(auto-detected if omitted; spec 'run:' is also honored)")
     p.add_argument("--visual-check", action="store_true",
                    help="After building, screenshot it, compare to --reference-image with the "
                         "vision model, and repair visual differences (needs a vision model + Chrome)")
@@ -255,6 +258,7 @@ def main(argv: list[str] | None = None) -> int:
         vision_base_url=args.vision_base_url,
         coder_multimodal=args.multimodal,
         visual_check=args.visual_check,
+        run_command=args.run,
     )
 
     approval = None

@@ -29,6 +29,7 @@ class Spec:
     kind: str = "fullstack"
     constraints: list[str] = field(default_factory=list)
     checks: list[Check] = field(default_factory=list)
+    run: str | None = None  # dev-server command for server-backed checks / preview
 
     @property
     def has_verification(self) -> bool:
@@ -64,6 +65,7 @@ def parse_spec(data: dict, *, cwd: str | None = None) -> Spec:
                 cwd=cwd,
                 timeout=int(raw.get("timeout", 600)),
                 allow_failure=bool(raw.get("allow_failure", False)),
+                needs_server=bool(raw.get("needs_server", False)),
             )
         )
 
@@ -78,6 +80,7 @@ def parse_spec(data: dict, *, cwd: str | None = None) -> Spec:
         kind=str(data.get("kind", "fullstack")),
         constraints=[str(c) for c in constraints],
         checks=checks,
+        run=(str(data["run"]).strip() if data.get("run") else None),
     )
 
 
@@ -89,9 +92,10 @@ def spec_to_dict(spec: Spec) -> dict:
         "kind": spec.kind,
         "language": spec.language,
         "constraints": list(spec.constraints),
+        "run": spec.run,
         "verification": [
             {"name": c.name, "command": c.command, "timeout": c.timeout,
-             "allow_failure": c.allow_failure}
+             "allow_failure": c.allow_failure, "needs_server": c.needs_server}
             for c in spec.checks
         ],
     }

@@ -302,12 +302,14 @@
     const eng = engineParams();
     runningUI(true); $("#st-log").textContent = ""; setStatus("running", "working");
     const ref = refParams();
+    const runCmd = ($("#st-run-cmd").value || "").trim() || null;
     let url, body;
     if (project) {
       url = "/api/iterate"; body = { workspace: project, instruction: prompt, ...eng, ...ref };
     } else {
       url = "/api/builds";
-      body = { prompt, name: ($("#st-name").value || "app").trim(), kind: $("#st-kind").value, ...eng, ...ref };
+      body = { prompt, name: ($("#st-name").value || "app").trim(), kind: $("#st-kind").value,
+               run_command: runCmd, ...eng, ...ref };
     }
     try {
       const j = await (await fetch(url, {

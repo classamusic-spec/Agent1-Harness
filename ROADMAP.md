@@ -4,6 +4,12 @@ Where the agent is strong today, and the highest-leverage things to add next.
 Ordered by impact-to-effort.
 
 ## Today (done)
+- **Real full-stack verification** — stack-aware default checks (node:
+  install/build/`tsc`/eslint/tests; python: install/`pytest`; static) plus
+  **server-backed checks** (`needs_server`): boot the dev server, substitute
+  `$APP_URL`, smoke/e2e/contract-test the running app, tear it down; failures
+  attach the server log tail. `harness/stacks.py` + `harness/fullstack.py`,
+  `checks/e2e_smoke.mjs`, `--run` / spec `run:` / `needs_server:`.
 - **Runtime — live full-stack preview** — run the project's real dev server
   (`npm run dev` / `uvicorn` / static, auto-detected), health-check it, and
   reverse-proxy the Studio preview to it; server logs stream into the console.
@@ -69,8 +75,6 @@ Ordered by impact-to-effort.
 - Design-check templates (Playwright/axe/Lighthouse).
 
 ## Next — full-stack (building on the runtime)
-- **Real toolchain verification** — run npm/pip install, build, `tsc`, `eslint`,
-  `pytest`, and Playwright e2e against the *running* app; API contract checks.
 - **Scaffolds** — known-good starters (Vite+React+TS, FastAPI/Express+SQLite) so
   the agent edits a working base instead of generating cold.
 - **Milestone planner** — decompose into schema → API → UI → integration, verify

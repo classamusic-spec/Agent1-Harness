@@ -11,6 +11,7 @@ Stdlib only. Processes run on 127.0.0.1; hardening (containers, caps) is future 
 
 from __future__ import annotations
 
+import contextlib
 import json
 import os
 import signal
@@ -138,6 +139,20 @@ class Service:
             lines = list(self._lines)
         since = max(0, since)
         return lines[since:], len(lines)
+
+
+@contextlib.contextmanager
+def serve(workspace: str, command: str, *, ready_path: str = "/", boot_timeout: float = 25.0):
+    """Start a dev server, wait until it's healthy (or boot_timeout), yield the
+    Service, then stop it. Used by server-backed verification (e2e/smoke checks)."""
+    svc = Service(workspace, command, free_port(), ready_path=ready_path).start()
+    end = time.time() + boot_timeout
+    while time.time() < end and svc.status not in ("ready", "running", "failed"):
+        time.sleep(0.25)
+    try:
+        yield svc
+    finally:
+        svc.stop()
 
 
 class RuntimeManager:

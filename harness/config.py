@@ -93,6 +93,8 @@ class HarnessConfig:
     # The local coder is vision-capable -> attach the reference image to it directly
     # (instead of staging a file / running a separate vision pass).
     coder_multimodal: bool = False
+    # Dev-server command for server-backed checks / live preview (auto-detected if None).
+    run_command: str | None = None
     # Visual-diff refinement: after a build, screenshot it, ask the vision model how
     # it differs from the reference, and repair — up to max_visual_repairs times.
     visual_check: bool = False

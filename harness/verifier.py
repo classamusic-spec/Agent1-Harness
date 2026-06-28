@@ -36,6 +36,9 @@ class Check:
     # When True, a non-zero exit does not fail the suite (useful for advisory
     # checks like an optional linter).
     allow_failure: bool = False
+    # When True, the check needs the app running: the harness starts the dev
+    # server, substitutes $APP_URL in the command, runs it, then stops the server.
+    needs_server: bool = False
 
 
 @dataclass
