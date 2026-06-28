@@ -2,27 +2,38 @@
    Light by default with an automatic dark appearance; a cohesive token system,
    hairline separators, soft depth, and restrained motion. */
 :root {
-  --bg: #f5f5f7;
-  --bg-grad: radial-gradient(1100px 520px at 85% -8%, #eaf2ff 0%, var(--bg) 60%);
-  --rail-bg: rgba(248, 248, 250, 0.86);
-  --rail-active: rgba(0, 113, 227, 0.10);
-  --surface: rgba(255, 255, 255, 0.86);
+  --bg: #e9edf8;
+  --bg-grad:
+    radial-gradient(820px 560px at 6% -12%, rgba(116, 148, 255, 0.30), transparent 60%),
+    radial-gradient(760px 520px at 102% -4%, rgba(176, 120, 255, 0.24), transparent 55%),
+    radial-gradient(900px 700px at 50% 118%, rgba(74, 208, 255, 0.22), transparent 55%),
+    linear-gradient(180deg, #eef1fc 0%, #e6eaf6 100%);
+  --rail-bg: rgba(255, 255, 255, 0.42);
+  --rail-active: rgba(0, 113, 227, 0.14);
+  --surface: rgba(255, 255, 255, 0.55);
   --surface-solid: #ffffff;
-  --field: #ffffff;
-  --field-2: #f2f2f5;
-  --text: #1d1d1f;
-  --muted: #6e6e73;
-  --hairline: rgba(0, 0, 0, 0.10);
-  --hairline-strong: rgba(0, 0, 0, 0.16);
-  --accent: #0071e3;
+  --glass: rgba(255, 255, 255, 0.55);
+  --glass-strong: rgba(255, 255, 255, 0.72);
+  --glass-border: rgba(255, 255, 255, 0.85);
+  --field: rgba(255, 255, 255, 0.62);
+  --field-2: rgba(255, 255, 255, 0.48);
+  --code-bg: rgba(255, 255, 255, 0.58);
+  --text: #1a1d29;
+  --muted: #5b6275;
+  --hairline: rgba(20, 24, 45, 0.10);
+  --hairline-strong: rgba(20, 24, 45, 0.17);
+  --accent: #2f6bff;
+  --accent-2: #6a5cff;
   --accent-ink: #ffffff;
-  --good: #1a8f5b;
-  --bad: #d9304a;
-  --warn: #b25e00;
-  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.06);
-  --shadow: 0 12px 40px rgba(0, 0, 0, 0.10);
-  --radius: 16px;
-  --radius-sm: 10px;
+  --good: #12936a;
+  --bad: #e23b57;
+  --warn: #c06a00;
+  --ring: rgba(47, 107, 255, 0.30);
+  --shadow-sm: 0 1px 2px rgba(20, 24, 45, 0.06);
+  --shadow: 0 18px 50px rgba(31, 38, 75, 0.16);
+  --glass-hi: inset 0 1px 0 rgba(255, 255, 255, 0.65);
+  --radius: 18px;
+  --radius-sm: 11px;
   --sp: 8px;
   --font: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
   --mono: ui-monospace, "SF Mono", "JetBrains Mono", Menlo, Consolas, monospace;
@@ -30,23 +41,34 @@
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --bg: #000000;
-    --bg-grad: radial-gradient(1100px 520px at 85% -8%, #0f1b2e 0%, #000 62%);
-    --rail-bg: rgba(20, 20, 22, 0.86);
-    --rail-active: rgba(41, 151, 255, 0.16);
-    --surface: rgba(28, 28, 30, 0.82);
-    --surface-solid: #1c1c1e;
-    --field: #1c1c1e;
-    --field-2: #2c2c2e;
-    --text: #f5f5f7;
-    --muted: #98989d;
+    --bg: #05070e;
+    --bg-grad:
+      radial-gradient(840px 560px at 6% -12%, rgba(64, 96, 220, 0.34), transparent 58%),
+      radial-gradient(760px 520px at 104% -6%, rgba(140, 80, 230, 0.28), transparent 54%),
+      radial-gradient(900px 720px at 50% 120%, rgba(20, 150, 200, 0.24), transparent 56%),
+      linear-gradient(180deg, #080b15 0%, #05060d 100%);
+    --rail-bg: rgba(18, 21, 32, 0.55);
+    --rail-active: rgba(95, 140, 255, 0.20);
+    --surface: rgba(26, 30, 44, 0.55);
+    --surface-solid: #1b1f2c;
+    --glass: rgba(26, 30, 44, 0.52);
+    --glass-strong: rgba(30, 35, 50, 0.72);
+    --glass-border: rgba(255, 255, 255, 0.12);
+    --field: rgba(255, 255, 255, 0.07);
+    --field-2: rgba(255, 255, 255, 0.05);
+    --code-bg: rgba(10, 13, 22, 0.55);
+    --text: #eef1f8;
+    --muted: #9aa3b8;
     --hairline: rgba(255, 255, 255, 0.12);
     --hairline-strong: rgba(255, 255, 255, 0.2);
-    --accent: #2997ff;
-    --good: #41d6a3;
-    --bad: #ff6b81;
+    --accent: #5e8cff;
+    --accent-2: #9a7bff;
+    --good: #3fe0a6;
+    --bad: #ff6b84;
     --warn: #ffce6b;
-    --shadow: 0 12px 40px rgba(0, 0, 0, 0.5);
+    --ring: rgba(94, 140, 255, 0.40);
+    --shadow: 0 22px 60px rgba(0, 0, 0, 0.55);
+    --glass-hi: inset 0 1px 0 rgba(255, 255, 255, 0.10);
   }
 }
 
@@ -62,7 +84,8 @@ body {
   font-size: 15px;
   line-height: 1.5;
   color: var(--text);
-  background: var(--bg-grad);
+  background: var(--bg-grad) fixed;
+  background-color: var(--bg);
   -webkit-font-smoothing: antialiased;
 }
 
@@ -142,11 +165,13 @@ body {
 }
 
 .card {
-  background: var(--surface-solid);
-  border: 1px solid var(--hairline);
+  background: var(--glass);
+  -webkit-backdrop-filter: blur(22px) saturate(180%);
+  backdrop-filter: blur(22px) saturate(180%);
+  border: 1px solid var(--glass-border);
   border-radius: var(--radius);
   padding: calc(var(--sp) * 3);
-  box-shadow: var(--shadow);
+  box-shadow: var(--shadow), var(--glass-hi);
 }
 .card h2 {
   margin: 0 0 calc(var(--sp) * 1.5);
@@ -173,7 +198,7 @@ input[type="text"]::placeholder { color: var(--muted); }
 input[type="text"]:focus, select:focus {
   outline: none;
   border-color: var(--accent);
-  box-shadow: 0 0 0 4px rgba(0, 113, 227, 0.15);
+  box-shadow: 0 0 0 4px var(--ring);
 }
 .select-wrap { position: relative; }
 .select-wrap::after {
@@ -220,11 +245,13 @@ legend { padding: 0; font-size: 0.72rem; font-weight: 600; letter-spacing: 0.06e
 button.primary {
   margin-top: calc(var(--sp) * 3); width: 100%;
   padding: 12px 18px; font: inherit; font-size: 0.95rem; font-weight: 600;
-  color: var(--accent-ink); background: var(--accent);
+  color: var(--accent-ink);
+  background: linear-gradient(135deg, var(--accent), var(--accent-2));
   border: 0; border-radius: 12px; cursor: pointer;
-  transition: filter 0.15s ease, transform 0.06s ease;
+  box-shadow: 0 8px 22px rgba(47, 107, 255, 0.32);
+  transition: filter 0.15s ease, transform 0.06s ease, box-shadow 0.15s ease;
 }
-button.primary:hover { filter: brightness(1.05); }
+button.primary:hover { filter: brightness(1.07); box-shadow: 0 10px 28px rgba(47, 107, 255, 0.42); }
 button.primary:active { transform: translateY(1px); }
 button.primary:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
 button.primary[disabled] { opacity: 0.5; cursor: not-allowed; }
@@ -236,7 +263,7 @@ button.primary[disabled] { opacity: 0.5; cursor: not-allowed; }
   flex: 1; margin: calc(var(--sp) * 1.5) 0 0; padding: calc(var(--sp) * 2);
   font-family: var(--mono); font-size: 0.8rem; line-height: 1.55;
   color: var(--text); white-space: pre-wrap; overflow: auto; max-height: 64vh;
-  background: var(--field-2);
+  background: var(--code-bg);
   border: 1px solid var(--hairline); border-radius: var(--radius-sm);
 }
 .log:empty::before { content: attr(data-empty); color: var(--muted); }
@@ -285,7 +312,7 @@ textarea {
   background: var(--field); border: 1px solid var(--hairline-strong);
   border-radius: var(--radius-sm); resize: vertical; line-height: 1.5;
 }
-textarea:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 4px rgba(0, 113, 227, 0.15); }
+textarea:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 4px var(--ring); }
 
 /* Rows (gallery + tree) */
 .rows { list-style: none; margin: var(--sp) 0 0; padding: 0; max-height: 64vh; overflow: auto; }
@@ -318,7 +345,7 @@ input[type="number"] {
   width: 100%; padding: 11px 13px; font: inherit; color: var(--text);
   background: var(--field); border: 1px solid var(--hairline-strong); border-radius: var(--radius-sm);
 }
-input[type="number"]:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 4px rgba(0,113,227,0.15); }
+input[type="number"]:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 4px var(--ring); }
 
 /* telemetry stat + log head */
 .head-right { display: flex; align-items: center; gap: var(--sp); }
@@ -394,6 +421,31 @@ input[type="number"]:focus { outline: none; border-color: var(--accent); box-sha
 .studio-files { display: flex; flex-direction: column; min-height: 62vh; }
 .studio-files #st-tree { max-height: 24vh; flex: none; }
 .studio-files #st-file { flex: 1; margin-top: var(--sp); min-height: 26vh; max-height: 44vh; }
+#st-files-pane, #st-diff-pane { display: flex; flex-direction: column; flex: 1; min-height: 0; }
+
+/* mini segmented toggle (Files / Diff) */
+.seg-mini { display: inline-flex; gap: 2px; padding: 2px; background: var(--field-2);
+  border: 1px solid var(--hairline); border-radius: 9px; }
+.seg-btn { appearance: none; border: 0; background: none; cursor: pointer; font: inherit;
+  font-size: 0.76rem; font-weight: 600; color: var(--muted); padding: 5px 12px; border-radius: 7px;
+  transition: background 0.15s ease, color 0.15s ease; }
+.seg-btn.active { background: var(--surface-solid); color: var(--text); box-shadow: var(--shadow-sm); }
+
+/* diff view */
+.diff-head { display: flex; gap: var(--sp); align-items: center; margin-top: var(--sp); }
+.diff-head .select-wrap { flex: 1; min-width: 0; }
+.diff-head select { padding: 7px 30px 7px 10px; font-size: 0.78rem; }
+.diffview { flex: 1; margin-top: var(--sp); min-height: 30vh; max-height: 52vh;
+  white-space: pre; overflow: auto; }
+.diff-file { font-weight: 700; font-size: 0.74rem; color: var(--text);
+  margin: 10px 0 3px; padding-top: 7px; border-top: 1px solid var(--hairline); }
+.diff-file:first-child { border-top: 0; padding-top: 0; margin-top: 0; }
+.diff-stat .add { color: var(--good); } .diff-stat .del { color: var(--bad); }
+.dl { display: block; padding: 0 4px; border-radius: 3px; }
+.dl.l-add { background: rgba(26, 143, 91, 0.14); color: var(--good); }
+.dl.l-del { background: rgba(217, 48, 74, 0.14); color: var(--bad); }
+.dl.l-hunk { color: var(--accent); opacity: 0.85; }
+.dl.l-meta { color: var(--muted); }
 
 .studio-preview { display: flex; flex-direction: column; min-height: 62vh; }
 .preview-toolbar { display: flex; align-items: center; justify-content: space-between;
@@ -457,8 +509,8 @@ input[type="number"]:focus { outline: none; border-color: var(--accent); box-sha
 .line.result { color: var(--text); font-weight: 700; margin-top: 6px; }
 
 /* Cards lift slightly on hover */
-.card { transition: box-shadow 0.2s ease, transform 0.2s ease; }
-.card:hover { box-shadow: 0 16px 48px rgba(0, 0, 0, 0.12); }
+.card { transition: box-shadow 0.25s ease, transform 0.25s ease; }
+.card:hover { box-shadow: 0 24px 60px rgba(31, 38, 75, 0.20), var(--glass-hi); transform: translateY(-1px); }
 
 /* Running badge: a soft pulse */
 .badge[data-state="running"] {

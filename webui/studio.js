@@ -143,11 +143,13 @@
     $("#st-preview").src = "about:blank"; $("#st-preview-empty").hidden = false;
     $("#st-tree").innerHTML = ""; $("#st-file").textContent = "";
     $("#st-tests").hidden = true; $("#st-log").textContent = ""; setStatus("idle", "idle");
+    versions = []; $("#st-diff").textContent = ""; setMode("files");
   }
   function setProject(name) {
-    project = name; currentFile = null;
+    project = name; currentFile = null; versions = [];
     selectLabel(name);
     intoIterateMode();
+    setMode("files");
     loadFiles(); reloadPreview(); runTests();
   }
 
@@ -194,6 +196,7 @@
     es.addEventListener("done", (ev) => {
       setStatus(ev.data, ev.data); runningUI(false); jobId = null; es.close();
       stopPoll(); intoIterateMode(); populateProjects(); loadFiles(); reloadPreview(); runTests();
+      if (!$("#st-diff-pane").hidden) loadVersions();
     });
     es.onerror = () => { runningUI(false); es.close(); stopPoll(); };
   }
@@ -207,6 +210,86 @@
       if (c.busy && project) loadFiles();
       if (!c.busy) stopPoll();
     } catch {}
+  }
+
+  // --- version history + diff ---------------------------------------------
+  let versions = [];
+  function setMode(mode) {
+    const diff = mode === "diff";
+    $("#st-files-pane").hidden = diff;
+    $("#st-diff-pane").hidden = !diff;
+    $("#st-mode-files").classList.toggle("active", !diff);
+    $("#st-mode-diff").classList.toggle("active", diff);
+    if (diff) loadVersions();
+  }
+  async function loadVersions(selectLatest = true) {
+    if (!project) return;
+    try {
+      const r = await (await fetch(`/api/versions?dir=${encodeURIComponent(project)}`)).json();
+      versions = r.versions || [];
+      const sel = $("#st-history"); sel.innerHTML = "";
+      // newest first
+      for (let i = versions.length - 1; i >= 0; i--) {
+        const v = versions[i];
+        const o = document.createElement("option");
+        o.value = v.id;
+        o.textContent = `v${v.id} · ${v.label || "snapshot"}${v.instruction ? " — " + v.instruction.slice(0, 40) : ""}`;
+        sel.appendChild(o);
+      }
+      if (versions.length) {
+        if (selectLatest) sel.value = versions[versions.length - 1].id;
+        showDiff(Number(sel.value));
+      } else {
+        $("#st-diff").textContent = "";
+      }
+    } catch {}
+  }
+  function prevIdOf(vid) {
+    const idx = versions.findIndex((v) => v.id === vid);
+    return idx > 0 ? versions[idx - 1].id : 0; // 0 = empty baseline (initial)
+  }
+  function renderDiff(files) {
+    const box = $("#st-diff");
+    if (!files || !files.length) { box.innerHTML = ""; box.textContent = "No changes in this version."; return; }
+    box.innerHTML = files.map((f) => {
+      const head = `<div class="diff-file">${f.status} · ${f.path} `
+        + `<span class="diff-stat"><span class="add">+${f.added}</span> <span class="del">−${f.removed}</span></span></div>`;
+      const lines = (f.diff || "").split("\n").map((ln) => {
+        let cls = "";
+        if (ln.startsWith("+") && !ln.startsWith("+++")) cls = "l-add";
+        else if (ln.startsWith("-") && !ln.startsWith("---")) cls = "l-del";
+        else if (ln.startsWith("@@")) cls = "l-hunk";
+        else if (ln.startsWith("+++") || ln.startsWith("---")) cls = "l-meta";
+        const safe = ln.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+        return `<span class="dl ${cls}">${safe || " "}</span>`;
+      }).join("");
+      return head + `<div class="diff-body">${lines}</div>`;
+    }).join("");
+  }
+  async function showDiff(vid) {
+    if (!project || !vid) return;
+    const from = prevIdOf(vid);
+    $("#st-diff").textContent = "loading diff…";
+    try {
+      const r = await (await fetch(
+        `/api/diff?dir=${encodeURIComponent(project)}&from=${from}&to=${vid}`)).json();
+      renderDiff(r.files);
+    } catch { $("#st-diff").textContent = "could not load diff"; }
+  }
+  async function restoreVersion() {
+    const vid = Number($("#st-history").value);
+    if (!vid) return;
+    if (!window.confirm(`Restore the app to v${vid}? Current state is saved as a new version first.`)) return;
+    $("#st-restore").disabled = true;
+    try {
+      const r = await (await fetch("/api/restore", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ workspace: project, version: vid }),
+      })).json();
+      if (r.error) { appendLog("restore failed: " + r.error); }
+      else { appendLog(`[version] restored to v${vid}`); currentFile = null; loadFiles(); reloadPreview(); runTests(); loadVersions(); }
+    } catch { appendLog("restore failed"); }
+    $("#st-restore").disabled = false;
   }
 
   async function runTests() {
@@ -238,6 +321,10 @@
     $("#st-refresh").addEventListener("click", () => { loadFiles(); reloadPreview(); });
     $("#st-reload").addEventListener("click", reloadPreview);
     $("#st-test").addEventListener("click", runTests);
+    $("#st-mode-files").addEventListener("click", () => setMode("files"));
+    $("#st-mode-diff").addEventListener("click", () => setMode("diff"));
+    $("#st-history").addEventListener("change", (e) => showDiff(Number(e.target.value)));
+    $("#st-restore").addEventListener("click", restoreVersion);
     $$('input[name="st-dev"]').forEach((r) => r.addEventListener("change", () => setDevice(r.value)));
     $("#st-prompt").addEventListener("keydown", (e) => {
       if ((e.metaKey || e.ctrlKey) && e.key === "Enter") send();
@@ -259,6 +346,7 @@
     const proj = qs.get("proj");
     if (proj && project !== proj) setProject(proj);
     else if (!project && names.length) setProject(names[0]);
+    if (qs.get("view") === "diff") setMode("diff");
     reconnectIfBusy();
   }
 

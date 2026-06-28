@@ -9,7 +9,11 @@ Ordered by impact-to-effort.
   iterate** (one engine turn on the workspace, re-verified). A **project
   switcher** jumps between built apps and a **Stop** button cancels a run
   (killing the engine turn immediately for changes; reload re-attaches to a live
-  job). Freeform prompts become first-class specs.
+  job). **Version history + diffs** snapshot every turn — review a colorized
+  per-version diff and **Restore** any version. Freeform prompts become
+  first-class specs.
+- **Glassmorphic premium UI** — a gradient-mesh backdrop, translucent frosted
+  cards, gradient-accent primary; automatic light/dark, reduced-motion aware.
 - **Claude Code (CLI) engine** — plug in your installed, authenticated `claude`
   CLI as the builder (no API key/SDK). Plus `local` presets for GLM / MiniMax /
   Qwen and any OpenAI-compatible server.

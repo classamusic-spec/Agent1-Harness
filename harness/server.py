@@ -105,7 +105,8 @@ def list_artifacts(workspaces_dir: str) -> list[dict]:
     for d in sorted(base.iterdir()):
         if not d.is_dir() or d.name.startswith("."):
             continue
-        files = [p for p in d.rglob("*") if p.is_file()]
+        files = [p for p in d.rglob("*")
+                 if p.is_file() and ".studio" not in p.relative_to(d).parts]
         out.append({
             "name": d.name,
             "files": len(files),
@@ -126,7 +127,7 @@ def workspace_tree(root: str) -> dict:
     files: list[dict] = []
     if os.path.isdir(base):
         for dirpath, dirs, names in os.walk(base):
-            dirs[:] = [d for d in dirs if d not in _SKIP_DIRS]
+            dirs[:] = [d for d in dirs if d not in _SKIP_DIRS and d != ".studio"]
             for n in sorted(names):
                 fp = os.path.join(dirpath, n)
                 try:
@@ -215,6 +216,16 @@ async def _run_engine_turn(engine, instruction: str):
     async with engine:
         text = await engine.send(_ITERATE_PROMPT.format(instruction=instruction), echo=True)
         return getattr(engine, "total_tokens", 0), text
+
+
+def _snapshot(workspace_dir: str, label: str, instruction: str = "") -> None:
+    """Best-effort per-turn snapshot for the Studio history/diff (never fails a build)."""
+    try:
+        from harness import versions
+        meta = versions.snapshot(workspace_dir, label=label, instruction=instruction)
+        print(f"[version] saved v{meta['id']} ({label})")
+    except Exception as exc:  # snapshots are a convenience, not a gate
+        print(f"[version] snapshot skipped: {type(exc).__name__}: {exc}")
 
 
 def run_tests(workspace_dir: str, checks: list | None = None) -> dict:
@@ -400,6 +411,7 @@ class Console:
             print(f"[{'PASS' if r['ok'] else 'FAIL'}] {r['name']}")
         job.status = "passed" if result["ok"] else "failed"
         print(f"RESULT: {job.status.upper()} · {tokens} tokens")
+        _snapshot(job.workspace, "Change", instruction)
 
     def _run(self, job: Job, params: dict) -> None:
         if not self._lock.acquire(blocking=False):
@@ -486,6 +498,7 @@ class Console:
         job.tokens, job.elapsed = result.tokens_used, result.elapsed_seconds
         print(f"RESULT: {job.status.upper()} ({result.stop_reason}) after {result.rounds} round(s)")
         print(f"Telemetry: {result.tokens_used} tokens · {result.elapsed_seconds:.1f}s")
+        _snapshot(job.workspace, "Initial build", spec.description)
 
 
 # --- HTTP layer -----------------------------------------------------------
@@ -546,6 +559,20 @@ def make_handler(console: Console):
                     return self._json({"content": read_workspace_file(root, q.get("file", [""])[0])})
                 except (FileNotFoundError, OSError):
                     return self._json({"error": "not found"}, 404)
+            if path == "/api/versions":
+                from harness import versions
+                root = self._ws_root(q.get("dir", [""])[0])
+                return self._json({"versions": versions.list_versions(root)})
+            if path == "/api/diff":
+                from harness import versions
+                root = self._ws_root(q.get("dir", [""])[0])
+                try:
+                    frm = int(q.get("from", ["0"])[0])
+                    to_raw = q.get("to", [""])[0]
+                    to = int(to_raw) if to_raw and to_raw != "current" else None
+                    return self._json({"files": versions.diff(root, frm, to)})
+                except (ValueError, OSError) as e:
+                    return self._json({"error": str(e)}, 400)
             if path.startswith("/api/jobs/") and path.endswith("/events"):
                 return self._sse(path.split("/")[3])
             self._send(404, b'{"error":"not found"}')
@@ -578,6 +605,17 @@ def make_handler(console: Console):
                     return self._json(run_tests(root, body.get("checks")))
                 except Exception as e:  # surface check-runner errors to the UI
                     return self._json({"error": f"{type(e).__name__}: {e}"}, 500)
+            if u.path == "/api/restore":
+                from harness import versions
+                name = os.path.basename(body.get("workspace") or "")
+                root = os.path.join(os.path.abspath(console.workspaces_dir), name)
+                if console.busy():
+                    return self._json({"error": "a build is running"}, 409)
+                try:
+                    meta = versions.restore(root, int(body.get("version")))
+                    return self._json({"ok": True, "version": meta})
+                except (FileNotFoundError, ValueError, TypeError) as e:
+                    return self._json({"error": str(e)}, 400)
             if u.path == "/api/specs":
                 try:
                     p = save_spec(console.specs_dir, body)
