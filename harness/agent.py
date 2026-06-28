@@ -46,6 +46,7 @@ from harness.prompts import (
     human_feedback_prompt,
     repair_prompt,
     review_repair_prompt,
+    security_repair_prompt,
     visual_repair_prompt,
     with_lessons,
 )
@@ -459,6 +460,7 @@ async def build(
 
             verify_repairs = config.max_repairs
             review_repairs = config.max_repairs
+            security_repairs = config.max_repairs
             review_attempt = 0
             prev_sig: frozenset | None = None
             stall = 0
@@ -529,7 +531,28 @@ async def build(
                     prev_report = report
                     continue
 
-                # Verification passed. Apply the reviewer/sentry gate if enabled.
+                # Verification passed. Deterministic security gate (free, blocks on
+                # high-severity findings) — runs before the LLM reviewer.
+                if config.security_scan:
+                    from harness import security as secmod
+                    findings = secmod.scan_workspace(ws)
+                    blockers = secmod.blocking(findings)
+                    if echo:
+                        print(_banner(f"security scan (round {len(progress)})"), flush=True)
+                        print(secmod.to_report(findings), flush=True)
+                    if blockers:
+                        if security_repairs <= 0:
+                            return await finish(False, "security-blocked", report=first_report)
+                        if _expired(start, config.deadline_seconds):
+                            return await finish(False, "timeout", report=first_report)
+                        security_repairs -= 1
+                        n = config.max_repairs - security_repairs
+                        transcript.append(await builder.send(
+                            security_repair_prompt(blockers, n, config.max_repairs), echo=echo))
+                        prev_snap, cur_snap = cur_snap, snapshot(ws)
+                        continue  # re-verify + re-scan next round
+
+                # Apply the reviewer/sentry gate if enabled.
                 if not (config.enable_review or config.review_panel):
                     res = await accept("verified", report=first_report)
                     if res is not None:

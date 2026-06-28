@@ -68,6 +68,21 @@ def review_repair_prompt(verdict, attempt: int, max_attempts: int) -> str:
     )
 
 
+def security_repair_prompt(findings, attempt: int, max_attempts: int) -> str:
+    lines = [f"- ({f.severity}) {f.rule} [{f.file}:{f.line}]: {f.message}\n    {f.snippet}"
+             for f in findings]
+    body = "\n".join(lines) or "(no findings)"
+    return (
+        f"A deterministic security scan flagged blocking issues (security fix "
+        f"{attempt}/{max_attempts}). Fix each at its real root cause — do not merely "
+        f"silence the pattern:\n{body}\n\n"
+        "Guidance: move secrets to environment variables (never hardcode), use "
+        "parameterised queries (never string-build SQL), avoid shell=True / os.system "
+        "(pass argument lists), and never disable TLS verification. Make the changes, "
+        "then ensure the verification suite still passes."
+    )
+
+
 def _context_blocks(diff: str, delta: str) -> str:
     out = ""
     if delta:

@@ -4,6 +4,13 @@ Where the agent is strong today, and the highest-leverage things to add next.
 Ordered by impact-to-effort.
 
 ## Today (done)
+- **Security scan (deterministic gate)** — a free, model-independent static scan
+  for hardcoded secrets/keys, injection (SQL/command/path), unsafe deserialization,
+  weak crypto, and DOM-XSS sinks, with exact file:line findings. Runs in-process
+  after verification; **blocks on high-severity** and feeds precise findings into
+  the repair loop (placeholders + env reads are ignored to keep false positives
+  low). Complements the LLM `--review-focus security`. `harness/security.py`,
+  `--security-scan` / Studio "Security scan", `python -m harness.security`.
 - **Multi-agent decomposition** — split a full-stack build across role specialists:
   an architect writes a shared **contract** (API + data model + file ownership),
   then a **backend** agent and a **frontend** agent build in parallel on isolated
@@ -106,17 +113,9 @@ Ordered by impact-to-effort.
   preview + Resume), a **live Workspace view**, and the **3D Office**.
 - Design-check templates (Playwright/axe/Lighthouse).
 
-## Next — correctness & convergence
-1. **Security review focus** — a dedicated reviewer for secrets, injection,
-   unsafe deserialization, and dependency risk.
-
 ## Next — quality & trust
-4. **Multi-reviewer panel** — run quality + sentry + a11y reviewers in parallel
-   and require majority/no-blocker to pass (cheap on a local model).
-5. **Patch-level review** — reviewer reads the diff, not just the tree, for
+4. **Patch-level review** — reviewer reads the diff, not just the tree, for
    faster, more focused verdicts on iterative builds.
-6. **Security pass** — a dedicated reviewer focus for secrets, injection,
-   unsafe deserialization, dependency risks.
 
 ## Next — isolation & ops
 7. **Container isolation hardening** — non-root, read-only rootfs, capped CPU/mem

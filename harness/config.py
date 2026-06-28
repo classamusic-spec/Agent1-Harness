@@ -105,6 +105,9 @@ class HarnessConfig:
     # integration agent to green on the full suite.
     multi: bool = False
     multi_parallel: bool = True  # run role agents concurrently (vs. sequentially)
+    # Deterministic security gate: statically scan for secrets/injection/unsafe
+    # patterns after verification; block on high-severity findings and drive repairs.
+    security_scan: bool = False
     # Visual-diff refinement: after a build, screenshot it, ask the vision model how
     # it differs from the reference, and repair — up to max_visual_repairs times.
     visual_check: bool = False

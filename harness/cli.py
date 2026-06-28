@@ -100,6 +100,9 @@ def _parse_args(argv: list[str]) -> argparse.Namespace:
                         "worktrees, merge by ownership, then run an integration gate")
     p.add_argument("--multi-sequential", action="store_true",
                    help="With --multi, run role agents one at a time (default: parallel)")
+    p.add_argument("--security-scan", action="store_true",
+                   help="Deterministic security gate: after verification, statically scan for "
+                        "secrets/injection/unsafe patterns and block (+repair) on high-severity")
     p.add_argument("--run", default=None,
                    help="Dev-server command for server-backed checks (e2e/smoke) & preview "
                         "(auto-detected if omitted; spec 'run:' is also honored)")
@@ -281,6 +284,7 @@ def main(argv: list[str] | None = None) -> int:
         max_milestones=args.max_milestones,
         multi=args.multi,
         multi_parallel=not args.multi_sequential,
+        security_scan=args.security_scan,
     )
 
     approval = None
@@ -301,6 +305,8 @@ def main(argv: list[str] | None = None) -> int:
         extras.append("multi:" + ("parallel" if not args.multi_sequential else "sequential"))
     elif args.plan:
         extras.append("plan")
+    if args.security_scan:
+        extras.append("security-scan")
     if args.sandbox != "host":
         extras.append(f"sandbox:{args.sandbox}")
     print(f"engine: {engine.provider} | model: {engine.model or '(unset)'} | kind: {spec.kind} | "

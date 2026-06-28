@@ -395,3 +395,41 @@ def test_spec_checks_override_scaffold_checks(tmp_path):
     names = {r.name for r in result.report.results}
     assert names == {"custom"}  # the scaffold's own checks were NOT forced
     assert (Path(ws) / "index.html").is_file()  # files still materialized from the scaffold
+
+
+def test_security_gate_blocks_then_repairs(tmp_path):
+    """A hardcoded secret passes the functional checks but the deterministic
+    security gate blocks it; a repair removes it and the build is accepted."""
+    ws = tmp_path / "ws"
+    spec = Spec(name="demo", description="d", kind="cli", language="python",
+                checks=[Check(name="exists", command="test -f app.py")])
+    cfg = _config(ws, max_repairs=2)
+    cfg = __import__("dataclasses").replace(cfg, security_scan=True)
+
+    def bad(w, p):
+        Path(w, "app.py").write_text('api_key = "sk-live-abcd1234efgh5678"\n')
+        return "built"
+
+    def good(w, p):
+        Path(w, "app.py").write_text('import os\napi_key = os.environ["API_KEY"]\n')
+        return "fixed"
+
+    builder = FakeEngine(str(ws), [bad, good])
+    res = asyncio.run(build(spec, cfg, echo=False, builder_factory=lambda s, c: builder))
+    assert res.ok and res.stop_reason == "verified"
+    assert "os.environ" in Path(ws, "app.py").read_text()
+
+
+def test_security_gate_gives_up_when_unfixed(tmp_path):
+    ws = tmp_path / "ws"
+    spec = Spec(name="demo", description="d", kind="cli", language="python",
+                checks=[Check(name="exists", command="test -f app.py")])
+    cfg = __import__("dataclasses").replace(_config(ws, max_repairs=1), security_scan=True)
+
+    def bad(w, p):
+        Path(w, "app.py").write_text('token = "AKIAIOSFODNN7EXAMPLE"\n')
+        return "built"
+
+    builder = FakeEngine(str(ws), [bad, bad])
+    res = asyncio.run(build(spec, cfg, echo=False, builder_factory=lambda s, c: builder))
+    assert not res.ok and res.stop_reason == "security-blocked"

@@ -336,7 +336,7 @@
       url = "/api/builds";
       body = { prompt, name: ($("#st-name").value || "app").trim(), kind: $("#st-kind").value,
                scaffold: ($("#st-scaffold").value || null), plan: $("#st-plan").checked,
-               multi: $("#st-multi").checked,
+               multi: $("#st-multi").checked, security_scan: $("#st-security").checked,
                run_command: runCmd, ...eng, ...ref };
     }
     try {
