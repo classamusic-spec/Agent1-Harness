@@ -293,4 +293,38 @@ input[type="number"]:focus { outline: none; border-color: var(--accent); box-sha
 .approval-actions { display: flex; justify-content: flex-end; gap: var(--sp); }
 .approval-actions .primary { width: auto; margin: 0; padding: 9px 18px; }
 
-@media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+/* Color-coded log lines */
+.line { white-space: pre-wrap; word-break: break-word; }
+.line.ok { color: var(--good); }
+.line.bad { color: var(--bad); }
+.line.muted { color: var(--muted); }
+.line.note { color: var(--accent); }
+.line.banner { color: var(--text); font-weight: 700; margin-top: 8px; opacity: 0.85; }
+.line.result { color: var(--text); font-weight: 700; margin-top: 6px; }
+
+/* Cards lift slightly on hover */
+.card { transition: box-shadow 0.2s ease, transform 0.2s ease; }
+.card:hover { box-shadow: 0 16px 48px rgba(0, 0, 0, 0.12); }
+
+/* Running badge: a soft pulse */
+.badge[data-state="running"] {
+  animation: pulse 1.4s ease-in-out infinite;
+}
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.45; }
+}
+
+/* Gentle panel entrance */
+.panel:not([hidden]) { animation: rise 0.22s ease both; }
+@keyframes rise {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* Approval banner slides in */
+.approval:not([hidden]) .approval-body { animation: rise 0.2s ease both; }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { transition: none !important; animation: none !important; }
+}

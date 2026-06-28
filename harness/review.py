@@ -146,6 +146,14 @@ _FOCUS = {
         "focus states, full keyboard navigation, color contrast >= 4.5:1, real alt "
         "text, and correct (not excessive) ARIA. Report each concrete barrier.",
     ),
+    "security": (
+        "application security reviewer",
+        "Hunt for vulnerabilities: hardcoded secrets/credentials, injection "
+        "(SQL/command/path/XSS), unsafe deserialization, SSRF, missing "
+        "authentication/authorization, weak or misused crypto, insecure defaults, "
+        "and risky dependencies. For each, give the concrete exploit scenario and "
+        "rate severity accordingly.",
+    ),
 }
 
 

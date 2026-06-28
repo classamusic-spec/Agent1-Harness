@@ -68,10 +68,10 @@ def _parse_args(argv: list[str]) -> argparse.Namespace:
                    help="Stop the build once this many tokens are used")
     # Reviewer / Sentry gate
     p.add_argument("--review", action="store_true", help="Enable the reviewer/sentry second gate")
-    p.add_argument("--review-focus", choices=["quality", "bugs", "a11y"], default="quality",
-                   help="Single reviewer focus: code quality, bug hunting, or accessibility")
+    p.add_argument("--review-focus", choices=["quality", "bugs", "a11y", "security"], default="quality",
+                   help="Single reviewer focus: quality, bug hunting, accessibility, or security")
     p.add_argument("--review-panel", default=None,
-                   help="Run a parallel reviewer panel, e.g. 'quality,bugs,a11y' (implies --review)")
+                   help="Run a parallel reviewer panel, e.g. 'quality,bugs,a11y,security' (implies --review)")
     p.add_argument("--reviewer-model", default=None, help="Model for the reviewer (default: builder model)")
     # Learning memory
     p.add_argument("--learn", action="store_true", help="Record and reuse lessons from past builds")

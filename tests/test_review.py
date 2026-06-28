@@ -38,3 +38,6 @@ def test_unparseable_is_rejected():
 def test_instruction_focus_variants():
     assert "bug hunter" in review_instruction("bugs")
     assert "code reviewer" in review_instruction("quality")
+    assert "accessibility reviewer" in review_instruction("a11y")
+    assert "security reviewer" in review_instruction("security")
+    assert "injection" in review_instruction("security")

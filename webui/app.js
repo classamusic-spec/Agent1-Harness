@@ -48,7 +48,23 @@ function syncWorkspace() {
   if (o) $("#workspace").placeholder = `workspaces/${o.dataset.name}`;
 }
 function setStatus(state, text) { const e = $("#status"); e.dataset.state = state; e.textContent = text || state; }
-function appendLog(line) { const l = $("#log"); l.textContent += line + "\n"; l.scrollTop = l.scrollHeight; }
+function logClass(line) {
+  if (/^\[PASS\]|\bPASS\b/.test(line)) return "ok";
+  if (/^\[FAIL\]|\bFAIL\b/.test(line)) return "bad";
+  if (/^\[SKIP\]/.test(line)) return "muted";
+  if (/^={4,}/.test(line)) return "banner";
+  if (/^RESULT|^BUILD/.test(line)) return "result";
+  if (/^\[(approval|loop|demo-engine)\]/.test(line)) return "note";
+  return "";
+}
+function appendLog(line) {
+  const l = $("#log");
+  const div = document.createElement("div");
+  div.className = "line " + logClass(line);
+  div.textContent = line;
+  l.appendChild(div);
+  l.scrollTop = l.scrollHeight;
+}
 const radio = (n) => document.querySelector(`input[name="${n}"]:checked`).value;
 
 async function run() {
@@ -58,7 +74,7 @@ async function run() {
     spec: $("#spec").value, workspace: $("#workspace").value || null,
     engine: radio("engine"), model: $("#model").value || null, base_url: $("#baseurl").value || null,
     review: $("#review").checked, review_focus: radio("focus"),
-    review_panel: $("#panel").checked ? ["quality", "bugs", "a11y"] : [],
+    review_panel: $("#panel").checked ? ["quality", "bugs", "a11y", "security"] : [],
     learn: $("#learn").checked, check_only: $("#checkonly").checked,
     test_first: $("#testfirst").checked,
     approve_plan: $("#approveplan").checked, approve_build: $("#approvebuild").checked,

@@ -26,6 +26,10 @@ The build console (`appbuilder-web`) — clean, Apple-inspired, automatic light/
 
 ![Build console](docs/screenshots/console-build-options.png)
 
+**Color-coded live log** — passes, failures, gate banners, and telemetry at a glance:
+
+![Color-coded log](docs/screenshots/console-log.png)
+
 **Live Workspace view** — watch files appear/change as the agent works, with a file viewer and live preview:
 
 ![Live workspace view](docs/screenshots/console-workspace.png)
