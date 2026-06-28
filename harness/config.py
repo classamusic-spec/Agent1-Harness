@@ -67,7 +67,8 @@ class HarnessConfig:
 
     # Reviewer / Sentry second gate.
     enable_review: bool = False
-    review_focus: str = "quality"  # "quality" | "bugs"
+    review_focus: str = "quality"  # "quality" | "bugs" | "a11y"
+    review_panel: list[str] = field(default_factory=list)  # e.g. ["quality","bugs","a11y"] -> parallel panel
     reviewer_model: str | None = None  # defaults to the builder model
 
     # Learning memory.

@@ -253,9 +253,12 @@ class Console:
         )
         approve_plan = bool(params.get("approve_plan"))
         approve_build = bool(params.get("approve_build"))
+        panel = params.get("review_panel") or []
         config = HarnessConfig(
             workspace=job.workspace, engine=engine,
-            enable_review=bool(params.get("review")), review_focus=params.get("review_focus", "quality"),
+            enable_review=bool(params.get("review")) or bool(panel),
+            review_focus=params.get("review_focus", "quality"),
+            review_panel=list(panel),
             learn=bool(params.get("learn")),
             memory_path=params.get("memory") or os.path.join(self.workspaces_dir, ".lessons.jsonl"),
             test_first=bool(params.get("test_first")),

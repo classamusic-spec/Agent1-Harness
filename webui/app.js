@@ -58,6 +58,7 @@ async function run() {
     spec: $("#spec").value, workspace: $("#workspace").value || null,
     engine: radio("engine"), model: $("#model").value || null, base_url: $("#baseurl").value || null,
     review: $("#review").checked, review_focus: radio("focus"),
+    review_panel: $("#panel").checked ? ["quality", "bugs", "a11y"] : [],
     learn: $("#learn").checked, check_only: $("#checkonly").checked,
     test_first: $("#testfirst").checked,
     approve_plan: $("#approveplan").checked, approve_build: $("#approvebuild").checked,

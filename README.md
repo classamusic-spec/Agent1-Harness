@@ -47,7 +47,7 @@ The build console (`appbuilder-web`) — clean, Apple-inspired, automatic light/
 | Capability | Module | Notes |
 |---|---|---|
 | **Verification gate** | `harness/verifier.py` | Runs build/test/lint; structured pass/fail. LLM-free, unit-tested. |
-| **Reviewer / Sentry gate** | `harness/review.py` | Independent fresh-context agent returns a JSON verdict. `quality` reviewer or `bugs` (Sentry-style) hunter. Approval is **deterministic**: no blocker/major findings. |
+| **Reviewer / Sentry gate** | `harness/review.py` | Independent fresh-context agent(s) return a JSON verdict — `quality`, `bugs` (Sentry-style), or `a11y`. Run one (`--review`) or a **parallel panel** (`--review-panel quality,bugs,a11y`); the build passes only if **no** reviewer reports a blocker/major. |
 | **Learn from itself** | `harness/memory.py` | Distills failures + reviewer findings into lessons (JSONL), injected into future builds. |
 | **The loop** | `harness/agent.py` | Engine-agnostic: implement → verify → review → repair. **Diff-aware repair** (shows the last change's diff + failure delta) and **stall escalation** (a fresh-context fixer, optionally a stronger model). |
 | **Test-first (red→green)** | `harness/testfirst.py` | `--test-first` derives the verification suite from the spec before building, then drives the build to green against it. |

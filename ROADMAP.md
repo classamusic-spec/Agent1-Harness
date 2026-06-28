@@ -6,7 +6,8 @@ Ordered by impact-to-effort.
 ## Today (done)
 - Deterministic verification gate; engine-agnostic loop (Claude **or** local LLM).
 - Specialist personas: frontend design, backend rigor, React/React Native, SwiftUI.
-- Reviewer / Sentry second gate (independent, structured verdict).
+- Reviewer / Sentry second gate (independent, structured verdict) — single focus
+  or a **parallel panel** (quality + bugs + a11y), pass only if no blocker/major.
 - Learns from mistakes: mechanical + model-driven reflection lessons.
 - Convergence guards: stall detection + wall-clock budget.
 - **Diff-aware repair** — repairs see a unified diff of the last change + the failure delta.
@@ -26,8 +27,8 @@ Ordered by impact-to-effort.
 - Design-check templates (Playwright/axe/Lighthouse).
 
 ## Next — correctness & convergence
-1. **Multi-reviewer panel** — run quality + sentry + a11y reviewers in parallel
-   and require no-blocker/majority to pass.
+1. **Security review focus** — a dedicated reviewer for secrets, injection,
+   unsafe deserialization, and dependency risk.
 
 ## Next — quality & trust
 4. **Multi-reviewer panel** — run quality + sentry + a11y reviewers in parallel

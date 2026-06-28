@@ -46,7 +46,7 @@ from harness.prompts import (
     with_lessons,
 )
 from harness.reflect import reflect
-from harness.review import ReviewVerdict, run_review
+from harness.review import ReviewVerdict, run_panel
 from harness.spec import Spec
 from harness.verifier import VerificationReport, failure_delta, run_suite
 
@@ -260,18 +260,18 @@ async def build(
                     continue
 
                 # Verification passed. Apply the reviewer/sentry gate if enabled.
-                if not config.enable_review:
+                if not (config.enable_review or config.review_panel):
                     res = await accept("verified", report=first_report)
                     if res is not None:
                         return res
                     continue  # rejection feedback sent; re-verify next round
 
+                focuses = config.review_panel or [config.review_focus]
                 if echo:
-                    print(_banner(f"review: {config.review_focus} (round {len(progress)})"), flush=True)
-                reviewer = reviewer_factory(spec, run_config)
-                async with reviewer:
-                    verdict = await run_review(reviewer, config.review_focus, echo=echo)
-                extra_tokens += getattr(reviewer, "total_tokens", 0)
+                    print(_banner(f"review panel: {', '.join(focuses)} (round {len(progress)})"), flush=True)
+                verdict, rtokens = await run_panel(
+                    lambda: reviewer_factory(spec, run_config), focuses, echo=echo)
+                extra_tokens += rtokens
                 if echo:
                     print(f"review approved={verdict.approved} | {verdict.summary}", flush=True)
 

@@ -68,8 +68,10 @@ def _parse_args(argv: list[str]) -> argparse.Namespace:
                    help="Stop the build once this many tokens are used")
     # Reviewer / Sentry gate
     p.add_argument("--review", action="store_true", help="Enable the reviewer/sentry second gate")
-    p.add_argument("--review-focus", choices=["quality", "bugs"], default="quality",
-                   help="Reviewer focus: code quality or Sentry-style bug hunting")
+    p.add_argument("--review-focus", choices=["quality", "bugs", "a11y"], default="quality",
+                   help="Single reviewer focus: code quality, bug hunting, or accessibility")
+    p.add_argument("--review-panel", default=None,
+                   help="Run a parallel reviewer panel, e.g. 'quality,bugs,a11y' (implies --review)")
     p.add_argument("--reviewer-model", default=None, help="Model for the reviewer (default: builder model)")
     # Learning memory
     p.add_argument("--learn", action="store_true", help="Record and reuse lessons from past builds")
@@ -166,8 +168,9 @@ def main(argv: list[str] | None = None) -> int:
         exec_sandbox=args.sandbox,
         docker_image=args.docker_image,
         test_first=args.test_first,
-        enable_review=args.review,
+        enable_review=args.review or bool(args.review_panel),
         review_focus=args.review_focus,
+        review_panel=[f.strip() for f in args.review_panel.split(",") if f.strip()] if args.review_panel else [],
         reviewer_model=args.reviewer_model,
         learn=learn,
         memory_path=memory_path,
@@ -187,7 +190,12 @@ def main(argv: list[str] | None = None) -> int:
         from harness.approval import CLIApproval
         approval = CLIApproval()
 
-    gates = "verify" + ("+review:" + args.review_focus if args.review else "")
+    if args.review_panel:
+        gates = "verify+panel:" + args.review_panel
+    elif args.review:
+        gates = "verify+review:" + args.review_focus
+    else:
+        gates = "verify"
     extras = []
     if args.test_first:
         extras.append("test-first")

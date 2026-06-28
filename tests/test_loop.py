@@ -257,6 +257,29 @@ def test_telemetry_reported(tmp_path):
     assert result.elapsed_seconds >= 0
 
 
+def test_reviewer_panel_rejects_then_approves(tmp_path):
+    spec = _spec()
+    cfg = _config(tmp_path / "ws", review_panel=["quality", "bugs"], max_repairs=3)
+    builder = FakeEngine(str(tmp_path / "ws"), [_writer("v1"), _writer("v2")])
+    state = {"n": 0}
+    block = '{"approved":false,"findings":[{"severity":"blocker","title":"x"}]}'
+    ok = '{"approved":true,"findings":[]}'
+
+    def reviewer_factory(s, c):
+        state["n"] += 1
+        text = block if state["n"] <= 2 else ok  # round 1 (2 reviewers) blocks; round 2 passes
+        return FakeEngine(c.workspace, [lambda w, p, t=text: t])
+
+    result = asyncio.run(build(
+        spec, cfg, echo=False,
+        builder_factory=lambda s, c: builder,
+        reviewer_factory=reviewer_factory,
+    ))
+    assert result.ok and result.stop_reason == "approved"
+    assert result.rounds == 2
+    assert state["n"] == 4  # 2 reviewers x 2 rounds
+
+
 def test_learning_records_lessons(tmp_path):
     mem = tmp_path / "lessons.jsonl"
     spec = _spec()

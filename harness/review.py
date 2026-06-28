@@ -140,6 +140,12 @@ _FOCUS = {
         "concurrency, off-by-one errors, unhandled exceptions, resource leaks, and "
         "states the tests don't cover. Report the concrete failure scenario for each.",
     ),
+    "a11y": (
+        "accessibility reviewer",
+        "Audit for WCAG AA: semantic HTML and landmarks, labelled controls, visible "
+        "focus states, full keyboard navigation, color contrast >= 4.5:1, real alt "
+        "text, and correct (not excessive) ARIA. Report each concrete barrier.",
+    ),
 }
 
 
@@ -152,3 +158,31 @@ async def run_review(engine, focus: str, *, echo: bool = True) -> ReviewVerdict:
     """Drive a (separate, fresh-context) engine to produce a verdict."""
     text = await engine.send(review_instruction(focus), echo=echo)
     return parse_verdict(text)
+
+
+async def run_panel(make_engine, focuses: list[str], *, echo: bool = True) -> tuple[ReviewVerdict, int]:
+    """Run several reviewers in parallel (one fresh engine each) and combine.
+
+    Policy: the build passes only if NO reviewer reports a blocker/major finding.
+    Returns the aggregate verdict and the total tokens the reviewers used.
+    """
+    import asyncio
+
+    async def one(focus: str):
+        engine = make_engine()
+        async with engine:
+            verdict = await run_review(engine, focus, echo=echo)
+        return focus, verdict, getattr(engine, "total_tokens", 0)
+
+    results = await asyncio.gather(*(one(f) for f in focuses))
+
+    findings: list[Finding] = []
+    for focus, verdict, _ in results:
+        for f in verdict.findings:
+            # Tag the finding with which reviewer raised it.
+            findings.append(Finding(f.severity, f"[{focus}] {f.title}", f.detail, f.location))
+    approved = all(v.approved for _, v, _ in results)
+    summary = " | ".join(f"{focus}: {v.summary or ('ok' if v.approved else 'issues')}"
+                         for focus, v, _ in results)
+    tokens = sum(t for _, _, t in results)
+    return ReviewVerdict(approved=approved, summary=summary, findings=findings), tokens
