@@ -93,7 +93,8 @@ def test_claude_cli_argv_includes_model_system_and_tools():
     assert "--permission-mode" in argv and "acceptEdits" in argv
     assert "--model" in argv and "sonnet" in argv
     assert "--append-system-prompt" in argv and "PERSONA-PROMPT" in argv
-    assert "--output-format" in argv and "json" in argv
+    # streaming is on by default → stream-json + --verbose
+    assert "--output-format" in argv and "stream-json" in argv and "--verbose" in argv
     # allowed tools are pre-permitted so headless runs don't prompt
     assert "Write" in argv and "Edit" in argv and "Read" in argv
 

@@ -4,6 +4,11 @@ Where the agent is strong today, and the highest-leverage things to add next.
 Ordered by impact-to-effort.
 
 ## Today (done)
+- **Streaming build view** — the Claude Code engine now streams (`stream-json`): the
+  live log shows the agent's text and **each file edit / command as it happens**
+  (`✎ Write index.html`, `$ npm test`) mid-turn, instead of one block at the end.
+  Token/cost totals come from the final result event; cancellation + timeout
+  preserved; `CLAUDE_CLI_STREAM=0` falls back to buffered. `harness/engines/claude_cli_engine.py`.
 - **Project memory / design system** — a persistent house style (preferred stack,
   palette, typography, UI style, component conventions, tone) woven into every
   build *and* iteration prompt, so apps feel like *yours*. It **auto-learns** the
