@@ -4,6 +4,17 @@ Where the agent is strong today, and the highest-leverage things to add next.
 Ordered by impact-to-effort.
 
 ## Today (done)
+- **GitHub export** — push a built app to a new repo: writes a secret-safe
+  `.gitignore` (excludes `.env`/DBs, keeps `.env.example`), inits + commits, and
+  (with the `gh` CLI) creates the repo + pushes, returning the URL — else commits
+  locally and returns the push commands. `harness/ghexport.py`, `/api/github/export`,
+  "Export to GitHub" in the Ship dialog.
+- **One-shot build → ship → deploy** — a "🚀 Deploy when it passes → [provider]"
+  toggle in the composer; after a green build the harness ships + deploys in the
+  same job/log and surfaces the live URL (`then_deploy`, `Console._ship_and_deploy`).
+- **Deploy logs / rollback / history** — Logs and Rollback buttons run the
+  provider's CLI (or show the command), and a per-workspace deploy history
+  (timestamp · provider · URL · ✓/✗) is recorded and shown.
 - **Engine auto-select** — Studio picks the right engine on load from the doctor's
   recommendation (Claude Code CLI, else a detected local server) with a "✓ Using …"
   hint, so a fresh user never has to choose. `/api/doctor`.

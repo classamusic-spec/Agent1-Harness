@@ -975,6 +975,18 @@ def make_handler(console: Console):
             if u.path == "/api/profile":
                 from harness import profile
                 return self._json(profile.save(console.profile_path, body))
+            if u.path == "/api/github/export":
+                from harness import ghexport
+                name = os.path.basename(body.get("workspace") or "")
+                root = self._ws_root(name)
+                if not os.path.isdir(root):
+                    return self._json({"error": "unknown workspace"}, 404)
+                try:
+                    return self._json(ghexport.export(
+                        root, str(body.get("name") or name or "app"),
+                        private=body.get("private", True) is not False))
+                except Exception as e:
+                    return self._json({"ok": False, "error": f"{type(e).__name__}: {e}"}, 500)
             if u.path == "/api/deploy":
                 from harness import deploy
                 name = os.path.basename(body.get("workspace") or "")

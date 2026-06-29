@@ -814,6 +814,30 @@
     el.textContent = "🌐 " + url + " (not responding yet)";
   }
 
+  async function exportGithub() {
+    if (!project) return;
+    const msg = $("#ship-msg");
+    msg.textContent = "Creating repo & pushing…";
+    try {
+      const r = await (await fetch("/api/github/export", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ workspace: project, name: project, private: true }),
+      })).json();
+      if (r.ok && r.url) {
+        msg.innerHTML = `✓ Pushed to <a href="${r.url}" target="_blank" rel="noopener">${r.url}</a>`;
+      } else if (r.ready === false) {
+        $("#ship-preview").textContent =
+          (r.reason || "gh not found") + "\n\n" + (r.commands || []).join("\n") +
+          (r.committed ? "\n\n(your files are committed locally — just create the repo and push)" : "");
+        msg.textContent = r.committed ? "Committed locally — run the commands above to push." : (r.reason || "");
+      } else {
+        msg.textContent = r.reason || r.error || "export failed";
+        if (r.log) $("#ship-preview").textContent = r.log;
+      }
+      loadFiles();
+    } catch { msg.textContent = "export request failed"; }
+  }
+
   function closeShip() {
     const dlg = $("#ship-dialog");
     if (typeof dlg.close === "function") dlg.close(); else dlg.removeAttribute("open");
@@ -837,6 +861,7 @@
     $("#st-ship").addEventListener("click", openShip);
     $("#ship-close").addEventListener("click", closeShip);
     $("#ship-add").addEventListener("click", shipAdd);
+    $("#ship-github").addEventListener("click", exportGithub);
     $("#deploy-go").addEventListener("click", runDeploy);
     $("#deploy-logs").addEventListener("click", () => deployAction("logs"));
     $("#deploy-rollback").addEventListener("click", () => deployAction("rollback"));
