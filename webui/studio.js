@@ -610,7 +610,8 @@
   async function pollOnce() {
     try {
       const c = await (await fetch("/api/current")).json();
-      $("#st-stat").textContent = c.tokens ? `${c.tokens} tokens · ${c.elapsed || 0}s` : "";
+      const tps = c.tok_per_sec ? ` · ⚡ ${c.tok_per_sec} tok/s` : "";
+      $("#st-stat").textContent = c.tokens ? `${c.tokens} tokens · ${c.elapsed || 0}s${tps}` : "";
       if (c.busy && project) loadFiles();
       if (!c.busy) stopPoll();
     } catch {}

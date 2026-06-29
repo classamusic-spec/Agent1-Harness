@@ -56,6 +56,9 @@ class HarnessConfig:
     # between turns (Ollama keep_alive), and hint prompt-cache reuse per workspace.
     local_warmup: bool = True
     local_keep_alive: str = "30m"
+    # Optional live token/sec callback, cb(tokens, rate, elapsed), driven by the
+    # local engine's streamed deltas. The console uses it to show a live meter.
+    meter_cb: object | None = field(default=None, repr=False, compare=False)
     allowed_tools: list[str] = field(default_factory=lambda: list(DEFAULT_ALLOWED_TOOLS))
     stop_on_failure: bool = True
 

@@ -49,6 +49,7 @@ class LocalEngine(Engine):
         self._client = None  # created on __aenter__
         self._extra_body: dict = {}  # KV-cache reuse hints, set on __aenter__
         self.total_tokens = 0
+        self.tok_per_sec = 0.0       # last streamed decode rate (live meter)
         # Attach a reference image to the first turn iff the coder is multimodal.
         self._pending_image = (
             config.reference_image
@@ -204,6 +205,20 @@ class LocalEngine(Engine):
         except Exception:
             return await self._buffered_turn(schemas, echo)  # server can't stream — fall back
 
+        from harness.meter import TokenMeter
+        meter = TokenMeter()
+        meter_cb = getattr(self._config, "meter_cb", None)
+
+        def _pulse():
+            if meter.due():
+                if echo:
+                    print("\n  " + meter.line(), flush=True)
+                if meter_cb:
+                    try:
+                        meter_cb(meter.tokens, meter.rate(), meter.elapsed())
+                    except Exception:
+                        pass
+
         parts: list[str] = []
         tool_acc: dict[int, dict] = {}
         printed_tool = set()
@@ -217,8 +232,10 @@ class LocalEngine(Engine):
             piece = getattr(delta, "content", None)
             if piece:
                 parts.append(piece)
+                meter.add_text(piece)
                 if echo:
                     print(piece, end="", flush=True)
+                _pulse()
             for tcd in (getattr(delta, "tool_calls", None) or []):
                 acc = tool_acc.setdefault(tcd.index, {"id": "", "name": "", "arguments": ""})
                 if getattr(tcd, "id", None):
@@ -229,10 +246,21 @@ class LocalEngine(Engine):
                         acc["name"] += fn.name
                     if getattr(fn, "arguments", None):
                         acc["arguments"] += fn.arguments
+                        meter.add_text(fn.arguments)
                 if echo and acc["name"] and tcd.index not in printed_tool:
                     printed_tool.add(tcd.index)
                     print(f"\n  ✎ {acc['name']}", flush=True)
-        if echo and parts:
+        # Final throughput readout for the turn (and reconcile with exact usage).
+        self.tok_per_sec = round(meter.rate(), 1)
+        if meter.tokens:
+            if echo:
+                print("\n  " + meter.line(), flush=True)
+            if meter_cb:
+                try:
+                    meter_cb(meter.tokens, meter.rate(), meter.elapsed())
+                except Exception:
+                    pass
+        elif echo and parts:
             print("", flush=True)  # newline after the streamed text
 
         content = "".join(parts)

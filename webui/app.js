@@ -427,7 +427,8 @@ async function pollCurrent() {
   try {
     const c = await (await fetch("/api/current")).json();
     currentJobId = c.job;
-    $("#stat").textContent = c.tokens ? `${c.tokens} tokens · ${c.elapsed}s` : "";
+    $("#stat").textContent = c.tokens
+      ? `${c.tokens} tokens · ${c.elapsed}s${c.tok_per_sec ? ` · ⚡ ${c.tok_per_sec} tok/s` : ""}` : "";
     $("#controls").hidden = !c.busy;
     updateMeters(c);
     if (window.OfficeView) window.OfficeView.setState(c);

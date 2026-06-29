@@ -134,6 +134,27 @@ def test_malformed_native_args_are_repaired(tmp_path):
     assert tools_called == [("write_file", {"path": "a.py"})]  # repaired despite trailing comma
 
 
+def test_stream_pulses_token_meter(tmp_path):
+    """The live token/sec meter fires the config callback and records a decode rate."""
+    import dataclasses
+    pulses = []
+    turns = [
+        # plain-text turn (no tool calls) -> the loop finishes after one turn
+        [_chunk(content="hello "), _chunk(content="world"), _chunk(usage=_usage(4))],
+    ]
+    spec = Spec(name="app", description="d", kind="frontend")
+    cfg = HarnessConfig(workspace=str(tmp_path),
+                        engine=EngineConfig(provider="local", model="glm-4.6"))
+    cfg = dataclasses.replace(cfg, meter_cb=lambda tok, rate, el: pulses.append((tok, rate, el)))
+    eng = LocalEngine(spec, cfg, "sys")
+    eng._client = _FakeClient(turns)
+    eng._toolbox = types.SimpleNamespace(schemas=lambda: [], dispatch=lambda n, a: "x")
+    out = asyncio.run(eng.send("hi", echo=False))
+    assert out == "hello world"
+    assert pulses and pulses[-1][0] > 0          # tokens estimated from streamed text
+    assert eng.tok_per_sec >= 0.0                # decode rate recorded on the engine
+
+
 def test_buffered_fallback_when_stream_disabled(tmp_path):
     import dataclasses
     tools_called = []

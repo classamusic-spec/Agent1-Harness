@@ -407,6 +407,7 @@ class Job:
         self.approve_event = threading.Event()
         self.tokens = 0
         self.elapsed = 0.0
+        self.tok_per_sec = 0.0   # live decode rate from the local engine's stream
         self.token_budget = None
         self.deadline = None
         self.control = BuildControl()
@@ -466,6 +467,14 @@ class Console:
     def design_profile(self) -> dict:
         from harness import profile
         return profile.load(self.profile_path)
+
+    @staticmethod
+    def _meter_cb(job: "Job"):
+        """A callback the local engine pulses with live (tokens, rate, elapsed) so the
+        UI can show a token/sec meter during a local build."""
+        def cb(tokens, rate, elapsed):
+            job.tok_per_sec = round(float(rate or 0), 1)
+        return cb
 
     def _ship_and_deploy(self, job: "Job", provider: str) -> None:
         """After a green build: package (Ship it) and deploy to `provider`, into the
@@ -648,6 +657,7 @@ class Console:
             api_key_env="OPENAI_API_KEY" if provider == "local" else "ANTHROPIC_API_KEY",
         )
         config = HarnessConfig(workspace=job.workspace, engine=engine_cfg)
+        config.meter_cb = self._meter_cb(job)  # live token/sec meter
 
         # Reference UI image (optional): describe it (vision) or stage it (direct),
         # then fold the design context into the change instruction.
@@ -782,6 +792,7 @@ class Console:
             patch_review=bool(params.get("patch_review")),
             design_profile=self.design_profile(),
         )
+        config.meter_cb = self._meter_cb(job)  # live token/sec meter
         job.token_budget = params.get("token_budget")
         job.deadline = params.get("deadline")
         _apply_reference(config, params)  # reference UI image + optional vision model
@@ -926,6 +937,7 @@ def make_handler(console: Console):
                                    "pending": j.pending if j else None,
                                    "tokens": j.tokens if j else 0,
                                    "elapsed": round(j.elapsed, 1) if j else 0.0,
+                                   "tok_per_sec": round(getattr(j, "tok_per_sec", 0.0), 1) if j else 0.0,
                                    "token_budget": j.token_budget if j else None,
                                    "deadline": j.deadline if j else None,
                                    "deploy_url": getattr(j, "deploy_url", "") if j else "",
