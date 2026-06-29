@@ -723,3 +723,8 @@ input[type="number"]:focus { outline: none; border-color: var(--accent); box-sha
   color: var(--muted); padding: 5px 0; border-top: 1px solid var(--hairline); }
 .deploy-history a { color: var(--accent); text-decoration: none; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .deploy-history .ok { color: var(--good, #16a34a); } .deploy-history .bad { color: var(--bad, #dc2626); }
+
+/* Custom domain input */
+.domain-input { flex: 1; min-width: 160px; font: inherit; font-size: .85rem; color: var(--text);
+  padding: 7px 10px; border: 1px solid var(--hairline-strong); border-radius: var(--radius-sm);
+  background: var(--surface); }

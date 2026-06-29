@@ -269,6 +269,10 @@
               <button id="deploy-logs" class="ghost" type="button">Logs</button>
               <button id="deploy-rollback" class="ghost" type="button">Rollback</button>
             </div>
+            <div class="ship-deploy-row" style="margin-top:8px">
+              <input id="deploy-domain" type="text" placeholder="app.yourdomain.com" class="domain-input" />
+              <button id="deploy-domain-go" class="ghost" type="button">Add custom domain</button>
+            </div>
             <p class="ship-sub" id="deploy-note">Pushes the packaged app to your host using its
               CLI (authenticate once). No CLI yet? You'll get the exact commands to run.</p>
             <pre class="ship-preview" id="deploy-out" hidden></pre>

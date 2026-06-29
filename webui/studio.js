@@ -800,6 +800,25 @@
     } catch { $("#deploy-out").textContent = `${action} request failed`; }
   }
 
+  async function addDomain() {
+    if (!project) return;
+    const domain = $("#deploy-domain").value.trim();
+    if (!domain) return;
+    $("#deploy-out").hidden = false; $("#deploy-out").textContent = "Attaching domain…";
+    try {
+      const r = await (await fetch("/api/deploy/domain", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ workspace: project, provider: $("#deploy-provider").value, domain }),
+      })).json();
+      const parts = [];
+      if (r.reason) parts.push(r.reason);
+      if (r.command) parts.push(r.command);
+      if (r.output) parts.push(r.output);
+      if (r.dns) parts.push("\nDNS: " + r.dns);
+      $("#deploy-out").textContent = parts.join("\n") || (r.ok ? "domain attached" : "failed");
+    } catch { $("#deploy-out").textContent = "domain request failed"; }
+  }
+
   // Poll the deployed URL until it answers, then mark it live ✓.
   async function pollDeployLive(url, attempts = 40) {
     const el = $("#deploy-url");
@@ -865,6 +884,7 @@
     $("#deploy-go").addEventListener("click", runDeploy);
     $("#deploy-logs").addEventListener("click", () => deployAction("logs"));
     $("#deploy-rollback").addEventListener("click", () => deployAction("rollback"));
+    $("#deploy-domain-go").addEventListener("click", addDomain);
     $("#st-style").addEventListener("click", openProfile);
     $("#profile-close").addEventListener("click", closeProfile);
     $("#profile-save").addEventListener("click", saveProfile);

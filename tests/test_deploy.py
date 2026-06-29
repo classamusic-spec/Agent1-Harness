@@ -135,6 +135,35 @@ def test_run_action_without_cli_returns_command(tmp_path, monkeypatch):
     assert r["ok"] is False and r["ready"] is False and r["command"] == "fly logs"
 
 
+def test_domain_command_and_dns_hint():
+    assert deploy.domain_command("fly", "demo", "app.x.com") == "fly certs add app.x.com"
+    assert "pages.dev" in deploy.dns_hint("cloudflare", "demo", "app.x.com")
+    assert "onrender.com" in deploy.dns_hint("render", "demo", "app.x.com")
+
+
+def test_add_domain_rejects_bad_domain(tmp_path):
+    r = deploy.add_domain("fly", str(tmp_path), "demo", "not a domain")
+    assert r["ok"] is False and "valid domain" in r["reason"]
+
+
+def test_add_domain_without_cli_returns_command_and_dns(tmp_path, monkeypatch):
+    monkeypatch.setattr(deploy, "cli_available", lambda prov, which=None: False)
+    r = deploy.add_domain("fly", str(tmp_path), "demo", "app.example.com")
+    assert r["ready"] is False and r["command"] == "fly certs add app.example.com"
+    assert "example.com" in r["dns"]
+
+
+def test_add_domain_runs_cli(tmp_path, monkeypatch):
+    monkeypatch.setattr(deploy, "cli_available", lambda prov, which=None: True)
+
+    class R:
+        def run(self, command, cwd, timeout, env=None):
+            return subprocess.CompletedProcess(command, 0, stdout="cert created", stderr="")
+
+    r = deploy.add_domain("fly", str(tmp_path), "demo", "app.example.com", runner=R())
+    assert r["ok"] is True and r["url"] == "https://app.example.com"
+
+
 def test_run_action_runs_cli_and_strips_comment(tmp_path, monkeypatch):
     monkeypatch.setattr(deploy, "cli_available", lambda prov, which=None: True)
     calls = []

@@ -146,6 +146,54 @@ def rollback_command(provider: str, name: str) -> str:
             "render": f"render rollbacks create {s}"}.get(provider, "")
 
 
+def domain_command(provider: str, name: str, domain: str) -> str:
+    s = slug(name)
+    return {"fly": f"fly certs add {domain}",
+            "cloudflare": f"wrangler pages domain add {domain} --project-name {s}",
+            "render": f"render custom-domains create --resources {s} --name {domain}"}.get(provider, "")
+
+
+def dns_hint(provider: str, name: str, domain: str) -> str:
+    s = slug(name)
+    return {
+        "fly": f"Point DNS at Fly: CNAME {domain} → {s}.fly.dev "
+               f"(or A/AAAA to the IPs from `fly ips list`), then `fly certs show {domain}`.",
+        "cloudflare": f"On Cloudflare DNS it's automatic; otherwise add CNAME {domain} → {s}.pages.dev.",
+        "render": f"Add CNAME {domain} → {s}.onrender.com (apex: use an ALIAS/ANAME).",
+    }.get(provider, "")
+
+
+def _valid_domain(domain: str) -> bool:
+    d = (domain or "").strip().lower()
+    return bool(re.match(r"^(?=.{1,253}$)([a-z0-9](-?[a-z0-9])*\.)+[a-z]{2,}$", d))
+
+
+def add_domain(provider: str, workspace: str, name: str, domain: str, *,
+               runner=None, timeout: int = 60) -> dict:
+    """Attach a custom domain via the provider CLI (or return the command), plus the
+    DNS records the user must add at their registrar."""
+    domain = (domain or "").strip().lower()
+    if not _valid_domain(domain):
+        return {"ok": False, "reason": f"'{domain}' is not a valid domain"}
+    cmd = domain_command(provider, name, domain)
+    hint = dns_hint(provider, name, domain)
+    if not cmd:
+        return {"ok": False, "reason": f"custom domains not supported for {provider}"}
+    if not cli_available(provider):
+        return {"ok": False, "ready": False, "command": cmd, "dns": hint,
+                "reason": f"{PROVIDERS[provider]['cli']} CLI not found — run:"}
+    if runner is None:
+        from harness.sandbox import HostRunner
+        runner = HostRunner()
+    try:
+        proc = runner.run(cmd, workspace, timeout)
+        out = (proc.stdout or "") + (proc.stderr or "")
+        return {"ok": proc.returncode == 0, "command": cmd, "dns": hint,
+                "url": f"https://{domain}", "output": out[-3000:]}
+    except Exception as e:
+        return {"ok": False, "command": cmd, "dns": hint, "reason": f"{type(e).__name__}: {e}"}
+
+
 def run_action(provider: str, action: str, workspace: str, name: str, *,
                runner=None, timeout: int = 30) -> dict:
     """Run a provider 'logs' or 'rollback' command, or return it if the CLI is absent."""
