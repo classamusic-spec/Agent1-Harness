@@ -692,6 +692,7 @@ input[type="number"]:focus { outline: none; border-color: var(--accent); box-sha
 .mp-row:last-child { border-bottom: 0; }
 .mp-row[data-i]:hover { background: rgba(127,127,127,.10); }
 .mp-row.mp-empty { color: var(--muted); cursor: default; justify-content: center; }
+.mp-rank { flex: 0 0 auto; color: var(--muted); font-variant-numeric: tabular-nums; min-width: 22px; }
 .mp-id { flex: 1 1 auto; font-family: ui-monospace, Menlo, monospace; overflow: hidden;
   text-overflow: ellipsis; white-space: nowrap; }
 .mp-ctx { flex: 0 0 auto; color: var(--muted); font-variant-numeric: tabular-nums; }

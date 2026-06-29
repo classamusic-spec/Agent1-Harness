@@ -195,3 +195,32 @@ def test_queue_status_shape(tmp_path, monkeypatch):
     st = c.queue_status()
     assert set(st) >= {"running", "current", "pending"}
     assert st["pending"] == []
+
+
+def test_leaderboard_runs_models_and_ranks(tmp_path, monkeypatch):
+    from harness import leaderboard, server as srv
+
+    def fake_run_model(base_url, model, *, root=None, build_fn=None):
+        speed = {"glm-4.6": 80, "qwen": 40}.get(model, 10)
+        return {"model": model, "ok": True, "rounds": 1, "tokens": speed * 10,
+                "elapsed": 10.0, "tok_per_sec": speed, "error": "", "workspace": root}
+
+    monkeypatch.setattr(leaderboard, "run_model", fake_run_model)
+    c = srv.Console(specs_dir="specs", workspaces_dir=str(tmp_path))
+    state = c.start_leaderboard({"base_url": "http://localhost:11434/v1",
+                                 "models": ["qwen", "glm-4.6"]})
+    assert state["status"] in ("running", "done") and state["total"] == 2
+    for _ in range(200):
+        if c.leaderboard["status"] == "done":
+            break
+        time.sleep(0.02)
+    assert c.leaderboard["status"] == "done"
+    ranked = c.leaderboard["results"]
+    assert [r["model"] for r in ranked] == ["glm-4.6", "qwen"]   # faster first
+    assert ranked[0]["rank"] == 1
+
+
+def test_leaderboard_requires_base_url(tmp_path):
+    from harness import server as srv
+    c = srv.Console(specs_dir="specs", workspaces_dir=str(tmp_path))
+    assert "error" in c.start_leaderboard({})

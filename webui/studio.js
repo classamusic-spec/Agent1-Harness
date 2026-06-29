@@ -186,6 +186,52 @@
     });
   }
 
+  // Leaderboard: run one real build task across the server's models and rank them
+  // by pass / rounds / tok/s — "ranked by real results on your hardware".
+  let lbTimer = null;
+  async function runBenchmark() {
+    const box = $("#st-model-picker");
+    const base = $("#st-baseurl").value || $("#st-baseurl").placeholder;
+    box.hidden = false;
+    box.innerHTML = '<div class="mp-row mp-empty">Starting benchmark on ' + base + ' …</div>';
+    let r;
+    try {
+      r = await (await fetch("/api/leaderboard/run", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ base_url: base }),
+      })).json();
+    } catch { box.innerHTML = '<div class="mp-row mp-empty">✗ request failed</div>'; return; }
+    if (r.error) { box.innerHTML = '<div class="mp-row mp-empty">' + r.error + '</div>'; return; }
+    if (lbTimer) clearInterval(lbTimer);
+    lbTimer = setInterval(pollBenchmark, 1500);
+    pollBenchmark();
+  }
+  async function pollBenchmark() {
+    const box = $("#st-model-picker");
+    let s;
+    try { s = await (await fetch("/api/leaderboard")).json(); } catch { return; }
+    const running = s.status === "running";
+    if (!running && lbTimer) { clearInterval(lbTimer); lbTimer = null; }
+    const head = running
+      ? `Benchmarking ${s.done}/${s.total}` + (s.current ? ` — now: ${s.current}` : " …")
+      : `Done — ${(s.results || []).length} model(s) ranked. Click to use.`;
+    const rows = (s.results || []).map((m) => {
+      const tag = m.ok
+        ? '<span class="mp-tool ok">pass</span>'
+        : '<span class="mp-tool bad">fail</span>';
+      return '<div class="mp-row" data-model="' + m.model + '">' +
+        '<span class="mp-rank">#' + (m.rank || "?") + '</span>' +
+        '<span class="mp-id">' + m.model + '</span>' +
+        '<span class="mp-ctx">' + (m.rounds) + ' rd · ' + (m.tok_per_sec || 0) + ' t/s</span>' +
+        tag + '</div>';
+    }).join("");
+    box.innerHTML = '<div class="mp-head">' + head + '</div>' +
+      (rows || '<div class="mp-row mp-empty">no results yet…</div>');
+    box.querySelectorAll(".mp-row[data-model]").forEach((row) => {
+      row.addEventListener("click", () => { $("#st-model").value = row.dataset.model; box.hidden = true; });
+    });
+  }
+
   let detectedServers = [];
   function onEngineChange() {
     const sel = $("#st-engine").value;
@@ -1120,6 +1166,7 @@
     $("#st-engine").addEventListener("change", onEngineChange);
     $("#st-detect").addEventListener("click", detectLocalModels);
     $("#st-pick").addEventListener("click", openModelPicker);
+    $("#st-bench").addEventListener("click", runBenchmark);
     $("#st-test-conn").addEventListener("click", testConnection);
     $("#st-scaffold").addEventListener("change", onScaffoldChange);
     $("#st-send").addEventListener("click", send);

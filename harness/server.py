@@ -463,10 +463,54 @@ class Console:
         self.queue: list = []                 # (Job, params) pending builds
         self.queue_lock = threading.Lock()
         self._queue_worker = None
+        # Local-model leaderboard: status + ranked rows from the last/current run.
+        self.leaderboard = {"status": "idle", "results": [], "current": None,
+                            "base_url": "", "done": 0, "total": 0}
+        self._lb_thread = None
 
     def design_profile(self) -> dict:
         from harness import profile
         return profile.load(self.profile_path)
+
+    def start_leaderboard(self, params: dict) -> dict:
+        """Kick off a background benchmark of local models. Returns the initial state."""
+        if self.leaderboard["status"] == "running":
+            return {"error": "a benchmark is already running"}
+        base_url = str(params.get("base_url") or "").strip()
+        if not base_url:
+            return {"error": "base_url is required"}
+        models = params.get("models") or []
+        if not models:
+            from harness import modelinfo
+            info = modelinfo.list_models(base_url)
+            # Only models that can plausibly drive the build loop are worth timing.
+            models = [m["id"] for m in info.get("models", []) if m["tool_calling"] != "weak"]
+        if not models:
+            return {"error": "no candidate models found on the server"}
+        self.leaderboard = {"status": "running", "results": [], "current": None,
+                            "base_url": base_url, "done": 0, "total": len(models)}
+        self._lb_thread = threading.Thread(
+            target=self._leaderboard_worker, args=(base_url, list(models)), daemon=True)
+        self._lb_thread.start()
+        return dict(self.leaderboard)
+
+    def _leaderboard_worker(self, base_url: str, models: list[str]) -> None:
+        from harness import leaderboard
+        rows = []
+
+        def on_result(row):
+            rows.append(row)
+            self.leaderboard["results"] = leaderboard.rank(list(rows))
+            self.leaderboard["done"] = len(rows)
+
+        try:
+            for model in models:
+                self.leaderboard["current"] = model
+                row = leaderboard.run_model(base_url, model, root=self.workspaces_dir)
+                on_result(row)
+        finally:
+            self.leaderboard["current"] = None
+            self.leaderboard["status"] = "done"
 
     @staticmethod
     def _meter_cb(job: "Job"):
@@ -905,6 +949,8 @@ def make_handler(console: Console):
                 from harness import modelinfo
                 base = (q.get("base_url", [""])[0] or "").strip()
                 return self._json(modelinfo.list_models(base))
+            if path == "/api/leaderboard":
+                return self._json(console.leaderboard)
             if path == "/api/doctor":
                 from harness import doctor
                 state = doctor.probe()
@@ -1214,6 +1260,9 @@ def make_handler(console: Console):
                 from harness import localcheck
                 return self._json(localcheck.test_connection(
                     str(body.get("base_url") or ""), str(body.get("model") or "")))
+            if u.path == "/api/leaderboard/run":
+                res = console.start_leaderboard(body)
+                return self._json(res, 409 if res.get("error") else 200)
             if u.path == "/api/iterate":
                 if not body.get("workspace") or not body.get("instruction"):
                     return self._json({"error": "workspace and instruction are required"}, 400)
