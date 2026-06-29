@@ -146,6 +146,53 @@ def rollback_command(provider: str, name: str) -> str:
             "render": f"render rollbacks create {s}"}.get(provider, "")
 
 
+def _secrets_display(provider: str, name: str, keys: list[str]) -> str:
+    """A masked command (values shown as ***) safe to show in the UI/logs."""
+    s = slug(name)
+    if provider == "fly":
+        return "fly secrets set " + " ".join(f"{k}=***" for k in keys)
+    if provider == "cloudflare":
+        return "\n".join(f'echo "***" | wrangler pages secret put {k} --project-name {s}'
+                         for k in keys)
+    if provider == "render":
+        return f"# In the Render dashboard → Environment, add: {', '.join(keys)}"
+    return ""
+
+
+def push_secrets(provider: str, workspace: str, name: str,
+                 secrets: dict | None = None, *, runner=None, timeout: int = 120) -> dict:
+    """Push env vars to the host as secrets. Reads the workspace `.env` if none given.
+    SECURITY: secret values are never returned — only key names + a masked command."""
+    import shlex
+    if secrets is None:
+        from harness import env as envmod
+        secrets = envmod.load_dotenv(os.path.join(workspace, ".env"))
+    secrets = {k: str(v) for k, v in (secrets or {}).items() if str(v).strip()}
+    keys = sorted(secrets)
+    if not keys:
+        return {"ok": False, "reason": "no secrets found (.env is empty or missing)"}
+    masked = _secrets_display(provider, name, keys)
+    if provider not in PROVIDERS:
+        return {"ok": False, "reason": f"unknown provider: {provider}"}
+    # Only Fly has a clean non-interactive bulk set; others get the masked commands.
+    if provider != "fly" or not cli_available(provider):
+        return {"ok": False, "ready": cli_available(provider), "keys": keys, "command": masked,
+                "reason": (f"{PROVIDERS[provider]['cli']} CLI not found — run:"
+                           if not cli_available(provider)
+                           else "run these to set secrets:")}
+    if runner is None:
+        from harness.sandbox import HostRunner
+        runner = HostRunner()
+    real = "fly secrets set " + " ".join(f"{k}={shlex.quote(v)}" for k, v in secrets.items())
+    try:
+        proc = runner.run(real, workspace, timeout)
+    except Exception as e:
+        return {"ok": False, "keys": keys, "command": masked, "reason": f"{type(e).__name__}: {e}"}
+    # Deliberately do NOT return proc output — it could contain secret material.
+    return {"ok": proc.returncode == 0, "keys": keys, "command": masked,
+            "reason": None if proc.returncode == 0 else f"`fly secrets set` exited {proc.returncode}"}
+
+
 def domain_command(provider: str, name: str, domain: str) -> str:
     s = slug(name)
     return {"fly": f"fly certs add {domain}",

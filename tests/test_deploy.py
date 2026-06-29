@@ -135,6 +135,47 @@ def test_run_action_without_cli_returns_command(tmp_path, monkeypatch):
     assert r["ok"] is False and r["ready"] is False and r["command"] == "fly logs"
 
 
+def test_push_secrets_never_leaks_values(tmp_path, monkeypatch):
+    monkeypatch.setattr(deploy, "cli_available", lambda prov, which=None: True)
+    captured = {}
+
+    class R:
+        def run(self, command, cwd, timeout, env=None):
+            captured["cmd"] = command  # the REAL command (has values) stays server-side
+            return subprocess.CompletedProcess(command, 0, stdout="ok", stderr="")
+
+    r = deploy.push_secrets("fly", str(tmp_path), "demo",
+                            secrets={"SECRET_KEY": "s3cr3t", "DATABASE_URL": "app.db"}, runner=R())
+    assert r["ok"] is True
+    assert r["keys"] == ["DATABASE_URL", "SECRET_KEY"]
+    # the masked command + nothing in the response exposes the value
+    assert "***" in r["command"]
+    blob = repr(r)
+    assert "s3cr3t" not in blob
+    # but the real command actually carried the value
+    assert "s3cr3t" in captured["cmd"]
+
+
+def test_push_secrets_empty_env(tmp_path):
+    r = deploy.push_secrets("fly", str(tmp_path), "demo", secrets={})
+    assert r["ok"] is False and "no secrets" in r["reason"]
+
+
+def test_push_secrets_non_fly_returns_commands(tmp_path, monkeypatch):
+    monkeypatch.setattr(deploy, "cli_available", lambda prov, which=None: True)
+    r = deploy.push_secrets("cloudflare", str(tmp_path), "demo", secrets={"K": "v"})
+    assert r["ok"] is False and "wrangler pages secret put K" in r["command"]
+    assert "v" not in r["command"].replace("***", "")   # value masked
+
+
+def test_push_secrets_reads_dotenv(tmp_path, monkeypatch):
+    (tmp_path / ".env").write_text("API_KEY=abc123\nEMPTY=\n")
+    monkeypatch.setattr(deploy, "cli_available", lambda prov, which=None: False)
+    r = deploy.push_secrets("fly", str(tmp_path), "demo")
+    assert r["keys"] == ["API_KEY"]      # EMPTY skipped
+    assert r["ready"] is False
+
+
 def test_domain_command_and_dns_hint():
     assert deploy.domain_command("fly", "demo", "app.x.com") == "fly certs add app.x.com"
     assert "pages.dev" in deploy.dns_hint("cloudflare", "demo", "app.x.com")

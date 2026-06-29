@@ -1040,6 +1040,14 @@ def make_handler(console: Console):
                     return self._json(deploy.run(provider, root, name or "app"))
                 except Exception as e:
                     return self._json({"ok": False, "error": f"{type(e).__name__}: {e}"}, 500)
+            if u.path == "/api/deploy/secrets":
+                from harness import deploy
+                name = os.path.basename(body.get("workspace") or "")
+                root = self._ws_root(name)
+                if not os.path.isdir(root):
+                    return self._json({"error": "unknown workspace"}, 404)
+                return self._json(deploy.push_secrets(
+                    str(body.get("provider") or "fly"), root, name or "app"))
             if u.path == "/api/deploy/domain":
                 from harness import deploy
                 name = os.path.basename(body.get("workspace") or "")

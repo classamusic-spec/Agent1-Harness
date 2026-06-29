@@ -883,6 +883,22 @@
     } catch { $("#deploy-out").textContent = `${action} request failed`; }
   }
 
+  async function pushSecrets() {
+    if (!project) return;
+    $("#deploy-out").hidden = false; $("#deploy-out").textContent = "Pushing secrets…";
+    try {
+      const r = await (await fetch("/api/deploy/secrets", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ workspace: project, provider: $("#deploy-provider").value }),
+      })).json();
+      const lines = [];
+      if (r.keys) lines.push("Secrets: " + r.keys.join(", "));
+      if (r.ok) lines.push("✓ pushed to the host");
+      else { if (r.reason) lines.push(r.reason); if (r.command) lines.push(r.command); }
+      $("#deploy-out").textContent = lines.join("\n");  // values are never shown
+    } catch { $("#deploy-out").textContent = "secrets request failed"; }
+  }
+
   async function addDomain() {
     if (!project) return;
     const domain = $("#deploy-domain").value.trim();
@@ -968,6 +984,7 @@
     $("#deploy-logs").addEventListener("click", () => deployAction("logs"));
     $("#deploy-rollback").addEventListener("click", () => deployAction("rollback"));
     $("#deploy-domain-go").addEventListener("click", addDomain);
+    $("#deploy-secrets").addEventListener("click", pushSecrets);
     $("#st-style").addEventListener("click", openProfile);
     $("#profile-close").addEventListener("click", closeProfile);
     $("#profile-save").addEventListener("click", saveProfile);
