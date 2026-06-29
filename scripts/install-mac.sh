@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Agent1-Harness — one-command setup for macOS (Apple Silicon or Intel).
+# Lathe — one-command setup for macOS (Apple Silicon or Intel).
 #
 #   ./scripts/install-mac.sh                # Python venv + harness (+ local engine)
 #   ./scripts/install-mac.sh --with-ollama   # also install Ollama + pull a coder model

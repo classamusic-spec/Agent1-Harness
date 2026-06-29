@@ -1,8 +1,10 @@
-# Agent1-Harness
+# Lathe
 
-An **agent that builds applications from a spec** — a master front-end UI
-designer and a rigorous backend engineer — that runs on **your Claude Code CLI,
-the Claude Agent SDK, or your own local LLM** (GLM / MiniMax / Qwen / …),
+**Describe it · any engine builds it.** Lathe is an **agent that builds, verifies,
+previews, ships, and deploys full applications from a spec** — a master front-end
+UI designer and a rigorous backend engineer — that runs on **Claude Code, OpenAI
+Codex / ChatGPT, the Claude or OpenAI API, or your own local LLM** (Qwen / GLM /
+MiniMax / …),
 improves itself by **learning from its mistakes**, and gates every build behind
 **deterministic verification + an independent reviewer/sentry**. A **Studio**
 surface lets you build and iterate conversationally with a **live preview**,

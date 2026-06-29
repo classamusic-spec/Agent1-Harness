@@ -1344,7 +1344,7 @@ def make_handler(console: Console):
 def serve(host: str, port: int, specs_dir: str, workspaces_dir: str = "workspaces") -> None:
     console = Console(specs_dir, workspaces_dir)
     httpd = ThreadingHTTPServer((host, port), make_handler(console))
-    print(f"Agent1-Harness console on http://{host}:{port}  (specs: {specs_dir})")
+    print(f"Lathe console on http://{host}:{port}  (specs: {specs_dir})")
     try:
         httpd.serve_forever()
     except KeyboardInterrupt:

@@ -4,6 +4,14 @@ Where the agent is strong today, and the highest-leverage things to add next.
 Ordered by impact-to-effort.
 
 ## Today (done)
+- **Named: Lathe** — "describe it · any engine builds it." (UI title, README, doctor
+  banner; the Python package stays `harness`.)
+- **OpenAI + Codex engines** — build with your **OpenAI API key** (`--engine openai`)
+  or your **ChatGPT/Codex subscription** via the `codex` CLI (`--engine codex-cli`,
+  no API key), alongside Claude Code and local LLMs. `harness/engines/codex_cli_engine.py`,
+  factory + doctor + Studio + CLI wiring.
+- **Cost estimates** — the usage dashboard shows an "Est. cost ≈ $X" from per-model
+  blended rates (local = free). `harness/pricing.py`.
 - **Cost / usage dashboard** — every build & iterate appends to a usage log
   (`.usage.jsonl`); the Gallery shows totals (builds, tokens, time, pass rate),
   top projects, and a tokens-per-day sparkline. `harness/usage.py`, `/api/usage`.

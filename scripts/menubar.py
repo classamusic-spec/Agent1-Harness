@@ -1,4 +1,4 @@
-"""macOS menu-bar app for Agent1-Harness.
+"""macOS menu-bar app for Lathe.
 
 A tiny ✦ menu in the macOS menu bar to start/stop the web console and open it —
 no Terminal needed. Built on `rumps` (a small menu-bar lib).

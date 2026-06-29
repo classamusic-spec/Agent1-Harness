@@ -126,7 +126,7 @@ def recommend(state: dict) -> dict | None:
 def render(state: dict) -> str:
     def mark(ok):
         return "✓" if ok else "·"
-    lines = ["Agent1-Harness — engine check", ""]
+    lines = ["Lathe — engine check", ""]
     lines.append(f"  {mark(state['claude_cli'])} Claude Code (CLI)   "
                  + ("found" if state["claude_cli"] else "not found — install: npm i -g @anthropic-ai/claude-code"))
     lines.append(f"  {mark(state.get('codex_cli'))} Codex CLI (ChatGPT) "
