@@ -475,6 +475,7 @@ class Console:
         self.profile_path = os.path.join(os.path.abspath(workspaces_dir), ".profile.json")
         self.templates_dir = os.path.join(os.path.abspath(workspaces_dir), ".templates")
         self.usage_path = os.path.join(os.path.abspath(workspaces_dir), ".usage.jsonl")
+        self.session_path = os.path.join(os.path.abspath(workspaces_dir), ".session.json")
         self.queue: list = []                 # (Job, params) pending builds
         self.queue_lock = threading.Lock()
         self._queue_worker = None
@@ -486,6 +487,33 @@ class Console:
     def design_profile(self) -> dict:
         from harness import profile
         return profile.load(self.profile_path)
+
+    def load_session(self) -> dict:
+        """The last active Studio session (project + engine), so a reopened/reclaimed
+        container resumes where you left off."""
+        try:
+            with open(self.session_path, encoding="utf-8") as fh:
+                data = json.load(fh)
+            return data if isinstance(data, dict) else {}
+        except (OSError, ValueError):
+            return {}
+
+    def save_session(self, patch: dict) -> dict:
+        """Merge `patch` into the persisted session and return the result."""
+        data = self.load_session()
+        data.update({k: v for k, v in (patch or {}).items() if v is not None})
+        # Drop a project that no longer exists on disk (stale after a cleanup).
+        proj = data.get("project")
+        if proj and not os.path.isdir(os.path.join(self.workspaces_dir, os.path.basename(str(proj)))):
+            data.pop("project", None)
+        try:
+            tmp = self.session_path + ".tmp"
+            with open(tmp, "w", encoding="utf-8") as fh:
+                json.dump(data, fh)
+            os.replace(tmp, self.session_path)
+        except OSError:
+            pass
+        return data
 
     def start_leaderboard(self, params: dict) -> dict:
         """Kick off a background benchmark of local models. Returns the initial state."""
@@ -680,6 +708,8 @@ class Console:
         job = Job(str(int(time.time() * 1000)), workspace)
         self.jobs[job.id] = job
         self.current = job
+        self.save_session({"project": name, "engine": params.get("engine"),
+                           "model": params.get("model"), "base_url": params.get("base_url")})
         threading.Thread(target=self._run_iterate, args=(job, params), daemon=True).start()
         return job
 
@@ -851,6 +881,9 @@ class Console:
             "scaffold": spec.scaffold,
             "checks": meta_checks,
         })
+        self.save_session({"project": os.path.basename(job.workspace),
+                           "engine": params.get("engine"), "model": params.get("model"),
+                           "base_url": params.get("base_url")})
         if params.get("check_only"):
             report = run_tests(job.workspace, [_check_to_dict(c) for c in spec.checks])
             for r in report.get("results", []):
@@ -1007,6 +1040,8 @@ def make_handler(console: Console):
                 return self._json(modelinfo.list_models(base))
             if path == "/api/leaderboard":
                 return self._json(console.leaderboard)
+            if path == "/api/session":
+                return self._json({"session": console.load_session()})
             if path == "/api/git-history":
                 from harness import autocommit
                 root = self._ws_root(q.get("dir", [""])[0])
@@ -1324,6 +1359,8 @@ def make_handler(console: Console):
             if u.path == "/api/leaderboard/run":
                 res = console.start_leaderboard(body)
                 return self._json(res, 409 if res.get("error") else 200)
+            if u.path == "/api/session":
+                return self._json({"session": console.save_session(body if isinstance(body, dict) else {})})
             if u.path == "/api/git-undo":
                 from harness import autocommit
                 root = self._ws_root(str(body.get("workspace") or body.get("dir") or ""))

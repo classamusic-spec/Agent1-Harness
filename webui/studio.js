@@ -1285,9 +1285,25 @@
     }
     const proj = qs.get("proj");
     if (proj && project !== proj) setProject(proj);
-    else if (!project && names.length) setProject(names[0]);
+    else if (!project) await restoreSession(names);
     if (qs.get("view") === "diff") setMode("diff");
     reconnectIfBusy();
+  }
+
+  // Resume the last session across reloads / a reclaimed container: re-select the
+  // last project and restore the engine choice. Falls back to the first project.
+  async function restoreSession(names) {
+    let s = {};
+    try { s = (await (await fetch("/api/session")).json()).session || {}; } catch {}
+    if (s.engine) {
+      const opt = [...$("#st-engine").options].find((o) => o.value === s.engine
+        || (s.engine.startsWith("local") && o.value.startsWith("local")));
+      if (opt) { $("#st-engine").value = opt.value; onEngineChange(); }
+      if (s.model) $("#st-model").value = s.model;
+      if (s.base_url) $("#st-baseurl").value = s.base_url;
+    }
+    if (s.project && names.includes(s.project)) setProject(s.project);
+    else if (names.length) setProject(names[0]);
   }
 
   // If a build/iterate is already running (e.g. the page was reloaded mid-run),

@@ -227,6 +227,35 @@ def test_leaderboard_requires_base_url(tmp_path):
     assert "error" in c.start_leaderboard({})
 
 
+def test_session_save_and_load(tmp_path):
+    from harness import server as srv
+    (tmp_path / "myapp").mkdir()
+    c = srv.Console(specs_dir="specs", workspaces_dir=str(tmp_path))
+    assert c.load_session() == {}
+    c.save_session({"project": "myapp", "engine": "local", "model": "glm-4.6"})
+    s = c.load_session()
+    assert s["project"] == "myapp" and s["engine"] == "local" and s["model"] == "glm-4.6"
+    # merge: a later partial update keeps prior keys, ignores None
+    c.save_session({"model": "minimax-m3", "base_url": None})
+    s2 = c.load_session()
+    assert s2["model"] == "minimax-m3" and s2["engine"] == "local"
+
+
+def test_session_drops_missing_project(tmp_path):
+    from harness import server as srv
+    c = srv.Console(specs_dir="specs", workspaces_dir=str(tmp_path))
+    s = c.save_session({"project": "ghost", "engine": "local"})   # dir doesn't exist
+    assert "project" not in s and s["engine"] == "local"
+
+
+def test_session_load_survives_corrupt_file(tmp_path):
+    from harness import server as srv
+    c = srv.Console(specs_dir="specs", workspaces_dir=str(tmp_path))
+    with open(c.session_path, "w") as fh:
+        fh.write("{not json")
+    assert c.load_session() == {}
+
+
 def test_diff_approval_commits_on_approve(tmp_path):
     import shutil
     if shutil.which("git") is None:
