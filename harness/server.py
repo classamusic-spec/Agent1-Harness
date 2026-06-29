@@ -720,6 +720,16 @@ class Console:
             if tgt.get("html"):
                 block += f"\n- current markup:\n{str(tgt['html'])[:600]}"
             instruction = instruction + block
+            # Ship the full content of the file most relevant to the pointed element,
+            # so the model edits the right place without a read round.
+            try:
+                from harness import repomap
+                hint = " ".join(str(tgt.get(k, "")) for k in ("selector", "label", "text", "html"))
+                fb = repomap.focus_block(job.workspace, hint)
+                if fb:
+                    instruction = instruction + "\n\n" + fb
+            except Exception:
+                pass
 
         meta = studio_meta(job.workspace)
         kind = params.get("kind") or meta.get("kind") or "frontend"

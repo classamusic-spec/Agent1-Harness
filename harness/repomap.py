@@ -75,6 +75,59 @@ def collect(workspace: str, *, max_files: int = 60, max_symbols: int = 12) -> li
     return files[:max_files]
 
 
+def _iter_source_files(workspace: str):
+    for dp, dirnames, filenames in os.walk(workspace):
+        dirnames[:] = sorted(d for d in dirnames if d not in _SKIP_DIRS and not d.startswith("."))
+        for fn in sorted(filenames):
+            if os.path.splitext(fn)[1].lower() in _SOURCE_EXT:
+                yield os.path.join(dp, fn)
+
+
+def _tokens(hint: str) -> list[str]:
+    return [w for w in re.findall(r"[A-Za-z0-9_-]+", (hint or "").lower()) if len(w) >= 3]
+
+
+def focus(workspace: str, hint: str, *, max_bytes: int = 4000) -> dict:
+    """The single file most relevant to `hint` (e.g. a pointed element's selector /
+    text / markup), with its content. Returns {} when nothing matches well.
+
+    Lets an iterate that targets a specific element ship the *full* relevant file
+    next to the repo map, so the model edits the right place without a read round."""
+    tokens = _tokens(hint)
+    if not tokens:
+        return {}
+    best, best_score, best_text = None, 0, ""
+    for full in _iter_source_files(workspace):
+        try:
+            text = open(full, encoding="utf-8", errors="replace").read()
+        except OSError:
+            continue
+        low = text.lower()
+        # Count token hits (capped per token so a huge file can't dominate on noise).
+        score = sum(min(low.count(t), 5) for t in set(tokens))
+        # Strong bonus when a longer literal fragment from the hint appears verbatim.
+        for frag in re.findall(r"[A-Za-z0-9_-]{6,}", hint or ""):
+            if frag.lower() in low:
+                score += 4
+        if score > best_score:
+            best, best_score, best_text = os.path.relpath(full, workspace), score, text
+    if not best or best_score <= 0:
+        return {}
+    content = best_text
+    if len(content) > max_bytes:
+        content = content[:max_bytes] + "\n… (file truncated)"
+    return {"path": best, "score": best_score, "content": content}
+
+
+def focus_block(workspace: str, hint: str, *, max_bytes: int = 4000) -> str:
+    """A ready-to-inject block with the most relevant file's full content, or ''."""
+    f = focus(workspace, hint, max_bytes=max_bytes)
+    if not f:
+        return ""
+    return (f"## Most relevant file: {f['path']} (full content — edit here)\n"
+            f"```\n{f['content']}\n```")
+
+
 def render(workspace: str, *, max_files: int = 60, max_symbols: int = 12,
            max_bytes: int = 6000) -> str:
     """A compact text repo map, or '' if the workspace has no source files."""

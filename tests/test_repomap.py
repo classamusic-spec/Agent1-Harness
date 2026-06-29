@@ -56,3 +56,33 @@ def test_symbol_cap_per_file(tmp_path):
     (tmp_path / "big.py").write_text("\n".join(f"def fn{i}():\n    pass" for i in range(50)))
     syms = repomap.collect(str(tmp_path), max_symbols=5)[0]["symbols"]
     assert len(syms) == 5
+
+
+def test_focus_picks_most_relevant_file(tmp_path):
+    (tmp_path / "header.html").write_text('<header class="site-nav"><a>Home</a></header>')
+    (tmp_path / "footer.html").write_text('<footer class="site-foot">© 2026</footer>')
+    f = repomap.focus(str(tmp_path), "the site-nav header link")
+    assert f["path"] == "header.html" and "site-nav" in f["content"]
+
+
+def test_focus_empty_when_no_match(tmp_path):
+    (tmp_path / "a.py").write_text("def unrelated():\n    pass\n")
+    assert repomap.focus(str(tmp_path), "zzz-nonexistent-token-qqq") == {}
+
+
+def test_focus_no_hint(tmp_path):
+    (tmp_path / "a.py").write_text("x=1\n")
+    assert repomap.focus(str(tmp_path), "") == {}
+    assert repomap.focus(str(tmp_path), "a an of") == {}   # all stopword-short tokens
+
+
+def test_focus_block_formats_content(tmp_path):
+    (tmp_path / "app.js").write_text("function greetUser(){ return 'hi'; }")
+    block = repomap.focus_block(str(tmp_path), "greetUser greeting button")
+    assert "Most relevant file: app.js" in block and "greetUser" in block
+
+
+def test_focus_truncates_large_file(tmp_path):
+    (tmp_path / "big.js").write_text("const widget = 1;\n" + "x" * 9000)
+    f = repomap.focus(str(tmp_path), "widget", max_bytes=500)
+    assert len(f["content"]) <= 560 and "truncated" in f["content"]
