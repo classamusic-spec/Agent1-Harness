@@ -88,7 +88,10 @@
               <span class="badge" id="st-status" data-state="idle">idle</span>
             </div>
 
-            <label for="st-engine">Engine <button type="button" id="st-style" class="linkish" title="Your house style — applied to every build">🎨 design profile</button></label>
+            <label for="st-engine">Engine
+              <button type="button" id="st-style" class="linkish" title="Your house style — applied to every build">🎨 design profile</button>
+              <button type="button" id="st-templates" class="linkish" title="Start from / save a template">📦 templates</button>
+            </label>
             <div class="select-wrap"><select id="st-engine">
               <option value="claude-cli">Claude Code (CLI)</option>
               <option value="local:ollama">Local · Ollama</option>
@@ -303,6 +306,31 @@
             <button id="profile-save" class="primary" type="button">Save profile</button>
             <span class="ship-msg" id="profile-msg"></span>
           </div>
+        </dialog>
+
+        <!-- TEMPLATES (marketplace) dialog -->
+        <dialog id="tpl-dialog" class="ship-dialog">
+          <div class="ship-head">
+            <strong>📦 Templates</strong>
+            <button id="tpl-close" class="ghost" type="button">Close</button>
+          </div>
+          <p class="ship-sub">Reusable project starters — files + settings + your design
+            profile, in one shareable bundle. Use one to seed a new project, save the current
+            one, or import a shared <code>.json</code>.</p>
+          <ul class="tpl-list" id="tpl-list"></ul>
+          <div class="tpl-forms">
+            <div class="tpl-save">
+              <strong>Save current project</strong>
+              <input id="tpl-name" type="text" placeholder="Template name" />
+              <input id="tpl-desc" type="text" placeholder="Short description" />
+              <button id="tpl-save-btn" class="primary" type="button">Save as template</button>
+            </div>
+            <div class="tpl-import">
+              <strong>Import</strong>
+              <input id="tpl-file" type="file" accept="application/json,.json" />
+            </div>
+          </div>
+          <div class="ship-msg" id="tpl-msg"></div>
         </dialog>
 
         <!-- BUILD -->

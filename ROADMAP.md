@@ -4,6 +4,16 @@ Where the agent is strong today, and the highest-leverage things to add next.
 Ordered by impact-to-effort.
 
 ## Today (done)
+- **Template marketplace** — save a built project (files + settings + your design
+  profile) as a reusable, shareable template; browse them, **Use** one to seed a new
+  project (files + house style applied), **Download** / **Import** the JSON to share.
+  `harness/templates.py` (capture/save/list/load/apply, path-traversal guarded),
+  `/api/templates*`, a 📦 Templates dialog in Studio.
+- **Custom domains** — attach a custom domain to a deploy: runs the provider's
+  domain command (or shows it) and returns the DNS records to add. `deploy.add_domain`,
+  `/api/deploy/domain`, a domain field in the deploy section.
+- **CI on export** — GitHub export adds a stack-aware `.github/workflows/ci.yml`
+  (node/python/static) so the repo is green on first push. `harness/ci.py`.
 - **GitHub export** — push a built app to a new repo: writes a secret-safe
   `.gitignore` (excludes `.env`/DBs, keeps `.env.example`), inits + commits, and
   (with the `gh` CLI) creates the repo + pushes, returning the URL — else commits

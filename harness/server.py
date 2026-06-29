@@ -457,6 +457,7 @@ class Console:
         self.current: Job | None = None
         self.runtime = RuntimeManager()  # the live dev server for full-stack preview
         self.profile_path = os.path.join(os.path.abspath(workspaces_dir), ".profile.json")
+        self.templates_dir = os.path.join(os.path.abspath(workspaces_dir), ".templates")
 
     def design_profile(self) -> dict:
         from harness import profile
@@ -797,6 +798,13 @@ def make_handler(console: Console):
                 return self._json({"scaffolds": scaffolds.list_scaffolds()})
             if path == "/api/profile":
                 return self._json(console.design_profile())
+            if path == "/api/templates":
+                from harness import templates
+                return self._json({"templates": templates.list_templates(console.templates_dir)})
+            if path == "/api/templates/get":
+                from harness import templates
+                t = templates.load(console.templates_dir, q.get("name", [""])[0])
+                return self._json(t if t else {"error": "not found"}, 200 if t else 404)
             if path == "/api/local-models":
                 from harness import doctor
                 return self._json({"servers": doctor.detect_local_servers()})
@@ -975,6 +983,39 @@ def make_handler(console: Console):
             if u.path == "/api/profile":
                 from harness import profile
                 return self._json(profile.save(console.profile_path, body))
+            if u.path == "/api/templates":  # save current project as a template
+                from harness import templates
+                name = os.path.basename(body.get("workspace") or "")
+                root = self._ws_root(name)
+                if not os.path.isdir(root):
+                    return self._json({"error": "unknown workspace"}, 404)
+                meta = studio_meta(root)
+                t = templates.from_workspace(
+                    root, str(body.get("name") or name), str(body.get("description") or ""),
+                    kind=meta.get("kind", "frontend"), run=meta.get("run") or "",
+                    scaffold=meta.get("scaffold"), profile=console.design_profile())
+                return self._json(templates.save(console.templates_dir, t))
+            if u.path == "/api/templates/import":
+                from harness import templates
+                t = body.get("template") or body
+                try:
+                    return self._json(templates.save(console.templates_dir, t))
+                except ValueError as e:
+                    return self._json({"error": str(e)}, 400)
+            if u.path == "/api/templates/use":
+                from harness import profile, templates
+                t = templates.load(console.templates_dir, str(body.get("name") or ""))
+                if not t:
+                    return self._json({"error": "template not found"}, 404)
+                new = os.path.basename(str(body.get("new_name") or t.get("name") or "app"))
+                root = os.path.join(os.path.abspath(console.workspaces_dir), new)
+                settings = templates.apply(t, root)
+                write_studio_meta(root, {
+                    "kind": settings["kind"], "engine": "claude-cli", "model": "",
+                    "run": settings["run"], "scaffold": settings["scaffold"], "checks": []})
+                if settings.get("profile"):
+                    profile.save(console.profile_path, settings["profile"])
+                return self._json({"ok": True, "workspace": new, "settings": settings})
             if u.path == "/api/github/export":
                 from harness import ghexport
                 name = os.path.basename(body.get("workspace") or "")

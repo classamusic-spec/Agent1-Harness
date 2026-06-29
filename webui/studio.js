@@ -772,6 +772,87 @@
     if (typeof dlg.close === "function") dlg.close(); else dlg.removeAttribute("open");
   }
 
+  // --- template marketplace ---------------------------------------------------
+  async function openTemplates() {
+    const dlg = $("#tpl-dialog");
+    $("#tpl-msg").textContent = "";
+    $("#tpl-name").value = project || ""; $("#tpl-desc").value = "";
+    await refreshTemplates();
+    if (typeof dlg.showModal === "function") dlg.showModal(); else dlg.setAttribute("open", "");
+  }
+  async function refreshTemplates() {
+    const ul = $("#tpl-list"); ul.innerHTML = "";
+    try {
+      const r = await (await fetch("/api/templates")).json();
+      const tpls = r.templates || [];
+      if (!tpls.length) { ul.innerHTML = '<li class="muted">No templates yet — save one below.</li>'; return; }
+      for (const t of tpls) {
+        const li = document.createElement("li");
+        li.innerHTML =
+          `<div class="tpl-meta"><b>${t.name}</b>${t.has_profile ? ' <span class="pill">styled</span>' : ""}` +
+          `<span class="muted"> · ${t.kind} · ${t.files} files</span>` +
+          `<div class="muted">${t.description || ""}</div></div>`;
+        const use = document.createElement("button");
+        use.className = "ghost"; use.textContent = "Use";
+        use.addEventListener("click", () => useTemplate(t.id));
+        const dl = document.createElement("a");
+        dl.className = "ghost"; dl.textContent = "Download"; dl.href = `/api/templates/get?name=${encodeURIComponent(t.id)}`;
+        dl.setAttribute("download", `${t.id}.json`);
+        const actions = document.createElement("div"); actions.className = "tpl-actions";
+        actions.append(use, dl); li.appendChild(actions);
+        ul.appendChild(li);
+      }
+    } catch {}
+  }
+  async function useTemplate(id) {
+    const newName = prompt("New project name:", id + "-app");
+    if (!newName) return;
+    $("#tpl-msg").textContent = "Creating project from template…";
+    try {
+      const r = await (await fetch("/api/templates/use", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: id, new_name: newName }),
+      })).json();
+      if (r.error) { $("#tpl-msg").textContent = r.error; return; }
+      closeTemplates();
+      await populateProjects();
+      project = r.workspace; selectLabel(project); intoIterateMode();
+      loadFiles(); reloadPreview();
+      $("#st-prompt").focus();
+    } catch { $("#tpl-msg").textContent = "failed to use template"; }
+  }
+  async function saveTemplate() {
+    if (!project) { $("#tpl-msg").textContent = "Open a project first."; return; }
+    const name = $("#tpl-name").value.trim();
+    if (!name) { $("#tpl-msg").textContent = "Name required."; return; }
+    try {
+      const r = await (await fetch("/api/templates", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ workspace: project, name, description: $("#tpl-desc").value }),
+      })).json();
+      $("#tpl-msg").textContent = r.error ? r.error : `✓ Saved "${r.name}" (${r.files} files)`;
+      refreshTemplates();
+    } catch { $("#tpl-msg").textContent = "save failed"; }
+  }
+  async function importTemplate(e) {
+    const f = e.target.files && e.target.files[0];
+    if (!f) return;
+    try {
+      const tpl = JSON.parse(await f.text());
+      const r = await (await fetch("/api/templates/import", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ template: tpl }),
+      })).json();
+      $("#tpl-msg").textContent = r.error ? r.error : `✓ Imported "${r.name}"`;
+      refreshTemplates();
+    } catch { $("#tpl-msg").textContent = "import failed (invalid JSON?)"; }
+    e.target.value = "";
+  }
+  function closeTemplates() {
+    const dlg = $("#tpl-dialog");
+    if (typeof dlg.close === "function") dlg.close(); else dlg.removeAttribute("open");
+  }
+
   async function loadDeployHistory() {
     const ul = $("#deploy-history"); ul.innerHTML = "";
     try {
@@ -888,6 +969,10 @@
     $("#st-style").addEventListener("click", openProfile);
     $("#profile-close").addEventListener("click", closeProfile);
     $("#profile-save").addEventListener("click", saveProfile);
+    $("#st-templates").addEventListener("click", openTemplates);
+    $("#tpl-close").addEventListener("click", closeTemplates);
+    $("#tpl-save-btn").addEventListener("click", saveTemplate);
+    $("#tpl-file").addEventListener("change", importTemplate);
     $("#st-mode-files").addEventListener("click", () => setMode("files"));
     $("#st-mode-diff").addEventListener("click", () => setMode("diff"));
     $("#st-from").addEventListener("change", showDiff);

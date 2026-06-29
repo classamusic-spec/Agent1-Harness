@@ -728,3 +728,17 @@ input[type="number"]:focus { outline: none; border-color: var(--accent); box-sha
 .domain-input { flex: 1; min-width: 160px; font: inherit; font-size: .85rem; color: var(--text);
   padding: 7px 10px; border: 1px solid var(--hairline-strong); border-radius: var(--radius-sm);
   background: var(--surface); }
+
+/* Template marketplace dialog */
+.tpl-list { list-style: none; padding: 0; margin: 0 18px 14px; max-height: 38vh; overflow: auto; }
+.tpl-list li { display: flex; align-items: center; gap: 10px; padding: 10px 0;
+  border-top: 1px solid var(--hairline); font-size: .86rem; }
+.tpl-list .tpl-meta { flex: 1; }
+.tpl-list .tpl-actions { display: flex; gap: 6px; }
+.tpl-list .muted { font-size: .8rem; }
+.tpl-forms { display: grid; grid-template-columns: 2fr 1fr; gap: 16px; margin: 0 18px 12px;
+  padding-top: 12px; border-top: 1px solid var(--hairline); }
+.tpl-forms strong { display: block; margin-bottom: 8px; font-size: .85rem; }
+.tpl-save input { display: block; width: 100%; margin-bottom: 8px; font: inherit; font-size: .88rem;
+  padding: 8px 10px; border: 1px solid var(--hairline-strong); border-radius: var(--radius-sm);
+  background: var(--surface); color: var(--text); }
