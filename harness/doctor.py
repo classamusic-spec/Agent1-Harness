@@ -49,15 +49,26 @@ def _models_from(payload) -> list[str]:
     return [str(m.get("id")) for m in (payload.get("data") or []) if m.get("id")]
 
 
-def detect_local_server(get=_get_json) -> dict | None:
-    """Return {name, base_url, models} for the first reachable local LLM server."""
-    for name, url, base in (("Ollama", OLLAMA_URL, "http://localhost:11434/v1"),
-                            ("LM Studio", LMSTUDIO_URL, "http://localhost:1234/v1")):
+_LOCAL_SERVERS = (
+    ("Ollama", OLLAMA_URL, "http://localhost:11434/v1"),
+    ("LM Studio", LMSTUDIO_URL, "http://localhost:1234/v1"),
+)
+
+
+def detect_local_servers(get=_get_json) -> list[dict]:
+    """Every reachable local LLM server, with the models it has loaded/downloaded."""
+    out = []
+    for name, url, base in _LOCAL_SERVERS:
         payload = get(url)
-        models = _models_from(payload)
         if payload is not None:
-            return {"name": name, "base_url": base, "models": models}
-    return None
+            out.append({"name": name, "base_url": base, "models": _models_from(payload)})
+    return out
+
+
+def detect_local_server(get=_get_json) -> dict | None:
+    """The first reachable local LLM server (back-compat)."""
+    servers = detect_local_servers(get)
+    return servers[0] if servers else None
 
 
 def pick_coder_model(models: list[str]) -> str | None:

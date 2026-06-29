@@ -15,10 +15,9 @@
   // Local-LLM presets — editable. Model ids depend on what your server exposes
   // (Ollama/LM Studio/vLLM). GLM / MiniMax / Qwen are common OpenAI-compatible.
   const PRESETS = {
-    "local:glm":     { model: "glm-4",         base_url: "http://localhost:11434/v1" },
-    "local:minimax": { model: "minimax-m1",    base_url: "http://localhost:11434/v1" },
-    "local:qwen":    { model: "qwen2.5-coder", base_url: "http://localhost:11434/v1" },
-    "local:custom":  { model: "",              base_url: "http://localhost:11434/v1" },
+    "local:ollama":   { model: "qwen2.5-coder", base_url: "http://localhost:11434/v1" },
+    "local:lmstudio": { model: "",              base_url: "http://localhost:1234/v1" },
+    "local:custom":   { model: "",              base_url: "http://localhost:11434/v1" },
   };
 
   function onRefFile(e) {
@@ -85,6 +84,7 @@
     if (s && $("#st-kind")) $("#st-kind").value = s.kind;
   }
 
+  let detectedServers = [];
   function onEngineChange() {
     const sel = $("#st-engine").value;
     const local = sel.startsWith("local");
@@ -93,6 +93,41 @@
       const p = PRESETS[sel] || PRESETS["local:custom"];
       $("#st-model").placeholder = p.model || "model id";
       $("#st-baseurl").placeholder = p.base_url;
+      if (!$("#st-baseurl").value) $("#st-baseurl").value = p.base_url;
+      detectLocalModels();  // populate from models already on the machine
+    } else {
+      $("#st-local-hint").hidden = true;
+    }
+  }
+
+  // Use models already downloaded on the user's hardware (Ollama / LM Studio / any
+  // OpenAI-compatible server). Fills the datalist and auto-selects a sensible model.
+  async function detectLocalModels() {
+    const hint = $("#st-local-hint");
+    try {
+      const r = await (await fetch("/api/local-models")).json();
+      detectedServers = r.servers || [];
+    } catch { detectedServers = []; }
+    const sel = $("#st-engine").value;
+    const wantBase = (PRESETS[sel] || {}).base_url;
+    // Prefer the server matching the chosen preset's port; else the first detected.
+    let srv = detectedServers.find((s) => wantBase && s.base_url === wantBase)
+              || detectedServers[0];
+    const dl = $("#st-models"); dl.innerHTML = "";
+    if (srv && srv.models.length) {
+      for (const m of srv.models) { const o = document.createElement("option"); o.value = m; dl.appendChild(o); }
+      if (!$("#st-baseurl").value || wantBase) $("#st-baseurl").value = srv.base_url;
+      if (!$("#st-model").value) {
+        const coder = srv.models.find((m) => /coder|qwen|deepseek|codestral/i.test(m)) || srv.models[0];
+        $("#st-model").value = coder;
+      }
+      hint.textContent = `Found ${srv.models.length} model(s) on ${srv.name}: ${srv.models.slice(0, 6).join(", ")}`;
+      hint.hidden = false;
+    } else {
+      hint.textContent = detectedServers.length
+        ? "Server reachable but no models loaded — pull/load one (e.g. `ollama pull qwen2.5-coder`)."
+        : "No local server detected. Start Ollama (:11434) or LM Studio (:1234), then ↻ detect.";
+      hint.hidden = false;
     }
   }
 
@@ -588,6 +623,7 @@
 
   function wire() {
     $("#st-engine").addEventListener("change", onEngineChange);
+    $("#st-detect").addEventListener("click", detectLocalModels);
     $("#st-scaffold").addEventListener("change", onScaffoldChange);
     $("#st-send").addEventListener("click", send);
     $("#st-stop").addEventListener("click", stop);

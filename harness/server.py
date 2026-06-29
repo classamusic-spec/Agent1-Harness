@@ -738,6 +738,9 @@ def make_handler(console: Console):
                 return self._json({"artifacts": list_artifacts(console.workspaces_dir)})
             if path == "/api/scaffolds":
                 return self._json({"scaffolds": scaffolds.list_scaffolds()})
+            if path == "/api/local-models":
+                from harness import doctor
+                return self._json({"servers": doctor.detect_local_servers()})
             if path == "/api/persona":
                 from harness import personas
                 kind = (q.get("kind", ["fullstack"])[0] or "fullstack").strip()

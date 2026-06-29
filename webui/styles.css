@@ -676,3 +676,8 @@ input[type="number"]:focus { outline: none; border-color: var(--accent); box-sha
 .target-chip code { color: var(--text); background: transparent; padding: 0;
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; }
 .target-chip .ref-x { margin-left: auto; }
+
+/* Local-model detect link */
+.linkish { background: none; border: 0; color: var(--accent); cursor: pointer;
+  font: inherit; font-size: .78rem; padding: 0 0 0 6px; }
+.linkish:hover { text-decoration: underline; }

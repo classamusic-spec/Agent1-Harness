@@ -91,21 +91,22 @@
             <label for="st-engine">Engine</label>
             <div class="select-wrap"><select id="st-engine">
               <option value="claude-cli">Claude Code (CLI)</option>
-              <option value="local:glm">Local · GLM</option>
-              <option value="local:minimax">Local · MiniMax</option>
-              <option value="local:qwen">Local · Qwen Coder</option>
+              <option value="local:ollama">Local · Ollama</option>
+              <option value="local:lmstudio">Local · LM Studio</option>
               <option value="local:custom">Local · custom (OpenAI-compatible)</option>
             </select></div>
             <div class="two" id="st-local-fields" hidden>
               <div>
-                <label for="st-model">Model</label>
-                <input id="st-model" type="text" placeholder="model id" />
+                <label for="st-model">Model <button type="button" id="st-detect" class="linkish" title="Detect models on your machine">↻ detect</button></label>
+                <input id="st-model" type="text" placeholder="model id" list="st-models" />
+                <datalist id="st-models"></datalist>
               </div>
               <div>
                 <label for="st-baseurl">Base URL</label>
                 <input id="st-baseurl" type="text" placeholder="http://localhost:11434/v1" />
               </div>
             </div>
+            <p class="hint" id="st-local-hint" hidden></p>
 
             <div id="st-new">
               <div class="two">
