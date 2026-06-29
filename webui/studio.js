@@ -689,6 +689,49 @@
     } catch (e) { $("#deploy-out").textContent = "deploy request failed"; }
     finally { btn.disabled = false; btn.textContent = old; }
   }
+  // --- design profile (project memory): persist the user's house style ---------
+  async function openProfile() {
+    const dlg = $("#profile-dialog");
+    $("#profile-msg").textContent = "";
+    try {
+      const p = await (await fetch("/api/profile")).json();
+      $("#pf-stack").value = p.stack || "";
+      $("#pf-style").value = p.ui_style || "";
+      $("#pf-palette").value = (p.palette || []).join(", ");
+      $("#pf-type").value = p.typography || "";
+      $("#pf-components").value = p.components || "";
+      $("#pf-tone").value = p.tone || "";
+      $("#pf-notes").value = p.notes || "";
+      $("#pf-autolearn").checked = p.auto_learn !== false;
+      renderSwatches(p.palette || []);
+    } catch {}
+    if (typeof dlg.showModal === "function") dlg.showModal(); else dlg.setAttribute("open", "");
+  }
+  function renderSwatches(palette) {
+    $("#pf-swatches").innerHTML = (palette || []).map((c) =>
+      `<i class="sw" style="background:${c.replace(/[^#0-9a-fA-F]/g, "")}" title="${c}"></i>`).join("");
+  }
+  async function saveProfile() {
+    const body = {
+      stack: $("#pf-stack").value, ui_style: $("#pf-style").value,
+      palette: $("#pf-palette").value.split(",").map((s) => s.trim()).filter(Boolean),
+      typography: $("#pf-type").value, components: $("#pf-components").value,
+      tone: $("#pf-tone").value, notes: $("#pf-notes").value,
+      auto_learn: $("#pf-autolearn").checked,
+    };
+    try {
+      const p = await (await fetch("/api/profile", {
+        method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body),
+      })).json();
+      renderSwatches(p.palette || []);
+      $("#profile-msg").textContent = "✓ Saved — applied to every build & iteration.";
+    } catch { $("#profile-msg").textContent = "save failed"; }
+  }
+  function closeProfile() {
+    const dlg = $("#profile-dialog");
+    if (typeof dlg.close === "function") dlg.close(); else dlg.removeAttribute("open");
+  }
+
   function closeShip() {
     const dlg = $("#ship-dialog");
     if (typeof dlg.close === "function") dlg.close(); else dlg.removeAttribute("open");
@@ -713,6 +756,9 @@
     $("#ship-close").addEventListener("click", closeShip);
     $("#ship-add").addEventListener("click", shipAdd);
     $("#deploy-go").addEventListener("click", runDeploy);
+    $("#st-style").addEventListener("click", openProfile);
+    $("#profile-close").addEventListener("click", closeProfile);
+    $("#profile-save").addEventListener("click", saveProfile);
     $("#st-mode-files").addEventListener("click", () => setMode("files"));
     $("#st-mode-diff").addEventListener("click", () => setMode("diff"));
     $("#st-from").addEventListener("change", showDiff);

@@ -88,7 +88,7 @@
               <span class="badge" id="st-status" data-state="idle">idle</span>
             </div>
 
-            <label for="st-engine">Engine</label>
+            <label for="st-engine">Engine <button type="button" id="st-style" class="linkish" title="Your house style — applied to every build">🎨 design profile</button></label>
             <div class="select-wrap"><select id="st-engine">
               <option value="claude-cli">Claude Code (CLI)</option>
               <option value="local:ollama">Local · Ollama</option>
@@ -262,6 +262,31 @@
             <p class="ship-sub" id="deploy-note">Pushes the packaged app to your host using its
               CLI (authenticate once). No CLI yet? You'll get the exact commands to run.</p>
             <pre class="ship-preview" id="deploy-out" hidden></pre>
+          </div>
+        </dialog>
+
+        <!-- DESIGN PROFILE dialog -->
+        <dialog id="profile-dialog" class="ship-dialog">
+          <div class="ship-head">
+            <strong>🎨 Design profile</strong>
+            <button id="profile-close" class="ghost" type="button">Close</button>
+          </div>
+          <p class="ship-sub">Your house style — woven into every build &amp; iteration so apps feel
+            like yours. Leave fields blank to skip them.</p>
+          <div class="profile-grid">
+            <label>Preferred stack <input id="pf-stack" type="text" placeholder="e.g. vanilla JS, or React + Tailwind" /></label>
+            <label>UI style <input id="pf-style" type="text" placeholder="e.g. minimal, glassmorphic, rounded, lots of whitespace" /></label>
+            <label>Palette <span class="muted">(comma-separated)</span> <input id="pf-palette" type="text" placeholder="#0b0f17, #5e8cff, #eef1f8" /></label>
+            <label>Typography <input id="pf-type" type="text" placeholder="e.g. Inter, generous line-height" /></label>
+            <label>Component conventions <input id="pf-components" type="text" placeholder="e.g. card-based, soft shadows, pill buttons" /></label>
+            <label>Voice / tone <input id="pf-tone" type="text" placeholder="e.g. calm and concise" /></label>
+            <label class="profile-wide">Other notes <textarea id="pf-notes" rows="2" placeholder="Anything else that makes it feel like your work…"></textarea></label>
+          </div>
+          <label class="toggle"><input type="checkbox" id="pf-autolearn" /> <span>Auto-learn the palette from apps I build</span></label>
+          <span class="profile-swatches" id="pf-swatches"></span>
+          <div class="ship-actions">
+            <button id="profile-save" class="primary" type="button">Save profile</button>
+            <span class="ship-msg" id="profile-msg"></span>
           </div>
         </dialog>
 

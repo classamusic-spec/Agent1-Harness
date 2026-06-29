@@ -120,6 +120,9 @@ class HarnessConfig:
     # Patch-level review: give the reviewer the unified diff of the last change so it
     # focuses on what changed (faster, sharper verdicts on iterative builds).
     patch_review: bool = False
+    # Design profile / project memory: the user's house style (stack, palette, UI
+    # taste) injected into build/iterate prompts so apps feel consistent.
+    design_profile: dict | None = None
     # Visual-diff refinement: after a build, screenshot it, ask the vision model how
     # it differs from the reference, and repair — up to max_visual_repairs times.
     visual_check: bool = False

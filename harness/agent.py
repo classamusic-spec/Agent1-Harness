@@ -107,6 +107,15 @@ def _expired(start: float, deadline: float | None) -> bool:
     return deadline is not None and (time.monotonic() - start) >= deadline
 
 
+def _profile_note(config: HarnessConfig) -> str:
+    """Render the user's design profile (house style) into a prompt block."""
+    prof = getattr(config, "design_profile", None)
+    if not prof:
+        return ""
+    from harness import profile as profmod
+    return profmod.render(prof)
+
+
 async def _resolve_design(config: HarnessConfig, ws: str, echo: bool) -> str:
     """Turn a reference image into a design brief (two-stage) or stage it for a
     multimodal coder to read directly. Returns the brief/instruction (or "")."""
@@ -422,7 +431,8 @@ async def build(
 
         async with builder:
             transcript.append(await builder.send(
-                with_lessons(build_prompt(spec, design_brief, scaffold_note), lessons_text), echo=echo))
+                with_lessons(build_prompt(spec, design_brief, scaffold_note,
+                                          _profile_note(config)), lessons_text), echo=echo))
             cur_snap = snapshot(ws)
 
             if not spec.has_verification:

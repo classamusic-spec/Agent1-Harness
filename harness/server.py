@@ -455,6 +455,23 @@ class Console:
         self.jobs: dict[str, Job] = {}
         self.current: Job | None = None
         self.runtime = RuntimeManager()  # the live dev server for full-stack preview
+        self.profile_path = os.path.join(os.path.abspath(workspaces_dir), ".profile.json")
+
+    def design_profile(self) -> dict:
+        from harness import profile
+        return profile.load(self.profile_path)
+
+    def _learn_profile(self, workspace: str) -> None:
+        """After a successful build/iterate, absorb the app's palette into the
+        profile so the look converges over time (only when auto-learn is on)."""
+        from harness import profile
+        prof = profile.load(self.profile_path)
+        if not prof.get("auto_learn", True):
+            return
+        before = list(prof.get("palette") or [])
+        profile.learn_from_workspace(prof, workspace)
+        if prof.get("palette") != before:
+            profile.save(self.profile_path, prof)
 
     def busy(self) -> bool:
         return self._lock.locked()
@@ -559,6 +576,12 @@ class Console:
             if brief:
                 instruction = f"{instruction}\n\nReference design context:\n{brief}"
 
+        # Fold the user's house style into the change so iterations stay on-brand.
+        from harness import profile as profmod
+        note = profmod.render(self.design_profile())
+        if note:
+            instruction = f"{instruction}\n\n## House style (honor it)\n{note}"
+
         from harness.engines.base import make_engine
         engine = make_engine(spec, config)
         job.engine = engine  # so a Stop/cancel can kill the in-flight turn
@@ -583,6 +606,8 @@ class Console:
         job.status = "passed" if result["ok"] else "failed"
         print(f"RESULT: {job.status.upper()} · {tokens} tokens")
         _snapshot(job.workspace, "Change", instruction)
+        if result["ok"]:
+            self._learn_profile(job.workspace)
 
     def _run(self, job: Job, params: dict) -> None:
         if not self._lock.acquire(blocking=False):
@@ -669,6 +694,7 @@ class Console:
             multi_parallel=not bool(params.get("multi_sequential")),
             security_scan=bool(params.get("security_scan")),
             patch_review=bool(params.get("patch_review")),
+            design_profile=self.design_profile(),
         )
         job.token_budget = params.get("token_budget")
         job.deadline = params.get("deadline")
@@ -688,6 +714,8 @@ class Console:
         print(f"RESULT: {job.status.upper()} ({result.stop_reason}) after {result.rounds} round(s)")
         print(f"Telemetry: {result.tokens_used} tokens · {result.elapsed_seconds:.1f}s")
         _snapshot(job.workspace, "Initial build", spec.description)
+        if result.ok:
+            self._learn_profile(job.workspace)
 
         # Visual-diff refinement: converge the look toward the reference image.
         if result.ok and config.visual_check and config.reference_image and config.vision_engine():
@@ -738,6 +766,8 @@ def make_handler(console: Console):
                 return self._json({"artifacts": list_artifacts(console.workspaces_dir)})
             if path == "/api/scaffolds":
                 return self._json({"scaffolds": scaffolds.list_scaffolds()})
+            if path == "/api/profile":
+                return self._json(console.design_profile())
             if path == "/api/local-models":
                 from harness import doctor
                 return self._json({"servers": doctor.detect_local_servers()})
@@ -901,6 +931,9 @@ def make_handler(console: Console):
                                             run_command=meta.get("run"),
                                             overwrite=bool(body.get("overwrite")))
                 return self._json({"ok": True, "written": written})
+            if u.path == "/api/profile":
+                from harness import profile
+                return self._json(profile.save(console.profile_path, body))
             if u.path == "/api/deploy":
                 from harness import deploy
                 name = os.path.basename(body.get("workspace") or "")

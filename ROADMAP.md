@@ -4,6 +4,14 @@ Where the agent is strong today, and the highest-leverage things to add next.
 Ordered by impact-to-effort.
 
 ## Today (done)
+- **Project memory / design system** — a persistent house style (preferred stack,
+  palette, typography, UI style, component conventions, tone) woven into every
+  build *and* iteration prompt, so apps feel like *yours*. It **auto-learns** the
+  palette from what you ship (extracts brand colors from a build's CSS and merges
+  them), so the look converges. `harness/profile.py`, `/api/profile`, a 🎨 Design
+  profile editor in Studio with live swatches.
+- **Voice input** — a mic button in the composer dictates the spec/change via the
+  browser Web Speech API (feature-detected; hidden where unsupported).
 - **One-click deploy** — push a packaged app to a host and get a live URL. Provider
   adapters (Fly.io · Docker, Cloudflare Pages · static, Render · blueprint) generate
   the host config (`fly.toml`/`render.yaml` + the Ship-it Dockerfile), run the
