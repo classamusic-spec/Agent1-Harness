@@ -331,6 +331,10 @@ async def build(
         keep=config.keep_workspace,
     ) as ws:
         run_config = dataclasses.replace(config, workspace=ws)
+        # Auto-escalation: if building on a local model, arm a stronger fallback
+        # engine to hand off to should the model stall (the workspace is kept).
+        from harness import escalation
+        run_config = escalation.with_auto_fallback(run_config, echo=echo)
         runner = build_runner(run_config)
         for c in spec.checks:
             c.cwd = ws
@@ -510,8 +514,10 @@ async def build(
                         if escalations < config.max_escalations:
                             escalations += 1
                             if echo:
+                                from harness import escalation as _esc
+                                target = _esc.describe(run_config.fixer_engine())
                                 print(_banner(f"escalation {escalations}/{config.max_escalations}: "
-                                              "fresh fixer engine"), flush=True)
+                                              f"handing off to {target}"), flush=True)
                             diff, delta = _diff(), failure_delta(prev_report, report)
                             fixer = fixer_factory(spec, run_config)
                             async with fixer:

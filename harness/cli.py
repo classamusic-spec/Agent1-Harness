@@ -144,6 +144,15 @@ def _parse_args(argv: list[str]) -> argparse.Namespace:
                    help="Fresh-fixer attempts on a stall before giving up (default: 1)")
     p.add_argument("--escalation-model", default=None,
                    help="Stronger model for the escalation fixer (default: builder model)")
+    p.add_argument("--no-auto-fallback", action="store_true",
+                   help="Don't auto-hand off a stalled local build to a stronger engine")
+    p.add_argument("--fallback-engine", default=None,
+                   choices=["anthropic", "openai", "local", "claude-cli", "codex-cli"],
+                   help="Engine to hand off to when a local model stalls (keeps the workspace)")
+    p.add_argument("--fallback-model", default=None,
+                   help="Model for the fallback engine")
+    p.add_argument("--fallback-base-url", default=None,
+                   help="Base URL for the fallback engine (local/openai)")
     p.add_argument("--no-diff", action="store_true",
                    help="Disable diff-aware repair prompts")
     p.add_argument("--deadline", type=float, default=None,
@@ -303,6 +312,10 @@ def main(argv: list[str] | None = None) -> int:
         diff_aware=not args.no_diff,
         max_escalations=args.max_escalations,
         escalation_model=args.escalation_model,
+        auto_fallback=not args.no_auto_fallback,
+        fallback_provider=args.fallback_engine,
+        fallback_model=args.fallback_model,
+        fallback_base_url=args.fallback_base_url,
         approve_plan=args.approve_plan,
         approve_build=args.approve_build,
         max_tokens_budget=args.token_budget,

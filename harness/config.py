@@ -158,6 +158,14 @@ class HarnessConfig:
     diff_aware: bool = True  # include a diff of the last change in repair prompts
     max_escalations: int = 1  # fresh-fixer attempts on a stall before giving up
     escalation_model: str | None = None  # stronger model for the fixer (default: builder model)
+    # Auto-escalation: when a (local) model stalls, hand the stuck workspace off to a
+    # stronger engine. `auto_fallback` lets the build pick one (e.g. your Claude CLI /
+    # cloud key) automatically; the fallback_* fields pin a specific one.
+    auto_fallback: bool = True
+    fallback_provider: str | None = None
+    fallback_model: str | None = None
+    fallback_base_url: str | None = None
+    fallback_api_key_env: str | None = None
 
     def reviewer_engine(self) -> EngineConfig:
         """Engine config for the reviewer (same backend, optional model override)."""
@@ -180,8 +188,34 @@ class HarnessConfig:
             api_key_env="OPENAI_API_KEY",
         )
 
+    def fallback_engine(self) -> "EngineConfig | None":
+        """The stronger engine to hand off to on a stall, or None if not configured."""
+        if not (self.fallback_provider or self.fallback_model):
+            return None
+        prov = self.fallback_provider or self.engine.provider
+        if self.fallback_api_key_env is not None:
+            key_env = self.fallback_api_key_env
+        elif prov == "anthropic":
+            key_env = "ANTHROPIC_API_KEY"
+        elif prov in ("openai", "local"):
+            key_env = "OPENAI_API_KEY"
+        else:  # CLI engines ignore the key
+            key_env = ""
+        base = self.fallback_base_url or (self.engine.base_url if prov in ("local", "openai") else None)
+        return EngineConfig(
+            provider=prov,
+            model=self.fallback_model or self.engine.model,
+            base_url=base,
+            api_key_env=key_env,
+            temperature=self.engine.temperature,
+        )
+
     def fixer_engine(self) -> EngineConfig:
-        """Engine config for the escalation fixer (optional stronger model)."""
+        """Engine config for the escalation fixer: the stronger fallback engine if one
+        is configured, else a (same-backend) optional stronger model."""
+        fb = self.fallback_engine()
+        if fb is not None:
+            return fb
         return EngineConfig(
             provider=self.engine.provider,
             model=self.escalation_model or self.engine.model,
