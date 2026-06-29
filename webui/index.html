@@ -332,8 +332,18 @@
               <button id="tpl-save-btn" class="primary" type="button">Save as template</button>
             </div>
             <div class="tpl-import">
-              <strong>Import</strong>
+              <strong>Import a template</strong>
               <input id="tpl-file" type="file" accept="application/json,.json" />
+            </div>
+          </div>
+          <div class="tpl-share">
+            <strong>Team sharing</strong>
+            <div class="ship-deploy-row">
+              <a id="tpl-export-bundle" class="ghost" href="/api/share/export" download>Export bundle ↓</a>
+              <label class="ghost" style="cursor:pointer">Import bundle
+                <input id="tpl-bundle-file" type="file" accept="application/json,.json" hidden />
+              </label>
+              <span class="muted">all templates + your design profile, in one file</span>
             </div>
           </div>
           <div class="ship-msg" id="tpl-msg"></div>

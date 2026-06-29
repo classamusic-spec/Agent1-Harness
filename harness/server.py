@@ -823,6 +823,18 @@ def make_handler(console: Console):
                 from harness import templates
                 t = templates.load(console.templates_dir, q.get("name", [""])[0])
                 return self._json(t if t else {"error": "not found"}, 200 if t else 404)
+            if path == "/api/share/export":
+                from harness import share
+                bundle = share.export_bundle(console.templates_dir, console.design_profile())
+                data = json.dumps(bundle, indent=2).encode()
+                self.send_response(200)
+                self.send_header("Content-Type", "application/json")
+                self.send_header("Content-Disposition",
+                                 'attachment; filename="agent1-harness-bundle.json"')
+                self.send_header("Content-Length", str(len(data)))
+                self.end_headers()
+                self.wfile.write(data)
+                return
             if path == "/api/local-models":
                 from harness import doctor
                 return self._json({"servers": doctor.detect_local_servers()})
@@ -1021,6 +1033,12 @@ def make_handler(console: Console):
                     kind=meta.get("kind", "frontend"), run=meta.get("run") or "",
                     scaffold=meta.get("scaffold"), profile=console.design_profile())
                 return self._json(templates.save(console.templates_dir, t))
+            if u.path == "/api/share/import":
+                from harness import share
+                res = share.import_bundle(
+                    console.templates_dir, console.profile_path, body.get("bundle") or body,
+                    apply_profile=body.get("apply_profile", True) is not False)
+                return self._json(res)
             if u.path == "/api/templates/import":
                 from harness import templates
                 t = body.get("template") or body

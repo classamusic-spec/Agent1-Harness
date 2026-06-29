@@ -851,6 +851,22 @@
     } catch { $("#tpl-msg").textContent = "import failed (invalid JSON?)"; }
     e.target.value = "";
   }
+  async function importBundle(e) {
+    const f = e.target.files && e.target.files[0];
+    if (!f) return;
+    try {
+      const bundle = JSON.parse(await f.text());
+      const r = await (await fetch("/api/share/import", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ bundle, apply_profile: true }),
+      })).json();
+      $("#tpl-msg").textContent = r.error ? r.error :
+        `✓ Imported ${r.imported} template(s)${r.profile_applied ? " + design profile" : ""}` +
+        (r.skipped ? ` (${r.skipped} skipped)` : "");
+      refreshTemplates();
+    } catch { $("#tpl-msg").textContent = "import failed (invalid bundle?)"; }
+    e.target.value = "";
+  }
   function closeTemplates() {
     const dlg = $("#tpl-dialog");
     if (typeof dlg.close === "function") dlg.close(); else dlg.removeAttribute("open");
@@ -1051,6 +1067,7 @@
     $("#tpl-close").addEventListener("click", closeTemplates);
     $("#tpl-save-btn").addEventListener("click", saveTemplate);
     $("#tpl-file").addEventListener("change", importTemplate);
+    $("#tpl-bundle-file").addEventListener("change", importBundle);
     $("#st-mode-files").addEventListener("click", () => setMode("files"));
     $("#st-mode-diff").addEventListener("click", () => setMode("diff"));
     $("#st-from").addEventListener("change", showDiff);
