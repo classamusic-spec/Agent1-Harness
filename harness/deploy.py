@@ -16,6 +16,7 @@ actual deploy runs the user's authenticated CLI on their machine.
 
 from __future__ import annotations
 
+import json
 import os
 import re
 import shutil
@@ -105,6 +106,68 @@ def extract_url(provider: str, name: str, output: str) -> str:
     return m.group(0).rstrip("/.") if m else deployed_url(provider, name)
 
 
+_HISTORY_FILE = ".deploys.json"
+
+
+def history(workspace: str) -> list[dict]:
+    """Past deploys recorded for this workspace (newest first)."""
+    try:
+        data = json.load(open(os.path.join(workspace, _HISTORY_FILE), encoding="utf-8"))
+        return data if isinstance(data, list) else []
+    except (OSError, json.JSONDecodeError):
+        return []
+
+
+def record(workspace: str, entry: dict, *, ts: str = "") -> list[dict]:
+    """Append a deploy entry (provider, url, ok, ts) to the workspace history."""
+    items = history(workspace)
+    items.insert(0, {**entry, "ts": ts})
+    items = items[:25]
+    try:
+        with open(os.path.join(workspace, _HISTORY_FILE), "w", encoding="utf-8") as fh:
+            json.dump(items, fh, indent=2)
+    except OSError:
+        pass
+    return items
+
+
+def logs_command(provider: str, name: str) -> str:
+    s = slug(name)
+    return {"fly": "fly logs",
+            "cloudflare": f"wrangler pages deployment tail --project-name {s}",
+            "render": f"render logs --resources {s} --tail"}.get(provider, "")
+
+
+def rollback_command(provider: str, name: str) -> str:
+    s = slug(name)
+    return {"fly": "fly releases   # then: fly deploy --image <previous-image-ref>",
+            "cloudflare": f"wrangler pages deployment list --project-name {s}   "
+                          "# promote a previous deployment in the Pages dashboard",
+            "render": f"render rollbacks create {s}"}.get(provider, "")
+
+
+def run_action(provider: str, action: str, workspace: str, name: str, *,
+               runner=None, timeout: int = 30) -> dict:
+    """Run a provider 'logs' or 'rollback' command, or return it if the CLI is absent."""
+    cmd = logs_command(provider, name) if action == "logs" else rollback_command(provider, name)
+    if not cmd:
+        return {"ok": False, "reason": f"{action} not supported for {provider}"}
+    if not cli_available(provider):
+        return {"ok": False, "ready": False, "command": cmd,
+                "reason": f"{PROVIDERS[provider]['cli']} CLI not found — run:"}
+    if runner is None:
+        from harness.sandbox import HostRunner
+        runner = HostRunner()
+    # Only run the part before an inline comment.
+    run_cmd = cmd.split("#", 1)[0].strip()
+    try:
+        proc = runner.run(run_cmd, workspace, timeout)
+        out = (proc.stdout or "") + (proc.stderr or "")
+        return {"ok": proc.returncode == 0, "command": run_cmd, "output": out[-4000:]}
+    except Exception as e:
+        return {"ok": False, "command": run_cmd, "reason": f"{type(e).__name__}: {e}"}
+
+
 def _probe(url: str, timeout: float = 4.0) -> int:
     """GET a URL and return its HTTP status (0 if unreachable)."""
     import urllib.error
@@ -182,5 +245,12 @@ def run(provider: str, workspace: str, name: str, *, port: int = 8000,
                     "reason": f"`{cmd}` exited {proc.returncode}", "log": "\n".join(logs),
                     "commands": p["commands"], "url": url}
         url = extract_url(provider, name, out) or url
+    _record_deploy(workspace, provider, p["label"], url, True)
     return {"ok": True, "provider": provider, "label": p["label"], "url": url,
             "log": "\n".join(logs)}
+
+
+def _record_deploy(workspace: str, provider: str, label: str, url: str, ok: bool) -> None:
+    import datetime
+    ts = datetime.datetime.now().strftime("%Y-%m-%d %H:%M")
+    record(workspace, {"provider": provider, "label": label, "url": url, "ok": ok}, ts=ts)

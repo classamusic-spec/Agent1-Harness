@@ -650,6 +650,7 @@
     $("#ship-zip").setAttribute("download", `${project}.zip`);
     if (typeof dlg.showModal === "function") dlg.showModal(); else dlg.setAttribute("open", "");
     loadDeployProviders();
+    loadDeployHistory();
     $("#deploy-out").hidden = true; $("#deploy-url").hidden = true;
     try {
       const r = await (await fetch(`/api/ship?dir=${encodeURIComponent(project)}`)).json();
@@ -718,7 +719,7 @@
       } else {
         $("#deploy-out").textContent = (r.reason || r.error || "deploy failed") + "\n\n" + (r.log || "");
       }
-      loadFiles();
+      loadFiles(); loadDeployHistory();
     } catch (e) { $("#deploy-out").textContent = "deploy request failed"; }
     finally { btn.disabled = false; btn.textContent = old; }
   }
@@ -765,6 +766,34 @@
     if (typeof dlg.close === "function") dlg.close(); else dlg.removeAttribute("open");
   }
 
+  async function loadDeployHistory() {
+    const ul = $("#deploy-history"); ul.innerHTML = "";
+    try {
+      const r = await (await fetch(`/api/deploy/history?dir=${encodeURIComponent(project)}`)).json();
+      for (const h of (r.history || [])) {
+        const li = document.createElement("li");
+        li.innerHTML = `<span>${h.ts || ""} · ${h.label || h.provider}</span>` +
+          (h.url ? ` <a href="${h.url}" target="_blank" rel="noopener">${h.url}</a>` : "") +
+          `<span class="${h.ok ? "ok" : "bad"}">${h.ok ? "✓" : "✗"}</span>`;
+        ul.appendChild(li);
+      }
+    } catch {}
+  }
+  async function deployAction(action) {
+    if (!project) return;
+    const provider = $("#deploy-provider").value;
+    $("#deploy-out").hidden = false; $("#deploy-out").textContent = `Fetching ${action}…`;
+    try {
+      const r = await (await fetch(`/api/deploy/${action}`, {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ workspace: project, provider }),
+      })).json();
+      $("#deploy-out").textContent = r.output
+        || ((r.reason || "") + "\n" + (r.command || "")).trim()
+        || "(no output)";
+    } catch { $("#deploy-out").textContent = `${action} request failed`; }
+  }
+
   // Poll the deployed URL until it answers, then mark it live ✓.
   async function pollDeployLive(url, attempts = 40) {
     const el = $("#deploy-url");
@@ -803,6 +832,8 @@
     $("#ship-close").addEventListener("click", closeShip);
     $("#ship-add").addEventListener("click", shipAdd);
     $("#deploy-go").addEventListener("click", runDeploy);
+    $("#deploy-logs").addEventListener("click", () => deployAction("logs"));
+    $("#deploy-rollback").addEventListener("click", () => deployAction("rollback"));
     $("#st-style").addEventListener("click", openProfile);
     $("#profile-close").addEventListener("click", closeProfile);
     $("#profile-save").addEventListener("click", saveProfile);

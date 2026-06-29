@@ -716,3 +716,10 @@ input[type="number"]:focus { outline: none; border-color: var(--accent); box-sha
 
 /* Deploy live badge */
 #deploy-url.live { color: var(--good, #16a34a); font-weight: 600; }
+
+/* Deploy history list */
+.deploy-history { list-style: none; padding: 0; margin: 10px 0 0; }
+.deploy-history li { display: flex; gap: 8px; align-items: center; font-size: .8rem;
+  color: var(--muted); padding: 5px 0; border-top: 1px solid var(--hairline); }
+.deploy-history a { color: var(--accent); text-decoration: none; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.deploy-history .ok { color: var(--good, #16a34a); } .deploy-history .bad { color: var(--bad, #dc2626); }

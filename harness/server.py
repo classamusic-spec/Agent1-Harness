@@ -848,6 +848,10 @@ def make_handler(console: Console):
             if path == "/api/deploy/status":
                 from harness import deploy
                 return self._json(deploy.check_live(q.get("url", [""])[0]))
+            if path == "/api/deploy/history":
+                from harness import deploy
+                root = self._ws_root(q.get("dir", [""])[0])
+                return self._json({"history": deploy.history(root)})
             if path == "/api/deploy/plan":
                 from harness import deploy
                 name = os.path.basename(q.get("dir", [""])[0])
@@ -952,6 +956,15 @@ def make_handler(console: Console):
                     return self._json(deploy.run(provider, root, name or "app"))
                 except Exception as e:
                     return self._json({"ok": False, "error": f"{type(e).__name__}: {e}"}, 500)
+            if u.path in ("/api/deploy/logs", "/api/deploy/rollback"):
+                from harness import deploy
+                name = os.path.basename(body.get("workspace") or "")
+                root = self._ws_root(name)
+                if not os.path.isdir(root):
+                    return self._json({"error": "unknown workspace"}, 404)
+                action = "logs" if u.path.endswith("logs") else "rollback"
+                provider = str(body.get("provider") or "fly")
+                return self._json(deploy.run_action(provider, action, root, name or "app"))
             if u.path == "/api/iterate":
                 if not body.get("workspace") or not body.get("instruction"):
                     return self._json({"error": "workspace and instruction are required"}, 400)

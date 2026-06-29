@@ -112,3 +112,38 @@ def test_check_live_false_on_5xx_or_unreachable():
     assert deploy.check_live("https://x.fly.dev", probe=lambda u, **k: 0)["live"] is False
     out = deploy.check_live("", probe=lambda u, **k: 200)
     assert out["live"] is False and out["status"] == 0
+
+
+def test_history_record_and_read(tmp_path):
+    assert deploy.history(str(tmp_path)) == []
+    deploy.record(str(tmp_path), {"provider": "fly", "url": "https://a.fly.dev", "ok": True}, ts="t1")
+    deploy.record(str(tmp_path), {"provider": "fly", "url": "https://a.fly.dev", "ok": True}, ts="t2")
+    h = deploy.history(str(tmp_path))
+    assert len(h) == 2 and h[0]["ts"] == "t2"   # newest first
+
+
+def test_logs_and_rollback_commands():
+    assert deploy.logs_command("fly", "demo") == "fly logs"
+    assert "wrangler pages deployment tail" in deploy.logs_command("cloudflare", "demo")
+    assert deploy.rollback_command("render", "demo") == "render rollbacks create demo"
+    assert deploy.logs_command("nope", "x") == ""
+
+
+def test_run_action_without_cli_returns_command(tmp_path, monkeypatch):
+    monkeypatch.setattr(deploy, "cli_available", lambda prov, which=None: False)
+    r = deploy.run_action("fly", "logs", str(tmp_path), "demo")
+    assert r["ok"] is False and r["ready"] is False and r["command"] == "fly logs"
+
+
+def test_run_action_runs_cli_and_strips_comment(tmp_path, monkeypatch):
+    monkeypatch.setattr(deploy, "cli_available", lambda prov, which=None: True)
+    calls = []
+
+    class R:
+        def run(self, command, cwd, timeout, env=None):
+            calls.append(command)
+            return subprocess.CompletedProcess(command, 0, stdout="rolled back", stderr="")
+
+    r = deploy.run_action("fly", "rollback", str(tmp_path), "demo", runner=R())
+    assert r["ok"] is True and r["output"] == "rolled back"
+    assert calls == ["fly releases"]   # inline comment stripped
