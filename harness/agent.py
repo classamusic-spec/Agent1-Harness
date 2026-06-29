@@ -478,6 +478,7 @@ async def build(
             review_attempt = 0
             prev_sig: frozenset | None = None
             stall = 0
+            installed_deps: set[str] = set()  # packages auto-install already tried
 
             while True:
                 if control is not None:
@@ -506,6 +507,19 @@ async def build(
                     return await finish(report.ok, "token-budget", report=None if report.ok else report)
 
                 if not report.ok:
+                    # Cheap deterministic fix first: if the only thing wrong is a
+                    # missing package, install it and re-verify (no LLM round spent).
+                    if config.auto_install:
+                        from harness import autoinstall
+                        inst = autoinstall.run(report.to_feedback(), ws, runner=runner,
+                                               already=installed_deps)
+                        if inst.get("ran"):
+                            if echo:
+                                status = "ok" if inst.get("ok") else f"failed ({inst.get('returncode')})"
+                                print(_banner(f"auto-install: {inst['command']} — {status}"), flush=True)
+                            if inst.get("ok"):
+                                continue  # re-verify with the dependency present
+
                     sig = _signature(report)
                     stall = stall + 1 if sig == prev_sig else 1
                     prev_sig = sig
