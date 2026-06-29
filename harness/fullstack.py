@@ -49,15 +49,27 @@ def verify_checks(checks: list[Check], workspace: str, *, run_command: str | Non
             report.results.append(_skipped(c, "skipped: no run command (none detected)"))
         return report
 
+    from harness import runtimeerrors
     with runtime.serve(workspace, cmd, env=check_env) as svc:
         base = f"http://127.0.0.1:{svc.port}"
         subbed = [dataclasses.replace(c, command=c.command.replace("$APP_URL", base))
                   for c in server_checks]
         rep = run_suite(subbed, stop_on_failure=False, runner=runner, env=check_env)
-        if not rep.ok:  # attach server log tail to help debugging
-            tail = "\n".join(svc.logs()[0][-15:])
+        log_lines = svc.logs()[0]
+        # Lead failing checks with the *extracted* runtime error (traceback/stack),
+        # not just the raw tail, so repair prompts target the real cause.
+        if not rep.ok:
+            block = runtimeerrors.from_service_logs(log_lines)
             for r in rep.results:
                 if not r.ok and not r.skipped:
-                    r.error = (r.error or "") + "\n--- dev server log (tail) ---\n" + tail
+                    r.error = (r.error or "") + "\n--- dev server runtime error ---\n" + block
+        # A boot-time crash (or a 500 from an exception) can leave checks "passing"
+        # while the server log carries a traceback — surface it as a real failure.
+        elif runtimeerrors.has_error(log_lines):
+            block = runtimeerrors.extract("\n".join(log_lines))
+            rep.results.append(CheckResult(
+                name="runtime", command="(dev server runtime check)", returncode=1,
+                stdout="", stderr=block, ok=False,
+                error="the app logged a runtime error while serving:\n" + block))
     report.results.extend(rep.results)
     return report

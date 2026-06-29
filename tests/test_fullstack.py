@@ -65,6 +65,28 @@ def test_verify_checks_skips_server_when_static_fails(tmp_path):
     assert by["app responds"].skipped  # never started the server
 
 
+def test_verify_checks_surfaces_runtime_error_from_logs(tmp_path):
+    """The app serves 200 but logs a traceback — it should become a real failure
+    with the extracted error, not pass silently."""
+    (tmp_path / "index.html").write_text("<title>x</title>" + "ok" * 100)
+    (tmp_path / "server.py").write_text(
+        "import sys, http.server, socketserver\n"
+        "print('Traceback (most recent call last):')\n"
+        "print('  File \"app.py\", line 1, in <module>')\n"
+        "print('ValueError: boom in request handler')\n"
+        "sys.stdout.flush()\n"
+        "port = int(sys.argv[1])\n"
+        "socketserver.TCPServer(('', port), http.server.SimpleHTTPRequestHandler).serve_forever()\n")
+    checks = [Check(name="app responds", command=stacks.SMOKE_CMD, cwd=str(tmp_path), needs_server=True)]
+    rep = fullstack.verify_checks(checks, str(tmp_path),
+                                  run_command="python server.py $PORT", stop_on_failure=False)
+    by = {r.name: r for r in rep.results}
+    assert by["app responds"].ok                      # HTTP smoke passed (200)
+    assert "runtime" in by                            # but the logged traceback -> failure
+    assert "ValueError: boom" in by["runtime"].error
+    assert not rep.ok
+
+
 def test_verify_checks_no_server_command(tmp_path):
     (tmp_path / "index.html").write_text("x" * 200)
     checks = [Check(name="smoke", command=stacks.SMOKE_CMD, cwd=str(tmp_path), needs_server=True)]
