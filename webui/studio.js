@@ -789,7 +789,9 @@
       for (const t of tpls) {
         const li = document.createElement("li");
         li.innerHTML =
-          `<div class="tpl-meta"><b>${t.name}</b>${t.has_profile ? ' <span class="pill">styled</span>' : ""}` +
+          `<div class="tpl-meta"><b>${t.name}</b>` +
+          (t.builtin ? ' <span class="pill">starter</span>' : "") +
+          (t.has_profile ? ' <span class="pill">styled</span>' : "") +
           `<span class="muted"> · ${t.kind} · ${t.files} files</span>` +
           `<div class="muted">${t.description || ""}</div></div>`;
         const use = document.createElement("button");

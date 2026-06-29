@@ -34,7 +34,7 @@ def test_save_list_load_roundtrip(tmp_path):
     store = str(tmp_path / "store")
     templates.save(store, {"name": "Cool Base", "description": "d", "kind": "react",
                            "files": {"a.txt": "x"}, "profile": {"palette": ["#000"]}})
-    lst = templates.list_templates(store)
+    lst = templates.list_templates(store, include_builtins=False)
     assert len(lst) == 1
     item = lst[0]
     assert item["id"] == "cool-base" and item["files"] == 1 and item["has_profile"] is True
@@ -61,6 +61,36 @@ def test_apply_writes_files_and_returns_settings(tmp_path):
     assert (ws / "public" / "index.html").is_file()
     assert settings["kind"] == "fullstack" and settings["scaffold"] == "python-db"
     assert settings["plan"] is True and settings["profile"]["ui_style"] == "calm"
+
+
+def test_builtins_present_and_have_files():
+    b = templates.builtins()
+    ids = {d["id"] for d in templates._BUILTIN_DEFS}
+    assert {"minimal-spa", "notes-sqlite", "json-api"} <= ids
+    for t in b:
+        assert t["builtin"] is True and t["files"]      # materialised from scaffolds
+        assert t["name"] and t["kind"]
+
+
+def test_list_includes_builtins_and_load_falls_back(tmp_path):
+    store = str(tmp_path / "store")
+    lst = templates.list_templates(store)               # empty user dir
+    ids = {t["id"] for t in lst}
+    assert "minimal-spa" in ids
+    assert any(t["builtin"] for t in lst)
+    t = templates.load(store, "notes-sqlite")           # built-in by id
+    assert t and t["scaffold"] == "python-db" and t["files"]
+
+
+def test_user_template_overrides_builtin_id(tmp_path):
+    store = str(tmp_path / "store")
+    templates.save(store, {"name": "minimal-spa", "description": "mine", "files": {"x": "y"}})
+    items = [t for t in templates.list_templates(store) if t["id"] == "minimal-spa"]
+    assert len(items) == 1 and items[0]["builtin"] is False   # user copy wins, no dupe
+
+
+def test_list_can_exclude_builtins(tmp_path):
+    assert templates.list_templates(str(tmp_path / "empty"), include_builtins=False) == []
 
 
 def test_apply_no_overwrite_and_traversal_guard(tmp_path):

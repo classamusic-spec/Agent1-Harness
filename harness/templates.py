@@ -68,22 +68,59 @@ def from_workspace(workspace: str, name: str, description: str = "", *,
 def _meta(t: dict) -> dict:
     return {"name": t.get("name", ""), "description": t.get("description", ""),
             "kind": t.get("kind", ""), "files": len(t.get("files") or {}),
+            "builtin": bool(t.get("builtin")),
             "has_profile": bool((t.get("profile") or {}).get("palette") or
                                 (t.get("profile") or {}).get("ui_style"))}
 
 
-def list_templates(templates_dir: str) -> list[dict]:
-    if not os.path.isdir(templates_dir):
-        return []
+# Curated starters shipped out of the box — each built from a known-good scaffold
+# plus a tasteful default design profile, so a new user has something to "Use" on
+# day one (and to remix into their own templates).
+_BUILTIN_DEFS = [
+    {"id": "minimal-spa", "name": "Minimal SPA", "scaffold": "static", "kind": "frontend",
+     "description": "Vanilla HTML/CSS/JS single-page app — no build step.",
+     "profile": {"ui_style": "minimal, clean, lots of whitespace, rounded corners",
+                 "palette": ["#0b0f17", "#5e8cff", "#eef1f8"], "tone": "calm and concise"}},
+    {"id": "notes-sqlite", "name": "Notes API (SQLite)", "scaffold": "python-db",
+     "kind": "fullstack", "description": "Stdlib full-stack notes app with SQLite migrations.",
+     "profile": {"ui_style": "calm, card-based, soft shadows",
+                 "palette": ["#0b0f17", "#5e8cff", "#eef1f8"]}},
+    {"id": "json-api", "name": "Stdlib Full-stack API", "scaffold": "python-api",
+     "kind": "fullstack", "description": "Zero-dependency JSON API + static frontend.",
+     "profile": {"ui_style": "minimal, functional"}},
+]
+
+
+def builtins() -> list[dict]:
+    """The curated starter templates (materialised from scaffolds)."""
+    from harness import scaffolds
     out = []
-    for fn in sorted(os.listdir(templates_dir)):
-        if not fn.endswith(".json"):
+    for d in _BUILTIN_DEFS:
+        sc = scaffolds.get(d["scaffold"])
+        if not sc:
             continue
-        try:
-            t = json.load(open(os.path.join(templates_dir, fn), encoding="utf-8"))
-        except (OSError, json.JSONDecodeError):
-            continue
-        out.append({**_meta(t), "id": fn[:-5]})
+        out.append({"name": d["name"], "description": d["description"], "kind": d["kind"],
+                    "run": sc.run, "scaffold": d["scaffold"], "plan": False, "multi": False,
+                    "profile": d["profile"], "files": dict(sc.files), "builtin": True})
+    return out
+
+
+def list_templates(templates_dir: str, *, include_builtins: bool = True) -> list[dict]:
+    out, seen = [], set()
+    if os.path.isdir(templates_dir):
+        for fn in sorted(os.listdir(templates_dir)):
+            if not fn.endswith(".json"):
+                continue
+            try:
+                t = json.load(open(os.path.join(templates_dir, fn), encoding="utf-8"))
+            except (OSError, json.JSONDecodeError):
+                continue
+            out.append({**_meta(t), "id": fn[:-5]})
+            seen.add(fn[:-5])
+    if include_builtins:
+        for d, t in zip(_BUILTIN_DEFS, builtins()):
+            if d["id"] not in seen:  # a user template with the same id overrides it
+                out.append({**_meta(t), "id": d["id"]})
     return out
 
 
@@ -92,7 +129,11 @@ def load(templates_dir: str, name: str) -> dict | None:
     try:
         return json.load(open(path, encoding="utf-8"))
     except (OSError, json.JSONDecodeError):
-        return None
+        pass
+    for d, t in zip(_BUILTIN_DEFS, builtins()):  # fall back to a built-in starter
+        if d["id"] == slug(name):
+            return t
+    return None
 
 
 def save(templates_dir: str, template: dict) -> dict:
