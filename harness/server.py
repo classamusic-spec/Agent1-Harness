@@ -459,6 +459,9 @@ class Console:
         self.profile_path = os.path.join(os.path.abspath(workspaces_dir), ".profile.json")
         self.templates_dir = os.path.join(os.path.abspath(workspaces_dir), ".templates")
         self.usage_path = os.path.join(os.path.abspath(workspaces_dir), ".usage.jsonl")
+        self.queue: list = []                 # (Job, params) pending builds
+        self.queue_lock = threading.Lock()
+        self._queue_worker = None
 
     def design_profile(self) -> dict:
         from harness import profile
@@ -512,7 +515,8 @@ class Console:
     def busy(self) -> bool:
         return self._lock.locked()
 
-    def start(self, params: dict) -> Job:
+    def _prepare_job(self, params: dict) -> Job:
+        """Resolve the spec/workspace for a build and create its Job (not started)."""
         if params.get("resume"):
             name = os.path.basename(params.get("workspace") or "")
             workspace = os.path.abspath(os.path.join(self.workspaces_dir, name))
@@ -535,11 +539,50 @@ class Console:
             workspace = os.path.abspath(
                 params.get("workspace") or os.path.join(self.workspaces_dir, Path(spec_path).stem)
             )
-        job = Job(str(int(time.time() * 1000)), workspace)
+        job = Job(str(int(time.time() * 1000) + len(self.jobs)), workspace)
         self.jobs[job.id] = job
+        return job
+
+    def start(self, params: dict) -> Job:
+        job = self._prepare_job(params)
         self.current = job
         threading.Thread(target=self._run, args=(job, params), daemon=True).start()
         return job
+
+    def enqueue(self, params: dict) -> Job:
+        """Add a build to the queue; a worker runs queued builds back-to-back."""
+        job = self._prepare_job(params)
+        job.status = "queued"
+        with self.queue_lock:
+            self.queue.append((job, params))
+            if self._queue_worker is None or not self._queue_worker.is_alive():
+                self._queue_worker = threading.Thread(target=self._drain_queue, daemon=True)
+                self._queue_worker.start()
+        return job
+
+    def _drain_queue(self) -> None:
+        while True:
+            with self.queue_lock:
+                if not self.queue:
+                    return
+                job, params = self.queue.pop(0)
+            self.current = job
+            try:
+                self._run(job, params)   # serializes on self._lock; sets job.done
+            except Exception as exc:
+                job.status = "error"
+                job.log(f"error: {type(exc).__name__}: {exc}")
+                job.done.set()
+
+    def queue_status(self) -> dict:
+        with self.queue_lock:
+            pending = [{"id": j.id, "name": os.path.basename(j.workspace)} for j, _ in self.queue]
+        cur = self.current
+        running = self.busy() and cur is not None and not cur.done.is_set()
+        return {"running": bool(running),
+                "current": (os.path.basename(cur.workspace) if running else None),
+                "current_status": (cur.status if running else None),
+                "pending": pending}
 
     def iterate(self, params: dict) -> Job:
         """Lovable-style conversational edit: one engine turn on an existing app."""
@@ -812,6 +855,8 @@ def make_handler(console: Console):
             if path == "/api/usage":
                 from harness import usage
                 return self._json(usage.summary(usage.load(console.usage_path)))
+            if path == "/api/queue":
+                return self._json(console.queue_status())
             if path == "/api/scaffolds":
                 return self._json({"scaffolds": scaffolds.list_scaffolds()})
             if path == "/api/profile":
@@ -1128,6 +1173,20 @@ def make_handler(console: Console):
                 action = "logs" if u.path.endswith("logs") else "rollback"
                 provider = str(body.get("provider") or "fly")
                 return self._json(deploy.run_action(provider, action, root, name or "app"))
+            if u.path == "/api/queue":
+                builds = body.get("builds")
+                if not isinstance(builds, list) or not builds:
+                    builds = [body]   # a single build params object
+                jobs = []
+                for p in builds:
+                    if not (p.get("spec") or p.get("prompt") or p.get("resume")):
+                        continue
+                    try:
+                        j = console.enqueue(p)
+                        jobs.append({"id": j.id, "name": os.path.basename(j.workspace)})
+                    except SpecError as e:
+                        return self._json({"error": str(e)}, 400)
+                return self._json({"queued": jobs, "status": console.queue_status()})
             if u.path == "/api/iterate":
                 if not body.get("workspace") or not body.get("instruction"):
                     return self._json({"error": "workspace and instruction are required"}, 400)

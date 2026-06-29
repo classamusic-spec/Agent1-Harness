@@ -95,11 +95,10 @@ function appendLog(line) {
 }
 const radio = (n) => document.querySelector(`input[name="${n}"]:checked`).value;
 
-async function run() {
-  $("#log").textContent = ""; setStatus("running", "running"); $("#run").disabled = true;
+function buildBody() {
   const tb = Number($("#tokenbudget").value) || 0;
   const db = Number($("#timebudget").value) || 0;
-  const body = {
+  return {
     spec: $("#spec").value, workspace: $("#workspace").value || null,
     engine: radio("engine"), model: $("#model").value || null, base_url: $("#baseurl").value || null,
     review: $("#review").checked, review_focus: radio("focus"),
@@ -110,6 +109,36 @@ async function run() {
     token_budget: tb > 0 ? tb : null,
     deadline: db > 0 ? db : null,
   };
+}
+async function queueAdd() {
+  const body = buildBody();
+  if (!body.spec) return;
+  try {
+    await fetch("/api/queue", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+    pollQueue();
+  } catch {}
+}
+let queueTimer = null;
+async function pollQueue() {
+  try {
+    const q = await (await fetch("/api/queue")).json();
+    const box = $("#queue-box"), list = $("#queue-list");
+    const items = q.pending || [];
+    const active = q.running || items.length;
+    box.hidden = !active;
+    $("#queue-cur").textContent = q.running ? `running: ${q.current} (${q.current_status || ""})` : "";
+    list.innerHTML = items.map((p, i) =>
+      `<li class="row"><span>${i + 1}. ${p.name}</span><span class="muted">queued</span></li>`).join("");
+    if (active && !queueTimer) queueTimer = setInterval(pollQueue, 2500);
+    if (!active && queueTimer) { clearInterval(queueTimer); queueTimer = null; }
+  } catch {}
+}
+async function run() {
+  $("#log").textContent = ""; setStatus("running", "running"); $("#run").disabled = true;
+  const body = buildBody();
   try {
     const j = await (await fetch("/api/builds", {
       method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body),
@@ -460,6 +489,8 @@ $("#cancel").addEventListener("click", () => control("cancel"));
 /* ---------- wire up ---------- */
 $("#spec").addEventListener("change", syncWorkspace);
 $("#run").addEventListener("click", run);
+$("#queue-add").addEventListener("click", queueAdd);
+pollQueue();
 $("#save-spec").addEventListener("click", saveSpec);
 $("#build-spec").addEventListener("click", saveAndBuild);
 $("#s-kind").addEventListener("change", () => {

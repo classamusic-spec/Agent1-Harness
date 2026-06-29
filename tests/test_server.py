@@ -162,3 +162,36 @@ def test_ship_and_deploy_handles_missing_cli(tmp_path, monkeypatch):
     job = srv.Job("j2", str(ws))
     c._ship_and_deploy(job, "fly")
     assert job.deploy_url == "https://app.fly.dev"  # would-be URL still surfaced
+
+
+def test_build_queue_runs_specs_in_order(tmp_path, monkeypatch):
+    import os
+    from harness import server as srv
+
+    order = []
+
+    def fake_run(self, job, params):
+        order.append(os.path.basename(job.workspace))
+        job.status = "passed"
+        job.done.set()
+
+    monkeypatch.setattr(srv.Console, "_run", fake_run)
+    c = srv.Console(specs_dir="specs", workspaces_dir=str(tmp_path))
+
+    j1 = c.enqueue({"spec": "specs/todo-cli.yaml", "workspace": str(tmp_path / "a")})
+    j2 = c.enqueue({"spec": "specs/todo-cli.yaml", "workspace": str(tmp_path / "b")})
+    assert j1.status == "queued" or j1.done.is_set()
+    # let the worker drain
+    for _ in range(200):
+        if len(order) == 2:
+            break
+        time.sleep(0.02)
+    assert order == ["a", "b"]   # ran back-to-back, in order
+
+
+def test_queue_status_shape(tmp_path, monkeypatch):
+    from harness import server as srv
+    c = srv.Console(specs_dir="specs", workspaces_dir=str(tmp_path))
+    st = c.queue_status()
+    assert set(st) >= {"running", "current", "pending"}
+    assert st["pending"] == []

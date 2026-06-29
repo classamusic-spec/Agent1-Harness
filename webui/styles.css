@@ -755,3 +755,8 @@ input[type="number"]:focus { outline: none; border-color: var(--accent); box-sha
 /* Team sharing row in templates dialog */
 .tpl-share { margin: 0 18px 12px; padding-top: 12px; border-top: 1px solid var(--hairline); }
 .tpl-share strong { display: block; margin-bottom: 8px; font-size: .85rem; }
+
+/* Build queue */
+.queue-box { margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--hairline); }
+.queue-box h3 { margin: 0; font-size: .92rem; }
+.queue-box .rows li { padding: 7px 0; font-size: .86rem; }

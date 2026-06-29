@@ -397,7 +397,14 @@
               </div>
             </fieldset>
 
-            <button id="run" class="primary">Build</button>
+            <div class="row-actions">
+              <button id="run" class="primary">Build</button>
+              <button id="queue-add" class="ghost" title="Add this spec to the build queue">+ Queue</button>
+            </div>
+            <div class="queue-box" id="queue-box" hidden>
+              <div class="log-head"><h3>Build queue</h3><span class="muted" id="queue-cur"></span></div>
+              <ul class="rows" id="queue-list"></ul>
+            </div>
           </div>
 
           <div class="card log-card">
