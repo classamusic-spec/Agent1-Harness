@@ -40,6 +40,11 @@ class LocalEngine(Engine):
         self._config = config
         self._engine_cfg = config.engine
         self._toolbox = ToolBox(config.workspace, spec, runner=build_runner(config))
+        self._tool_fallback = getattr(config, "tool_fallback", True)
+        if self._tool_fallback:
+            from harness import toolparse
+            names = [s.get("function", {}).get("name") for s in self._toolbox.schemas()]
+            system_prompt = system_prompt + toolparse.text_protocol_hint([n for n in names if n])
         self._messages: list[dict] = [{"role": "system", "content": system_prompt}]
         self._client = None  # created on __aenter__
         self.total_tokens = 0
@@ -103,22 +108,53 @@ class LocalEngine(Engine):
                 produced.append(content)
 
             tool_calls = msg_dict.get("tool_calls")
-            if not tool_calls:
-                break
+            if tool_calls:
+                for tc in tool_calls:
+                    name = tc["function"]["name"]
+                    args = self._parse_args(tc["function"]["arguments"])
+                    if args is None:
+                        result = (f"ERROR: arguments for {name} were not valid JSON. "
+                                  "Re-send the tool call with a valid JSON object.")
+                    else:
+                        result = await asyncio.to_thread(self._toolbox.dispatch, name, args)
+                        if echo:
+                            print(f"  [tool] {name} -> {result.splitlines()[0] if result else ''}", flush=True)
+                    self._messages.append({"role": "tool", "tool_call_id": tc["id"], "content": result})
+                continue
 
-            for tc in tool_calls:
-                name = tc["function"]["name"]
-                try:
-                    args = json.loads(tc["function"]["arguments"] or "{}")
-                except json.JSONDecodeError:
-                    result = f"ERROR: arguments for {name} were not valid JSON"
-                else:
-                    result = await asyncio.to_thread(self._toolbox.dispatch, name, args)
-                    if echo:
-                        print(f"  [tool] {name} -> {result.splitlines()[0] if result else ''}", flush=True)
-                self._messages.append({"role": "tool", "tool_call_id": tc["id"], "content": result})
+            # No native tool calls — for weaker models, parse actions from the text.
+            text_calls = self._extract_text_calls(content) if self._tool_fallback else []
+            if not text_calls:
+                break
+            results = []
+            for call in text_calls:
+                out = await asyncio.to_thread(self._toolbox.dispatch, call["name"], call["arguments"])
+                if echo:
+                    print(f"  [tool·text] {call['name']} -> {out.splitlines()[0] if out else ''}", flush=True)
+                results.append(f"- {call['name']}: {out}")
+            # No tool_call_id for text actions → feed results back as a user turn.
+            self._messages.append({"role": "user", "content": "Tool results:\n" + "\n".join(results)})
 
         return "\n".join(produced)
+
+    def _parse_args(self, raw):
+        """Parse tool-call arguments, repairing near-JSON from weaker models."""
+        try:
+            v = json.loads(raw or "{}")
+            return v if isinstance(v, dict) else {}
+        except (json.JSONDecodeError, TypeError):
+            pass
+        if self._tool_fallback:
+            from harness import toolparse
+            repaired = toolparse.repair_json(raw)
+            if isinstance(repaired, dict):
+                return repaired
+        return None
+
+    def _extract_text_calls(self, content: str) -> list[dict]:
+        from harness import toolparse
+        names = [s.get("function", {}).get("name") for s in self._toolbox.schemas()]
+        return toolparse.extract_tool_calls(content, [n for n in names if n])
 
     async def _buffered_turn(self, schemas, echo) -> tuple[dict, str]:
         resp = await self._client.chat.completions.create(

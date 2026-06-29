@@ -48,6 +48,9 @@ class HarnessConfig:
     # per-request timeout for big models (GLM / MiniMax) on a Mac Studio.
     local_stream: bool = True
     local_timeout: float = 600.0
+    # Tool-call repair fallback: salvage malformed tool-call JSON, and parse actions
+    # a model writes as text (for weaker/quantized models that can't tool-call well).
+    tool_fallback: bool = True
     allowed_tools: list[str] = field(default_factory=lambda: list(DEFAULT_ALLOWED_TOOLS))
     stop_on_failure: bool = True
 

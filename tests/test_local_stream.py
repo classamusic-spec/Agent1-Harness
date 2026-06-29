@@ -88,6 +88,52 @@ def test_stream_turn_emits_text_and_dispatches_tools(tmp_path, capsys):
     assert "working" in printed and "✎ noop" in printed   # streamed live
 
 
+def test_text_action_fallback_for_non_tool_calling_models(tmp_path, capsys):
+    """A model that writes an action as text (no native tool call) still drives a
+    tool dispatch via the repair fallback."""
+    tools_called = []
+    block = ('I will write the file.\n'
+             '```action\n{"tool": "write_file", "args": {"path": "a.py", "content": "x=1"}}\n```')
+    turns = [
+        [_chunk(content=block)],          # turn 1: action as text, no native tool_calls
+        [_chunk(content="all done")],     # turn 2: plain text -> finish
+    ]
+    spec = Spec(name="app", description="d", kind="frontend")
+    cfg = HarnessConfig(workspace=str(tmp_path),
+                        engine=EngineConfig(provider="local", model="tiny-quant"))
+    eng = LocalEngine(spec, cfg, "sys")
+    eng._client = _FakeClient(turns)
+    eng._toolbox = types.SimpleNamespace(
+        schemas=lambda: [{"type": "function", "function": {"name": "write_file"}}],
+        dispatch=lambda name, args: tools_called.append((name, args)) or "WROTE a.py")
+    out = asyncio.run(eng.send("build it", echo=True))
+    assert tools_called == [("write_file", {"path": "a.py", "content": "x=1"})]
+    assert "all done" in out
+    assert "tool·text" in capsys.readouterr().out
+    # the system prompt got the text-protocol hint
+    assert "```action" in eng._messages[0]["content"]
+
+
+def test_malformed_native_args_are_repaired(tmp_path):
+    tools_called = []
+    # native tool call with trailing-comma (invalid) JSON args
+    bad = _tool(0, "write_file", '{"path": "a.py",}')
+    turns = [
+        [_chunk(tool=[bad])],
+        [_chunk(content="done")],
+    ]
+    spec = Spec(name="app", description="d", kind="frontend")
+    cfg = HarnessConfig(workspace=str(tmp_path),
+                        engine=EngineConfig(provider="local", model="q"))
+    eng = LocalEngine(spec, cfg, "sys")
+    eng._client = _FakeClient(turns)
+    eng._toolbox = types.SimpleNamespace(
+        schemas=lambda: [{"type": "function", "function": {"name": "write_file"}}],
+        dispatch=lambda n, a: tools_called.append((n, a)) or "ok")
+    asyncio.run(eng.send("x", echo=False))
+    assert tools_called == [("write_file", {"path": "a.py"})]  # repaired despite trailing comma
+
+
 def test_buffered_fallback_when_stream_disabled(tmp_path):
     import dataclasses
     tools_called = []
