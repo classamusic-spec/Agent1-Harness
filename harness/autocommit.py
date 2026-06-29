@@ -82,6 +82,39 @@ def commit_all(workspace: str, message: str) -> dict:
     return {"ok": True, "sha": sha, "message": message}
 
 
+def _has_head(workspace: str) -> bool:
+    return _git(workspace, "rev-parse", "--verify", "-q", "HEAD").returncode == 0
+
+
+def working_diff(workspace: str, max_bytes: int = 20000) -> str:
+    """The uncommitted change vs the last commit (including new files), as a diff.
+
+    Stages everything so untracked files show up; this is non-destructive — an
+    unapproved change is rolled back with discard_changes()."""
+    if not (is_git_repo(workspace) and manages(workspace)):
+        return ""
+    res = ensure_repo(workspace)
+    if not res.get("ok"):
+        return ""
+    _git(workspace, "add", "-A")
+    args = ["diff", "--cached", "HEAD"] if _has_head(workspace) else ["diff", "--cached"]
+    out = _git(workspace, *args).stdout
+    if len(out) > max_bytes:
+        out = out[:max_bytes] + "\n... (diff truncated)"
+    return out
+
+
+def discard_changes(workspace: str) -> dict:
+    """Roll the working tree back to the last commit, dropping an unapproved change."""
+    if not (is_git_repo(workspace) and manages(workspace)):
+        return {"ok": False, "reason": "not a lathe-managed repo"}
+    _git(workspace, "reset", "-q")             # unstage
+    if _has_head(workspace):
+        _git(workspace, "checkout", "--", ".")  # restore tracked files to HEAD
+    _git(workspace, "clean", "-fd")            # remove new untracked files (keeps ignored)
+    return {"ok": True}
+
+
 def history(workspace: str, limit: int = 30) -> list[dict]:
     if not is_git_repo(workspace):
         return []

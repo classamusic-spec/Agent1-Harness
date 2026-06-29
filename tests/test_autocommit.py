@@ -77,3 +77,32 @@ def test_restore_to_past_commit(tmp_path):
 
 def test_history_empty_for_non_repo(tmp_path):
     assert autocommit.history(str(tmp_path)) == []
+
+
+def test_working_diff_shows_uncommitted_change(tmp_path):
+    (tmp_path / "app.py").write_text("v1\n")
+    autocommit.commit_all(str(tmp_path), "v1")
+    (tmp_path / "app.py").write_text("v2\n")
+    (tmp_path / "new.py").write_text("brand new\n")
+    diff = autocommit.working_diff(str(tmp_path))
+    assert "-v1" in diff and "+v2" in diff
+    assert "new.py" in diff and "brand new" in diff   # untracked file included
+
+
+def test_discard_changes_rolls_back(tmp_path):
+    (tmp_path / "app.py").write_text("good\n")
+    autocommit.commit_all(str(tmp_path), "good")
+    (tmp_path / "app.py").write_text("bad change\n")
+    (tmp_path / "extra.py").write_text("junk\n")
+    res = autocommit.discard_changes(str(tmp_path))
+    assert res["ok"]
+    assert (tmp_path / "app.py").read_text() == "good\n"   # restored
+    assert not (tmp_path / "extra.py").exists()            # new file removed
+    # the discard did NOT create a commit
+    assert len(autocommit.history(str(tmp_path))) == 1
+
+
+def test_working_diff_empty_when_no_change(tmp_path):
+    (tmp_path / "a.txt").write_text("x\n")
+    autocommit.commit_all(str(tmp_path), "x")
+    assert autocommit.working_diff(str(tmp_path)).strip() == ""

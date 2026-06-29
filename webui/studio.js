@@ -573,11 +573,13 @@
     $("#st-prompt").placeholder = "e.g. Add a dark-mode toggle, and a confetti burst when the timer ends.";
     $("#st-send").textContent = "Send change";
     $("#st-hint").textContent = "Your engine edits the app, then re-verifies. The preview reloads on the right.";
+    $("#st-review-diff-row").hidden = false;   // diff-review gate is iterate-only
   }
   function resetToNew() {
     project = null; currentFile = null;
     selectLabel(null);
     $("#st-new").hidden = false;
+    $("#st-review-diff-row").hidden = true;
     $("#st-prompt-label").textContent = "Describe the app to build";
     $("#st-send").textContent = "Generate app";
     $("#st-preview").src = "about:blank"; $("#st-preview-empty").hidden = false;
@@ -606,6 +608,7 @@
       url = "/api/iterate";
       body = { workspace: project, instruction: prompt, ...eng, ...ref };
       if (pickTarget) body.target = pickTarget;
+      if ($("#st-review-diff").checked) body.review_diff = true;
     } else {
       url = "/api/builds";
       body = { prompt, name: ($("#st-name").value || "app").trim(), kind: $("#st-kind").value,
@@ -658,9 +661,34 @@
       const c = await (await fetch("/api/current")).json();
       const tps = c.tok_per_sec ? ` · ⚡ ${c.tok_per_sec} tok/s` : "";
       $("#st-stat").textContent = c.tokens ? `${c.tokens} tokens · ${c.elapsed || 0}s${tps}` : "";
+      showDiffReview(c.pending && c.pending.kind === "diff" ? c.pending.payload : null);
       if (c.busy && project) loadFiles();
       if (!c.busy) stopPoll();
     } catch {}
+  }
+
+  // Diff-review gate: when a green iterate pauses for sign-off, show its diff with
+  // Approve / Discard. Approving commits it; discarding rolls the workspace back.
+  let diffShown = false;
+  function showDiffReview(payload) {
+    const panel = $("#st-diff-review");
+    if (!payload) { panel.hidden = true; diffShown = false; return; }
+    if (diffShown) return;                 // already rendering this one
+    diffShown = true;
+    $("#st-diff-review-body").textContent = payload.diff || "(no diff)";
+    panel.hidden = false;
+  }
+  async function decideDiff(approved) {
+    if (!jobId) return;
+    $("#st-diff-review").hidden = true; diffShown = false;
+    try {
+      await fetch(`/api/jobs/${jobId}/approve`, {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ approved }),
+      });
+    } catch {}
+    $("#st-stat").textContent = approved ? "✓ change committed" : "✗ change discarded";
+    setTimeout(() => { loadFiles(); reloadPreview(); }, 400);
   }
 
   // Undo the last green change by reverting its git commit (free, non-destructive).
@@ -1197,6 +1225,8 @@
     });
     $("#st-refresh").addEventListener("click", () => { loadFiles(); reloadPreview(); });
     $("#st-undo").addEventListener("click", undoLastChange);
+    $("#st-diff-approve").addEventListener("click", () => decideDiff(true));
+    $("#st-diff-discard").addEventListener("click", () => decideDiff(false));
     $("#st-reload").addEventListener("click", reloadPreview);
     $("#st-test").addEventListener("click", runTests);
     $("#st-pick").addEventListener("click", togglePick);

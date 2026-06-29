@@ -179,12 +179,25 @@
               <span>🚀 Deploy when it passes →</span>
               <span class="select-wrap small"><select id="st-deploy-provider"></select></span>
             </label>
+            <label class="toggle ref-toggle" id="st-review-diff-row" hidden>
+              <input type="checkbox" id="st-review-diff" />
+              <span>🔍 Review the diff before each change is committed</span>
+            </label>
             <button id="st-send" class="primary">Generate app</button>
             <p class="hint" id="st-hint">Claude Code (your authenticated CLI) builds it, then verifies it. Then chat to iterate.</p>
 
             <div class="studio-log-head">
               <span class="meter-label">Activity</span>
               <span class="stat" id="st-stat"></span>
+            </div>
+
+            <div id="st-diff-review" class="diff-review" hidden>
+              <div class="diff-review-head">🔍 Review this change before it's committed</div>
+              <pre id="st-diff-review-body" class="log mono"></pre>
+              <div class="diff-review-actions">
+                <button id="st-diff-approve" class="primary">Approve &amp; commit</button>
+                <button id="st-diff-discard" class="ghost danger">Discard change</button>
+              </div>
             </div>
             <div id="st-log" class="log studio-log" tabindex="0" data-empty="The agent's work will stream here."></div>
           </div>

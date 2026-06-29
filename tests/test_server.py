@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import threading
 import time
 
 import pytest
@@ -224,3 +225,56 @@ def test_leaderboard_requires_base_url(tmp_path):
     from harness import server as srv
     c = srv.Console(specs_dir="specs", workspaces_dir=str(tmp_path))
     assert "error" in c.start_leaderboard({})
+
+
+def test_diff_approval_commits_on_approve(tmp_path):
+    import shutil
+    if shutil.which("git") is None:
+        import pytest
+        pytest.skip("git not installed")
+    from harness import autocommit, server as srv
+    ws = tmp_path / "app"; ws.mkdir()
+    (ws / "a.py").write_text("v1\n")
+    autocommit.commit_all(str(ws), "v1")
+    (ws / "a.py").write_text("v2\n")            # an uncommitted change to review
+
+    c = srv.Console(specs_dir="specs", workspaces_dir=str(tmp_path))
+    job = srv.Job("d1", str(ws))
+
+    from harness.approval import Decision
+    def approve_soon():
+        for _ in range(200):
+            if job.pending:
+                job.decision = Decision(True, "")
+                job.approve_event.set()
+                return
+            time.sleep(0.01)
+    threading.Thread(target=approve_soon, daemon=True).start()
+    assert c._await_diff_approval(job, timeout=5) is True
+
+
+def test_diff_approval_discard_path(tmp_path):
+    import shutil
+    if shutil.which("git") is None:
+        import pytest
+        pytest.skip("git not installed")
+    from harness import autocommit, server as srv
+    ws = tmp_path / "app"; ws.mkdir()
+    (ws / "a.py").write_text("good\n")
+    autocommit.commit_all(str(ws), "good")
+    (ws / "a.py").write_text("bad\n")
+
+    c = srv.Console(specs_dir="specs", workspaces_dir=str(tmp_path))
+    job = srv.Job("d2", str(ws))
+    from harness.approval import Decision
+    def reject_soon():
+        for _ in range(200):
+            if job.pending:
+                job.decision = Decision(False, "no thanks")
+                job.approve_event.set()
+                return
+            time.sleep(0.01)
+    threading.Thread(target=reject_soon, daemon=True).start()
+    assert c._await_diff_approval(job, timeout=5) is False
+    autocommit.discard_changes(str(ws))
+    assert (ws / "a.py").read_text() == "good\n"   # rolled back after reject

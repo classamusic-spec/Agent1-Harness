@@ -527,6 +527,25 @@ class Console:
             self.leaderboard["current"] = None
             self.leaderboard["status"] = "done"
 
+    def _await_diff_approval(self, job: "Job", timeout: float = 900.0) -> bool:
+        """Pause after a green iterate and let the user approve the diff before it's
+        committed. Returns True to commit, False to discard. Defaults to commit on an
+        empty diff or a timeout (never silently lose work)."""
+        from harness import autocommit
+        diff = autocommit.working_diff(job.workspace)
+        if not diff.strip():
+            return True
+        job.approve_event.clear()
+        job.decision = None
+        job.pending = {"kind": "diff", "payload": {
+            "diff": diff, "workspace": os.path.basename(job.workspace)}}
+        job.log("[review] waiting for sign-off on the change diff…")
+        got = job.approve_event.wait(timeout)
+        job.pending = None
+        if not got or job.decision is None:
+            return True
+        return bool(getattr(job.decision, "approved", False))
+
     @staticmethod
     def _meter_cb(job: "Job"):
         """A callback the local engine pulses with live (tokens, rate, elapsed) so the
@@ -761,8 +780,18 @@ class Console:
         print(f"RESULT: {job.status.upper()} · {tokens} tokens")
         _snapshot(job.workspace, "Change", instruction)
         if result["ok"]:
-            _git_commit(job.workspace, f"Change: {instruction.splitlines()[0][:72]}")
-            self._learn_profile(job.workspace)
+            msg = f"Change: {instruction.splitlines()[0][:72]}"
+            if params.get("review_diff") and self._await_diff_approval(job):
+                _git_commit(job.workspace, msg)
+                self._learn_profile(job.workspace)
+            elif params.get("review_diff"):
+                from harness import autocommit
+                autocommit.discard_changes(job.workspace)
+                job.status = "discarded"
+                print("RESULT: change DISCARDED by reviewer — workspace rolled back")
+            else:
+                _git_commit(job.workspace, msg)
+                self._learn_profile(job.workspace)
         self._record_usage(job, kind, "iterate", engine=provider, model=model)
 
     def _run(self, job: Job, params: dict) -> None:
