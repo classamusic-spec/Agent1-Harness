@@ -890,6 +890,10 @@ def make_handler(console: Console):
             if path == "/api/local-models":
                 from harness import doctor
                 return self._json({"servers": doctor.detect_local_servers()})
+            if path == "/api/model-picker":
+                from harness import modelinfo
+                base = (q.get("base_url", [""])[0] or "").strip()
+                return self._json(modelinfo.list_models(base))
             if path == "/api/doctor":
                 from harness import doctor
                 state = doctor.probe()

@@ -682,6 +682,24 @@ input[type="number"]:focus { outline: none; border-color: var(--accent); box-sha
   font: inherit; font-size: .78rem; padding: 0 0 0 6px; }
 .linkish:hover { text-decoration: underline; }
 
+/* Local model picker: context length + tool-calling at a glance */
+.model-picker { margin: 8px 0 0; border: 1px solid var(--hairline); border-radius: 8px;
+  overflow: hidden; max-height: 230px; overflow-y: auto; font-size: .8rem; }
+.model-picker .mp-head { padding: 6px 10px; color: var(--muted); font-size: .72rem;
+  background: rgba(127,127,127,.06); border-bottom: 1px solid var(--hairline); }
+.mp-row { display: flex; align-items: center; gap: 8px; padding: 7px 10px;
+  border-bottom: 1px solid var(--hairline); cursor: pointer; }
+.mp-row:last-child { border-bottom: 0; }
+.mp-row[data-i]:hover { background: rgba(127,127,127,.10); }
+.mp-row.mp-empty { color: var(--muted); cursor: default; justify-content: center; }
+.mp-id { flex: 1 1 auto; font-family: ui-monospace, Menlo, monospace; overflow: hidden;
+  text-overflow: ellipsis; white-space: nowrap; }
+.mp-ctx { flex: 0 0 auto; color: var(--muted); font-variant-numeric: tabular-nums; }
+.mp-tool { flex: 0 0 auto; padding: 1px 7px; border-radius: 999px; font-size: .7rem; }
+.mp-tool.ok { background: rgba(46,160,67,.16); color: #2ea043; }
+.mp-tool.bad { background: rgba(218,54,51,.16); color: #da3633; }
+.mp-tool.unk { background: rgba(127,127,127,.16); color: var(--muted); }
+
 /* Deploy section in the Ship dialog */
 .ship-deploy { margin: 6px 18px 16px; padding-top: 12px; border-top: 1px solid var(--hairline); }
 .ship-deploy strong { display: block; margin-bottom: 8px; }

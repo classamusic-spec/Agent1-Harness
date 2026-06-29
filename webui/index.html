@@ -107,6 +107,7 @@
               <div>
                 <label for="st-model">Model
                   <button type="button" id="st-detect" class="linkish" title="Detect models on your machine">↻ detect</button>
+                  <button type="button" id="st-pick" class="linkish" title="Compare models: context length + tool-calling">⌄ pick</button>
                   <button type="button" id="st-test-conn" class="linkish" title="Verify the server + tool-calling">✓ test</button>
                 </label>
                 <input id="st-model" type="text" placeholder="model id" list="st-models" />
@@ -117,6 +118,7 @@
                 <input id="st-baseurl" type="text" placeholder="http://localhost:11434/v1" />
               </div>
             </div>
+            <div id="st-model-picker" class="model-picker" hidden></div>
             <p class="hint" id="st-local-hint" hidden></p>
 
             <div id="st-new">

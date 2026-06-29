@@ -143,6 +143,49 @@
     } catch { hint.textContent = "✗ test request failed"; }
   }
 
+  // Model picker: list every model on the server with its context length and a
+  // tool-calling badge, so you pick the right one at a glance. Click a row to use it.
+  async function openModelPicker() {
+    const box = $("#st-model-picker");
+    if (!box.hidden) { box.hidden = true; return; }     // toggle
+    const base = $("#st-baseurl").value || $("#st-baseurl").placeholder;
+    box.hidden = false;
+    box.innerHTML = '<div class="mp-row mp-empty">Loading models on ' + base + ' …</div>';
+    let data;
+    try {
+      data = await (await fetch("/api/model-picker?base_url=" + encodeURIComponent(base))).json();
+    } catch { box.innerHTML = '<div class="mp-row mp-empty">✗ request failed</div>'; return; }
+    if (data.error || !(data.models && data.models.length)) {
+      box.innerHTML = '<div class="mp-row mp-empty">' + (data.error || "no models loaded") + '</div>';
+      return;
+    }
+    const badge = (t) => t === "likely"
+      ? '<span class="mp-tool ok" title="Known to make tool calls — good for the build loop">tools ✓</span>'
+      : t === "weak"
+      ? '<span class="mp-tool bad" title="This family usually can\'t tool-call — builds may stall">tools ✗</span>'
+      : '<span class="mp-tool unk" title="Unknown — use ✓ test to probe for real">tools ?</span>';
+    box.innerHTML =
+      '<div class="mp-head">' + data.models.length + ' model(s) — context · tool-calling. Click to use.</div>' +
+      data.models.map((m, i) =>
+        '<div class="mp-row" data-i="' + i + '">' +
+          '<span class="mp-id">' + m.id + '</span>' +
+          '<span class="mp-ctx" title="Context window">' + m.context + ' ctx</span>' +
+          badge(m.tool_calling) +
+        '</div>').join("");
+    box.querySelectorAll(".mp-row[data-i]").forEach((row) => {
+      row.addEventListener("click", () => {
+        const m = data.models[+row.dataset.i];
+        $("#st-model").value = m.id;
+        if (!$("#st-baseurl").value) $("#st-baseurl").value = base;
+        box.hidden = true;
+        const hint = $("#st-local-hint");
+        hint.textContent = "Selected " + m.id + " · " + m.context + " context · tool-calling " +
+          (m.tool_calling === "likely" ? "likely ✓" : m.tool_calling === "weak" ? "unlikely ✗" : "unknown");
+        hint.hidden = false;
+      });
+    });
+  }
+
   let detectedServers = [];
   function onEngineChange() {
     const sel = $("#st-engine").value;
@@ -1075,6 +1118,7 @@
   function wire() {
     $("#st-engine").addEventListener("change", onEngineChange);
     $("#st-detect").addEventListener("click", detectLocalModels);
+    $("#st-pick").addEventListener("click", openModelPicker);
     $("#st-test-conn").addEventListener("click", testConnection);
     $("#st-scaffold").addEventListener("change", onScaffoldChange);
     $("#st-send").addEventListener("click", send);
