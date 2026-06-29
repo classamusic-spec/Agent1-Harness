@@ -370,9 +370,17 @@ git clone <repo> && cd Agent1-Harness
 Optional add-ons (skip if you already have them):
 
 ```bash
-./scripts/install-mac.sh --with-claude   # also install the Claude Code CLI
-./scripts/install-mac.sh --with-ollama   # also install Ollama + pull qwen2.5-coder
+./scripts/install-mac.sh --with-claude    # also install the Claude Code CLI
+./scripts/install-mac.sh --with-ollama    # also install Ollama + pull qwen2.5-coder
+./scripts/install-mac.sh --with-menubar   # also build a ✦ menu-bar app
 ```
+
+Prefer not to touch the Terminal? Two clickable options:
+- **`Agent1-Harness.command`** — double-click in Finder; first run installs, later
+  runs just launch the console + open the browser.
+- **`Agent1-Harness.app`** (from `--with-menubar`, or `./scripts/make-app.sh`) — a
+  ✦ menu-bar app to start/stop the console, open it, and run the engine doctor;
+  drag it to /Applications.
 
 At the end the installer runs **`python -m harness.doctor`**, which probes the
 machine and prints which engines are ready and the exact command to use. Run it

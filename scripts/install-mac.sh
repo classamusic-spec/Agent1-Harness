@@ -2,18 +2,21 @@
 # Agent1-Harness — one-command setup for macOS (Apple Silicon or Intel).
 #
 #   ./scripts/install-mac.sh                # Python venv + harness (+ local engine)
-#   ./scripts/install-mac.sh --with-ollama  # also install Ollama + pull a coder model
-#   ./scripts/install-mac.sh --with-claude  # also install the Claude Code CLI
+#   ./scripts/install-mac.sh --with-ollama   # also install Ollama + pull a coder model
+#   ./scripts/install-mac.sh --with-claude   # also install the Claude Code CLI
+#   ./scripts/install-mac.sh --with-menubar  # also build the ✦ menu-bar app
 #
 # Safe to re-run. It never overwrites your work; it only sets up a .venv and deps.
 set -euo pipefail
 
 WITH_OLLAMA=0
 WITH_CLAUDE=0
+WITH_MENUBAR=0
 for arg in "$@"; do
   case "$arg" in
     --with-ollama) WITH_OLLAMA=1 ;;
     --with-claude) WITH_CLAUDE=1 ;;
+    --with-menubar) WITH_MENUBAR=1 ;;
     -h|--help) grep '^#' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
     *) echo "unknown option: $arg" >&2; exit 2 ;;
   esac
@@ -53,8 +56,13 @@ if [ ! -d .venv ]; then say "Creating virtualenv (.venv)…"; "$PY" -m venv .ven
 source .venv/bin/activate
 say "Installing the harness + local-LLM engine…"
 python -m pip install --quiet --upgrade pip
-python -m pip install --quiet -e ".[local]"
+EXTRAS="local"
+[ "$WITH_MENUBAR" -eq 1 ] && EXTRAS="local,menubar"
+python -m pip install --quiet -e ".[$EXTRAS]"
 ok "Harness installed in .venv"
+if [ "$WITH_MENUBAR" -eq 1 ]; then
+  say "Building the menu-bar app…"; ./scripts/make-app.sh || warn "app build failed"
+fi
 
 # 3) Optional: Claude Code CLI ---------------------------------------------
 if [ "$WITH_CLAUDE" -eq 1 ] && ! command -v claude >/dev/null 2>&1; then
