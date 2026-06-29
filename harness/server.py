@@ -984,7 +984,8 @@ def make_handler(console: Console):
                 try:
                     return self._json(ghexport.export(
                         root, str(body.get("name") or name or "app"),
-                        private=body.get("private", True) is not False))
+                        private=body.get("private", True) is not False,
+                        ci=body.get("ci", True) is not False))
                 except Exception as e:
                     return self._json({"ok": False, "error": f"{type(e).__name__}: {e}"}, 500)
             if u.path == "/api/deploy":

@@ -64,12 +64,17 @@ def extract_repo_url(output: str) -> str:
     return m.group(0).rstrip("/.").removesuffix(".git") if m else ""
 
 
-def export(workspace: str, name: str, *, private: bool = True, runner=None) -> dict:
-    """Init + commit the workspace and (if gh is present) create the repo + push."""
+def export(workspace: str, name: str, *, private: bool = True, ci: bool = True,
+           runner=None) -> dict:
+    """Init + commit the workspace and (if gh is present) create the repo + push.
+    With `ci`, also add a stack-aware GitHub Actions workflow so the repo is green."""
     if not git_available():
         return {"ok": False, "ready": False, "reason": "git not found — install git, then:",
                 "commands": push_commands(name, private=private)}
     ensure_gitignore(workspace)
+    if ci:
+        from harness import ci as ci_mod
+        ci_mod.write_workflow(workspace)
     if runner is None:
         from harness.sandbox import HostRunner
         runner = HostRunner()
