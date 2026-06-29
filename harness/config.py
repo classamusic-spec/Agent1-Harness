@@ -44,6 +44,10 @@ class HarnessConfig:
     max_repairs: int = 4
     # Cap on agentic turns within a single engine.send() call.
     max_turns: int = 80
+    # Local engine: stream tokens live (smoother on slow local models) + a generous
+    # per-request timeout for big models (GLM / MiniMax) on a Mac Studio.
+    local_stream: bool = True
+    local_timeout: float = 600.0
     allowed_tools: list[str] = field(default_factory=lambda: list(DEFAULT_ALLOWED_TOOLS))
     stop_on_failure: bool = True
 

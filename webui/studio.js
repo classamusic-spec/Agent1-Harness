@@ -17,6 +17,8 @@
   const PRESETS = {
     "local:ollama":   { model: "qwen2.5-coder", base_url: "http://localhost:11434/v1" },
     "local:lmstudio": { model: "",              base_url: "http://localhost:1234/v1" },
+    "local:mlx":      { model: "",              base_url: "http://localhost:8080/v1" },
+    "local:vllm":     { model: "",              base_url: "http://localhost:8000/v1" },
     "local:custom":   { model: "",              base_url: "http://localhost:11434/v1" },
   };
 
@@ -123,6 +125,22 @@
     hint.textContent = "✓ Using " + (rec.why || rec.engine);
     hint.hidden = false;
     onEngineChange();
+  }
+
+  async function testConnection() {
+    const hint = $("#st-local-hint");
+    const base = $("#st-baseurl").value || $("#st-baseurl").placeholder;
+    hint.textContent = "Testing " + base + " …"; hint.hidden = false;
+    try {
+      const r = await (await fetch("/api/local-test", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ base_url: base, model: $("#st-model").value }),
+      })).json();
+      if (!r.reachable) { hint.textContent = "✗ " + (r.error || "not reachable"); return; }
+      const tools = r.tool_calling ? "tool-calling ✓" : "tool-calling ✗";
+      const lat = r.latency_ms ? ` · ${r.latency_ms}ms` : "";
+      hint.textContent = `${r.tool_calling ? "✓" : "⚠"} reachable · ${tools}${lat} — ${r.note || ""}`;
+    } catch { hint.textContent = "✗ test request failed"; }
   }
 
   let detectedServers = [];
@@ -1057,6 +1075,7 @@
   function wire() {
     $("#st-engine").addEventListener("change", onEngineChange);
     $("#st-detect").addEventListener("click", detectLocalModels);
+    $("#st-test-conn").addEventListener("click", testConnection);
     $("#st-scaffold").addEventListener("change", onScaffoldChange);
     $("#st-send").addEventListener("click", send);
     $("#st-stop").addEventListener("click", stop);

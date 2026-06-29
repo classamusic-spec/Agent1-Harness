@@ -1190,6 +1190,10 @@ def make_handler(console: Console):
                     except SpecError as e:
                         return self._json({"error": str(e)}, 400)
                 return self._json({"queued": jobs, "status": console.queue_status()})
+            if u.path == "/api/local-test":
+                from harness import localcheck
+                return self._json(localcheck.test_connection(
+                    str(body.get("base_url") or ""), str(body.get("model") or "")))
             if u.path == "/api/iterate":
                 if not body.get("workspace") or not body.get("instruction"):
                     return self._json({"error": "workspace and instruction are required"}, 400)

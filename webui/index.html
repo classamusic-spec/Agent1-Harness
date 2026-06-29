@@ -98,12 +98,17 @@
               <option value="openai">OpenAI API</option>
               <option value="local:ollama">Local · Ollama</option>
               <option value="local:lmstudio">Local · LM Studio</option>
+              <option value="local:mlx">Local · MLX (Mac)</option>
+              <option value="local:vllm">Local · vLLM</option>
               <option value="local:custom">Local · custom (OpenAI-compatible)</option>
             </select></div>
             <p class="hint" id="st-engine-hint" hidden></p>
             <div class="two" id="st-local-fields" hidden>
               <div>
-                <label for="st-model">Model <button type="button" id="st-detect" class="linkish" title="Detect models on your machine">↻ detect</button></label>
+                <label for="st-model">Model
+                  <button type="button" id="st-detect" class="linkish" title="Detect models on your machine">↻ detect</button>
+                  <button type="button" id="st-test-conn" class="linkish" title="Verify the server + tool-calling">✓ test</button>
+                </label>
                 <input id="st-model" type="text" placeholder="model id" list="st-models" />
                 <datalist id="st-models"></datalist>
               </div>

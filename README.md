@@ -435,6 +435,32 @@ appbuilder spec.yaml --workspace ./out \
 
 `python -m harness.doctor` lists the models it can see so you know exactly what to type.
 
+#### GLM 5.2 / MiniMax M3 on a Mac Studio (big models, smooth)
+
+These large open-weight models shine on a Mac Studio's unified memory. Serve them
+with an OpenAI-compatible server — **MLX** is the fastest path on Apple Silicon:
+
+```bash
+pip install mlx-lm
+mlx_lm.server --model mlx-community/GLM-4.6-... --port 8080   # or a MiniMax-M3 MLX build
+# (llama.cpp's `llama-server` also works on :8080; vLLM on :8000)
+```
+
+In **Studio** pick **“Local · MLX (Mac)”** (endpoint auto-fills `:8080`), hit **↻ detect**
+to load the served model, then **✓ test** — Lathe pings the server and confirms the model
+actually makes **tool calls** (what the build loop needs) before you start. Lathe **streams**
+tokens + file edits live, so even a slow 100B-class model feels responsive while it vibes.
+On the CLI:
+
+```bash
+appbuilder spec.yaml --workspace ./out \
+  --engine local --base-url http://localhost:8080/v1 --model GLM-4.6
+```
+
+> Tip: pick an *instruct/tool-calling* build of the model. If **✓ test** says
+> "tool calling ✗", the model can't drive the agent loop — switch to a tool-calling
+> variant (GLM-4.6, MiniMax-M3, Qwen2.5-Coder all work well).
+
 > Want native builds too? A Mac can also build/verify **SwiftUI/iOS** (needs Xcode)
 > and **Expo/React Native** (needs Node) — toolchains the harness drives but doesn't bundle.
 

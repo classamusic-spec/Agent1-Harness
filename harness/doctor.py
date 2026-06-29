@@ -22,7 +22,8 @@ import urllib.request
 OLLAMA_URL = "http://localhost:11434/v1/models"
 LMSTUDIO_URL = "http://localhost:1234/v1/models"
 # A local model good at the tool-calling the coder loop needs, in preference order.
-_CODER_HINTS = ("coder", "qwen", "deepseek", "codestral", "starcoder", "granite", "llama")
+_CODER_HINTS = ("coder", "glm", "minimax", "qwen", "deepseek", "kimi", "codestral",
+                "devstral", "starcoder", "granite", "mistral", "llama")
 
 
 def _get_json(url: str, timeout: float = 1.5):
@@ -58,9 +59,13 @@ def _models_from(payload) -> list[str]:
     return [str(m.get("id")) for m in (payload.get("data") or []) if m.get("id")]
 
 
+# Common OpenAI-compatible local servers, in probe order. MLX (`mlx_lm.server`) and
+# llama.cpp default to :8080; vLLM to :8000 — all great for GLM / MiniMax on a Mac.
 _LOCAL_SERVERS = (
     ("Ollama", OLLAMA_URL, "http://localhost:11434/v1"),
     ("LM Studio", LMSTUDIO_URL, "http://localhost:1234/v1"),
+    ("MLX / llama.cpp", "http://localhost:8080/v1/models", "http://localhost:8080/v1"),
+    ("vLLM", "http://localhost:8000/v1/models", "http://localhost:8000/v1"),
 )
 
 
