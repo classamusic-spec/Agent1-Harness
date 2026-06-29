@@ -50,22 +50,26 @@ def _float(v) -> float:
         return 0.0
 
 
-def summary(entries: list[dict]) -> dict:
+def summary(entries: list[dict], cost_of=None) -> dict:
     total_tokens = sum(_int(e.get("tokens")) for e in entries)
     total_seconds = sum(_float(e.get("elapsed")) for e in entries)
     passed = sum(1 for e in entries if e.get("status") == "passed")
     failed = sum(1 for e in entries if e.get("status") == "failed")
+    total_cost = sum(float(cost_of(e) or 0) for e in entries) if cost_of else 0.0
 
     by_project: dict[str, dict] = {}
     for e in entries:
         name = str(e.get("name") or "?")
-        p = by_project.setdefault(name, {"name": name, "runs": 0, "tokens": 0, "seconds": 0.0})
+        p = by_project.setdefault(name, {"name": name, "runs": 0, "tokens": 0, "seconds": 0.0, "cost": 0.0})
         p["runs"] += 1
         p["tokens"] += _int(e.get("tokens"))
         p["seconds"] += _float(e.get("elapsed"))
+        if cost_of:
+            p["cost"] += float(cost_of(e) or 0)
     projects = sorted(by_project.values(), key=lambda p: p["tokens"], reverse=True)
     for p in projects:
         p["seconds"] = round(p["seconds"], 1)
+        p["cost"] = round(p["cost"], 2)
 
     by_day: dict[str, int] = {}
     for e in entries:
@@ -79,6 +83,7 @@ def summary(entries: list[dict]) -> dict:
         "runs": len(entries),
         "tokens": total_tokens,
         "seconds": round(total_seconds, 1),
+        "cost": round(total_cost, 2),
         "passed": passed,
         "failed": failed,
         "projects": projects[:10],

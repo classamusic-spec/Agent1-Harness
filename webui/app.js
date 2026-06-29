@@ -272,6 +272,7 @@ async function loadUsage() {
       ["Builds", u.runs || 0],
       ["Tokens", fmtNum(u.tokens || 0)],
       ["Time", fmtDur(u.seconds || 0)],
+      ["Est. cost", "≈ $" + (u.cost || 0).toFixed(2)],
       ["Passed", `${u.passed || 0}/${u.runs || 0}`],
     ];
     $("#usage-stats").innerHTML = stats.map(([k, v]) =>

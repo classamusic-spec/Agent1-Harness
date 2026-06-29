@@ -744,7 +744,7 @@ input[type="number"]:focus { outline: none; border-color: var(--accent); box-sha
   background: var(--surface); color: var(--text); }
 
 /* Usage dashboard */
-.usage-stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin: 4px 0 8px; }
+.usage-stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(86px, 1fr)); gap: 12px; margin: 4px 0 8px; }
 .ustat { background: var(--surface); border: 1px solid var(--hairline); border-radius: var(--radius-sm);
   padding: 12px; text-align: center; }
 .ustat-v { font-size: 1.5rem; font-weight: 700; letter-spacing: -.02em; color: var(--text); }
