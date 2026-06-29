@@ -47,6 +47,7 @@ class LocalEngine(Engine):
             system_prompt = system_prompt + toolparse.text_protocol_hint([n for n in names if n])
         self._messages: list[dict] = [{"role": "system", "content": system_prompt}]
         self._client = None  # created on __aenter__
+        self._extra_body: dict = {}  # KV-cache reuse hints, set on __aenter__
         self.total_tokens = 0
         # Attach a reference image to the first turn iff the coder is multimodal.
         self._pending_image = (
@@ -84,6 +85,22 @@ class LocalEngine(Engine):
         timeout = getattr(self._config, "local_timeout", 600.0)
         self._client = AsyncOpenAI(base_url=cfg.base_url, api_key=cfg.resolved_api_key(),
                                    timeout=timeout, max_retries=1)
+
+        # Warm the model + set up KV-cache reuse hints (keep_alive / prompt_cache_key)
+        # so the first real turn isn't behind a cold load and the server can reuse
+        # this workspace's prompt prefix between iterations. Best-effort; never fatal.
+        from harness import warmup
+        self._extra_body = warmup.request_extra(
+            cfg.base_url, self._config.workspace,
+            getattr(self._config, "local_keep_alive", "30m"))
+        if getattr(self._config, "local_warmup", True):
+            info = await asyncio.to_thread(
+                warmup.warm, cfg.base_url, cfg.model,
+                api_key=cfg.resolved_api_key(),
+                keep_alive=getattr(self._config, "local_keep_alive", "30m"),
+                workspace=self._config.workspace)
+            if info.get("ok"):
+                print(f"  ⏱ {info['note']}", flush=True)
         return self
 
     async def __aexit__(self, *exc) -> None:
@@ -156,10 +173,15 @@ class LocalEngine(Engine):
         names = [s.get("function", {}).get("name") for s in self._toolbox.schemas()]
         return toolparse.extract_tool_calls(content, [n for n in names if n])
 
+    def _create_kwargs(self, schemas) -> dict:
+        kwargs = dict(model=self._engine_cfg.model, messages=self._messages, tools=schemas,
+                      tool_choice="auto", temperature=self._engine_cfg.temperature)
+        if self._extra_body:
+            kwargs["extra_body"] = dict(self._extra_body)
+        return kwargs
+
     async def _buffered_turn(self, schemas, echo) -> tuple[dict, str]:
-        resp = await self._client.chat.completions.create(
-            model=self._engine_cfg.model, messages=self._messages, tools=schemas,
-            tool_choice="auto", temperature=self._engine_cfg.temperature)
+        resp = await self._client.chat.completions.create(**self._create_kwargs(schemas))
         usage = getattr(resp, "usage", None)
         if usage is not None:
             self.total_tokens += getattr(usage, "total_tokens", 0) or 0
@@ -171,8 +193,8 @@ class LocalEngine(Engine):
     async def _stream_turn(self, schemas, echo) -> tuple[dict, str]:
         """One streamed turn: print text deltas live, accumulate tool calls. Falls
         back to a buffered turn if the server rejects streaming."""
-        kwargs = dict(model=self._engine_cfg.model, messages=self._messages, tools=schemas,
-                      tool_choice="auto", temperature=self._engine_cfg.temperature, stream=True)
+        kwargs = self._create_kwargs(schemas)
+        kwargs["stream"] = True
         try:
             try:
                 stream = await self._client.chat.completions.create(

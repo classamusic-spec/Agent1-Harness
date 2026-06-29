@@ -51,6 +51,11 @@ class HarnessConfig:
     # Tool-call repair fallback: salvage malformed tool-call JSON, and parse actions
     # a model writes as text (for weaker/quantized models that can't tool-call well).
     tool_fallback: bool = True
+    # Local engine warm-up + KV-cache reuse: fire a 1-token completion on connect so
+    # the first real turn isn't behind a cold model load, keep the model resident
+    # between turns (Ollama keep_alive), and hint prompt-cache reuse per workspace.
+    local_warmup: bool = True
+    local_keep_alive: str = "30m"
     allowed_tools: list[str] = field(default_factory=lambda: list(DEFAULT_ALLOWED_TOOLS))
     stop_on_failure: bool = True
 
