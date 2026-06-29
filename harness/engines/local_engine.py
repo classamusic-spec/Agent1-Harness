@@ -48,6 +48,7 @@ class LocalEngine(Engine):
         self._messages: list[dict] = [{"role": "system", "content": system_prompt}]
         self._client = None  # created on __aenter__
         self._extra_body: dict = {}  # KV-cache reuse hints, set on __aenter__
+        self._guard = None           # context guard, set on __aenter__
         self.total_tokens = 0
         self.tok_per_sec = 0.0       # last streamed decode rate (live meter)
         # Attach a reference image to the first turn iff the coder is multimodal.
@@ -102,7 +103,32 @@ class LocalEngine(Engine):
                 workspace=self._config.workspace)
             if info.get("ok"):
                 print(f"  ⏱ {info['note']}", flush=True)
+
+        # Context guard: learn the model's window (config override → server metadata)
+        # so we can compact history before it overflows and the model derails.
+        if getattr(self._config, "auto_compact", True):
+            limit = getattr(cfg, "context_length", None)
+            if not limit and warmup.is_local_server(cfg.base_url):
+                limit = await asyncio.to_thread(self._detect_context_length)
+            if limit:
+                from harness.context_guard import ContextGuard
+                self._guard = ContextGuard(
+                    limit,
+                    reserve=getattr(self._config, "context_reserve", 2048),
+                    threshold=getattr(self._config, "context_threshold", 0.8))
+                print(f"  ⌹ context window: {limit:,} tokens (auto-compact on)", flush=True)
         return self
+
+    def _detect_context_length(self):
+        from harness import modelinfo
+        try:
+            info = modelinfo.list_models(self._engine_cfg.base_url)
+        except Exception:
+            return None
+        for m in info.get("models", []):
+            if m.get("id") == self._engine_cfg.model and m.get("context_length"):
+                return m["context_length"]
+        return None
 
     async def __aexit__(self, *exc) -> None:
         if self._client is not None:
@@ -117,6 +143,11 @@ class LocalEngine(Engine):
         stream_on = getattr(self._config, "local_stream", True)
 
         for _ in range(self._config.max_turns):
+            if self._guard is not None:
+                self._messages, dropped = self._guard.maybe_compact(self._messages)
+                if dropped and echo:
+                    print(f"\n  ↯ context near limit — compacted {dropped} older "
+                          f"message(s) to protect the window", flush=True)
             if stream_on:
                 msg_dict, content = await self._stream_turn(schemas, echo)
             else:

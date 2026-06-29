@@ -27,6 +27,9 @@ class EngineConfig:
     provider: str = "anthropic"  # "anthropic" | "local"
     model: str = DEFAULT_MODEL
     base_url: str | None = None  # local only
+    # Model context window (tokens). Auto-detected for local servers; lets the
+    # context guard compact history before a small window overflows.
+    context_length: int | None = None
     # Env var to read the API key from. Local servers usually ignore it; the
     # OpenAI client just needs a non-empty string.
     api_key_env: str = "ANTHROPIC_API_KEY"
@@ -56,6 +59,12 @@ class HarnessConfig:
     # between turns (Ollama keep_alive), and hint prompt-cache reuse per workspace.
     local_warmup: bool = True
     local_keep_alive: str = "30m"
+    # Context guard: compact history before it overflows the model's window. The
+    # reserve leaves room for the reply; threshold is the fraction of the window
+    # we allow the prompt to reach before compacting.
+    auto_compact: bool = True
+    context_reserve: int = 2048
+    context_threshold: float = 0.8
     # Optional live token/sec callback, cb(tokens, rate, elapsed), driven by the
     # local engine's streamed deltas. The console uses it to show a live meter.
     meter_cb: object | None = field(default=None, repr=False, compare=False)
