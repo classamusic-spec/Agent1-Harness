@@ -771,6 +771,10 @@ def make_handler(console: Console):
             if path == "/api/local-models":
                 from harness import doctor
                 return self._json({"servers": doctor.detect_local_servers()})
+            if path == "/api/doctor":
+                from harness import doctor
+                state = doctor.probe()
+                return self._json({"state": state, "recommend": doctor.recommend(state)})
             if path == "/api/persona":
                 from harness import personas
                 kind = (q.get("kind", ["fullstack"])[0] or "fullstack").strip()

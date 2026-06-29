@@ -84,6 +84,38 @@
     if (s && $("#st-kind")) $("#st-kind").value = s.kind;
   }
 
+  // On first load, point the engine at whatever's actually available on this
+  // machine (the doctor's recommendation): Claude Code CLI, or a local server.
+  let recommendedApplied = false;
+  async function applyRecommendedEngine() {
+    if (recommendedApplied) return;
+    recommendedApplied = true;
+    let rec, state;
+    try {
+      const r = await (await fetch("/api/doctor")).json();
+      rec = r.recommend; state = r.state;
+    } catch { return; }
+    const hint = $("#st-engine-hint");
+    if (!rec) {
+      hint.textContent = "No engine detected — install Claude Code, or start Ollama/LM Studio (see README).";
+      hint.hidden = false; return;
+    }
+    const sel = $("#st-engine");
+    if (rec.engine === "claude-cli") {
+      sel.value = "claude-cli";
+    } else if (rec.engine === "local" && state && state.local) {
+      const base = state.local.base_url || "";
+      sel.value = base.includes("1234") ? "local:lmstudio"
+                : base.includes("11434") ? "local:ollama" : "local:custom";
+    } else {
+      // anthropic-only: Studio drives builds through Claude Code; keep the default.
+      sel.value = "claude-cli";
+    }
+    hint.textContent = "✓ Using " + (rec.why || rec.engine);
+    hint.hidden = false;
+    onEngineChange();
+  }
+
   let detectedServers = [];
   function onEngineChange() {
     const sel = $("#st-engine").value;
@@ -779,6 +811,7 @@
 
   async function show() {
     if (!wired) { wire(); wired = true; }
+    applyRecommendedEngine();
     onEngineChange();
     loadScaffolds();
     startHotReload();
