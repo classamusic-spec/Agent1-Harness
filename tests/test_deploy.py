@@ -135,6 +135,34 @@ def test_run_action_without_cli_returns_command(tmp_path, monkeypatch):
     assert r["ok"] is False and r["ready"] is False and r["command"] == "fly logs"
 
 
+def test_settings_save_and_read(tmp_path):
+    assert deploy.settings(str(tmp_path)) == {}
+    deploy.save_settings(str(tmp_path), provider="fly", domain="app.x.com")
+    deploy.save_settings(str(tmp_path), url="https://app.x.com")  # merges, keeps provider
+    s = deploy.settings(str(tmp_path))
+    assert s["provider"] == "fly" and s["domain"] == "app.x.com" and s["url"] == "https://app.x.com"
+
+
+def test_run_remembers_provider(tmp_path, monkeypatch):
+    (tmp_path / "index.html").write_text("<!doctype html><title>x</title>")
+    monkeypatch.setattr(deploy, "cli_available", lambda prov, which=None: True)
+
+    class R:
+        def run(self, command, cwd, timeout, env=None):
+            return subprocess.CompletedProcess(command, 0,
+                                               stdout="https://demo.pages.dev", stderr="")
+
+    deploy.run("cloudflare", str(tmp_path), "demo", runner=R())
+    assert deploy.settings(str(tmp_path))["provider"] == "cloudflare"
+
+
+def test_add_domain_remembers_domain(tmp_path, monkeypatch):
+    monkeypatch.setattr(deploy, "cli_available", lambda prov, which=None: False)
+    deploy.add_domain("fly", str(tmp_path), "demo", "app.example.com")
+    s = deploy.settings(str(tmp_path))
+    assert s["provider"] == "fly" and s["domain"] == "app.example.com"
+
+
 def test_push_secrets_never_leaks_values(tmp_path, monkeypatch):
     monkeypatch.setattr(deploy, "cli_available", lambda prov, which=None: True)
     captured = {}

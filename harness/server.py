@@ -890,6 +890,10 @@ def make_handler(console: Console):
                 from harness import deploy
                 root = self._ws_root(q.get("dir", [""])[0])
                 return self._json({"history": deploy.history(root)})
+            if path == "/api/deploy/settings":
+                from harness import deploy
+                root = self._ws_root(q.get("dir", [""])[0])
+                return self._json(deploy.settings(root))
             if path == "/api/deploy/plan":
                 from harness import deploy
                 name = os.path.basename(q.get("dir", [""])[0])

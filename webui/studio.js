@@ -650,7 +650,7 @@
     $("#ship-zip").href = `/api/ship/zip?dir=${encodeURIComponent(project)}`;
     $("#ship-zip").setAttribute("download", `${project}.zip`);
     if (typeof dlg.showModal === "function") dlg.showModal(); else dlg.setAttribute("open", "");
-    loadDeployProviders();
+    loadDeployProviders().then(loadDeploySettings);
     loadDeployHistory();
     $("#deploy-out").hidden = true; $("#deploy-url").hidden = true;
     try {
@@ -855,6 +855,17 @@
     if (typeof dlg.close === "function") dlg.close(); else dlg.removeAttribute("open");
   }
 
+  async function loadDeploySettings() {
+    if (!project) return;
+    try {
+      const s = await (await fetch(`/api/deploy/settings?dir=${encodeURIComponent(project)}`)).json();
+      if (s.provider && [...$("#deploy-provider").options].some((o) => o.value === s.provider)) {
+        $("#deploy-provider").value = s.provider;
+      }
+      if (s.domain) $("#deploy-domain").value = s.domain;
+      if (s.url) { $("#deploy-url").href = s.url; $("#deploy-url").textContent = "🌐 " + s.url; $("#deploy-url").hidden = false; }
+    } catch {}
+  }
   async function loadDeployHistory() {
     const ul = $("#deploy-history"); ul.innerHTML = "";
     try {

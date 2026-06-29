@@ -107,6 +107,27 @@ def extract_url(provider: str, name: str, output: str) -> str:
 
 
 _HISTORY_FILE = ".deploys.json"
+_SETTINGS_FILE = ".deploy-settings.json"
+
+
+def settings(workspace: str) -> dict:
+    """Per-project deploy preferences (provider, domain, last url)."""
+    try:
+        data = json.load(open(os.path.join(workspace, _SETTINGS_FILE), encoding="utf-8"))
+        return data if isinstance(data, dict) else {}
+    except (OSError, json.JSONDecodeError):
+        return {}
+
+
+def save_settings(workspace: str, **kw) -> dict:
+    s = settings(workspace)
+    s.update({k: v for k, v in kw.items() if v})
+    try:
+        with open(os.path.join(workspace, _SETTINGS_FILE), "w", encoding="utf-8") as fh:
+            json.dump(s, fh, indent=2)
+    except OSError:
+        pass
+    return s
 
 
 def history(workspace: str) -> list[dict]:
@@ -226,6 +247,7 @@ def add_domain(provider: str, workspace: str, name: str, domain: str, *,
     hint = dns_hint(provider, name, domain)
     if not cmd:
         return {"ok": False, "reason": f"custom domains not supported for {provider}"}
+    save_settings(workspace, provider=provider, domain=domain)
     if not cli_available(provider):
         return {"ok": False, "ready": False, "command": cmd, "dns": hint,
                 "reason": f"{PROVIDERS[provider]['cli']} CLI not found — run:"}
@@ -341,6 +363,7 @@ def run(provider: str, workspace: str, name: str, *, port: int = 8000,
                     "commands": p["commands"], "url": url}
         url = extract_url(provider, name, out) or url
     _record_deploy(workspace, provider, p["label"], url, True)
+    save_settings(workspace, provider=provider, url=url)
     return {"ok": True, "provider": provider, "label": p["label"], "url": url,
             "log": "\n".join(logs)}
 

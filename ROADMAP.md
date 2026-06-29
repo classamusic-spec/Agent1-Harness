@@ -4,6 +4,17 @@ Where the agent is strong today, and the highest-leverage things to add next.
 Ordered by impact-to-effort.
 
 ## Today (done)
+- **Per-project deploy settings** — each app remembers its provider, custom domain,
+  and last URL (`.deploy-settings.json`); the deploy dialog preselects them on
+  reopen. `deploy.settings`/`save_settings`, `/api/deploy/settings`.
+- **Secrets management** — push the workspace `.env` to the host as secrets (Fly
+  `fly secrets set`; others get per-key commands). Secret values are never returned
+  to the UI/logs — only key names + a masked command. `deploy.push_secrets`,
+  `/api/deploy/secrets`, a "Push secrets (.env)" button.
+- **Public template gallery** — curated starters shipped out of the box (Minimal
+  SPA, Notes API · SQLite, Stdlib Full-stack API), materialised from scaffolds + a
+  default design profile; they appear (tagged "starter") even before you save any.
+  `templates.builtins()`.
 - **Template marketplace** — save a built project (files + settings + your design
   profile) as a reusable, shareable template; browse them, **Use** one to seed a new
   project (files + house style applied), **Download** / **Import** the JSON to share.

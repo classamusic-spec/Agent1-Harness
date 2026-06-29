@@ -14,7 +14,7 @@ import os
 # Don't capture caches, VCS, deps, local DBs, or secrets into a shareable template.
 _SKIP_DIRS = {".git", "node_modules", "__pycache__", ".studio", ".pytest_cache",
               ".venv", "venv", "dist", "build", ".next", ".cache", ".github"}
-_SKIP_FILES = {".env"}
+_SKIP_FILES = {".env", ".deploys.json", ".deploy-settings.json"}
 _SKIP_SUFFIXES = (".db", ".db-wal", ".db-shm", ".sqlite", ".sqlite3", ".pyc", ".log", ".zip", ".png", ".jpg")
 _MAX_FILE = 200_000
 _MAX_TOTAL = 2_000_000
