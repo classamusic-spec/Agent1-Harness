@@ -78,7 +78,7 @@ hand-quality HTML/CSS/JS, no libraries:
 
 ![Build console](docs/screenshots/console-build-options.png)
 
-**Office (3D)** — a futuristic three.js scene where a little agent character works at a desk next to an **AI rig** (GPU rack). The fans spin and the GPU cards light up cyan whenever the frontier model or your local LLM is working; the whole scene animates live with the pipeline (idle → building → passed/failed):
+**Office (3D)** — a living three.js workspace: a **crew of agents** type at workstations whose **monitors stream code**, a **wall of GPU rigs** spins its fans and glows cyan whenever the frontier model or your local LLM is working, with plants, ceiling lights, and a holographic build ring overhead. The whole scene animates live with the pipeline (idle → building → passed/failed) and shows live tokens/sec; drag to orbit:
 
 ![3D agent office](docs/screenshots/console-office.png)
 
@@ -118,7 +118,7 @@ hand-quality HTML/CSS/JS, no libraries:
 | **Telemetry & budgets** | engines + `agent.py` | Tokens + wall-clock per build; `--token-budget` / `--deadline` stop the loop when exceeded. The console shows **live token & time budget meters** that fill as the build runs (amber near the limit, red over). |
 | **Resumable builds** | `harness/checkpoint.py` | `--checkpoint PATH` writes a checkpoint each round; `--resume PATH` continues against the existing workspace (cumulative tokens/time carried forward). The console writes one automatically and shows a **Resume** button in the Gallery. |
 | **Live run controls** | `harness/control.py` | **Pause** or **Cancel** a running build from the console; the loop stops at the next round boundary. Pause leaves a checkpoint, so it's resumable. |
-| **3D Office** | `webui/office.js` (three.js) | A futuristic Office tab: an agent character works at a desk beside an **AI rig** whose fans spin and GPU cards glow cyan while a model runs. Animates with build state (idle / building / passed / failed), driven live by `/api/current`. three.js is vendored for offline use. |
+| **3D Office** | `webui/office.js` (three.js) | A living Office tab: a **crew of agents** type at workstations whose **monitors stream code**, a **wall of GPU rigs** spins its fans and glows cyan under load, with plants, ceiling lights and a holographic build ring. Animates with build state (idle / building / passed / failed) and surfaces live tokens/sec, driven by `/api/current`. three.js is vendored for offline use. |
 | **CI** | `.github/workflows/ci.yml` | Runs the full test suite on Python 3.10–3.12 on every push and PR. |
 | **Milestone planner** | `harness/planner.py` | For big apps, `--plan` first asks the engine for an ordered plan (schema → API → UI → integration), then drives **each milestone to green** before the next — each is its own build/verify/repair loop with fresh context, sharing the workspace. Per-milestone checks (incl. server-backed); the final milestone is gated on the full app suite; stops at the first failed milestone. |
 | **Scaffolds** | `harness/scaffolds.py` | Start from a known-good base instead of cold: `static` (vanilla SPA), `python-api` (stdlib full-stack: JSON API + frontend, zero deps), `vite-react` (Vite+React+TS), `fastapi` (FastAPI+SQLite). The scaffold sets the run command + verification; the agent edits a working, runnable app. `--scaffold` / Studio "Start from". |
@@ -464,6 +464,31 @@ appbuilder spec.yaml --workspace ./out \
 > Want native builds too? A Mac can also build/verify **SwiftUI/iOS** (needs Xcode)
 > and **Expo/React Native** (needs Node) — toolchains the harness drives but doesn't bundle.
 
+## Local-model power features
+
+Running a big open-weight model locally is slower and rougher than a frontier API.
+Lathe has a stack of features aimed squarely at making **GLM 5.2 / MiniMax M3 / Qwen
+on a Mac Studio** feel smooth, reliable, and fast. They're on by default for the
+local engine and need no configuration.
+
+| Feature | Module | What it does |
+|---|---|---|
+| **Connection self-test** | `harness/localcheck.py` | **✓ test** in Studio pings the server, lists models, and confirms the chosen model actually **makes tool calls** before you start — no silent half-working builds. |
+| **Models picker** | `harness/modelinfo.py` | **⌄ pick** shows every model on the server with its **context length** (from vLLM/Ollama metadata) and a **tool-calling badge** (likely / weak / unknown), strong tool-callers first — pick the right one at a glance. |
+| **Model leaderboard** | `harness/leaderboard.py` | **🏁 benchmark** runs one real build task across your downloaded models and **ranks them by pass-rate, rounds, and tokens/sec** — "ranked by real results on this hardware." |
+| **Streaming + tok/s meter** | `harness/engines/local_engine.py`, `harness/meter.py` | Streams tokens and file edits live, with a **live ⚡ tokens/sec meter** in the console and the 3D office, so a slow model feels alive. |
+| **Model warm-up + KV reuse** | `harness/warmup.py` | Fires a 1-token completion on connect so the first real token isn't behind a cold weight load, keeps the model resident (Ollama `keep_alive`), and hints **prompt-prefix cache reuse** (vLLM/llama.cpp) per workspace. |
+| **Context-window guard** | `harness/context_guard.py` | Watches the prompt size against the model's real context length and **compacts history** (keeps system + recent turns, digests the middle) before a small window overflows and the model derails. |
+| **Repo-map context packer** | `harness/repomap.py` | Prepends a compact symbol map of the workspace to the first turn, and on a pointed (point-&-edit) change ships the **full content of the most relevant file** — so the model edits the right place without re-reading everything. |
+| **Surgical diff edits** | `harness/patch.py` | An `apply_patch` tool applies unified diffs by **context, ignoring the line numbers** weak models get wrong — big token/time savings vs. rewriting whole files. |
+| **Tool-call repair** | `harness/toolparse.py` | Salvages malformed tool-call JSON and parses actions a weak model writes as **text** instead of a native call, so models that can't tool-call cleanly still build. |
+| **Speculative verify** | `harness/speculative.py` | Runs the **cheapest static checks** (compile / typecheck) the moment files change — you see a `⚡ fast check` seconds after a write instead of waiting for the end-of-turn gate. |
+| **Dependency auto-install** | `harness/autoinstall.py` | A missing package (`ModuleNotFoundError` / `Cannot find module`) is installed **directly** and re-verified instead of spending an LLM repair round on it. |
+| **Auto-escalation** | `harness/escalation.py` | If a local model **stalls**, the stuck workspace is handed off to a **stronger engine** (your Claude CLI → API key → Codex → OpenAI), keeping the work so far. |
+| **Git auto-commit + undo** | `harness/autocommit.py` | Every green build/iteration is **committed to a local git history branch** for free undo — with a one-click **↩ Undo** and a **🔍 diff-review gate** to approve a change before it commits. |
+| **Runtime-error capture** | `harness/runtimeerrors.py` | Extracts the **real error** (traceback / stack / missing module) out of dev-server logs so repair prompts lead with the cause, and catches 500s/boot crashes the app logged while a check nominally passed. |
+| **Session resume** | `harness/server.py` (`/api/session`) | Persists the last project + engine so reopening Lathe — or a reclaimed container — **picks up where you left off**. |
+
 ## Setup & tests
 
 ```bash
@@ -483,13 +508,19 @@ two live model paths need a key or a local server to exercise end-to-end.
 harness/
   verifier.py spec.py personas.py prompts.py        # spec + gates + prompts (LLM-free core)
   memory.py review.py isolation.py                   # learning, reviewer gate, isolation
-  permissions.py localtools.py tools.py             # sandbox + tools
+  permissions.py localtools.py tools.py             # sandbox + tools (incl. apply_patch)
   config.py agent.py cli.py server.py               # config, the loop, CLIs, web console
-  engines/ base.py anthropic_engine.py local_engine.py
-webui/        index.html styles.css app.js          # clean build console
+  fullstack.py runtime.py runtimeerrors.py          # server-backed verify + runtime-error capture
+  engines/ base.py anthropic_engine.py local_engine.py codex_cli_engine.py
+  # local-model power features:
+  localcheck.py modelinfo.py leaderboard.py          # self-test, picker, benchmark
+  meter.py warmup.py context_guard.py repomap.py     # tok/s, warm-up+KV, context guard, repo map
+  patch.py toolparse.py speculative.py autoinstall.py # surgical diffs, tool repair, fast checks, deps
+  escalation.py autocommit.py pricing.py usage.py     # auto-escalate, git auto-commit, cost/usage
+webui/        index.html styles.css app.js studio.js office.js   # console + Studio + 3D office
 specs/        todo-cli, landing-page, web-dashboard, react-native-app, swiftui-app
 checks/       a11y_audit.mjs lighthouse_audit.mjs   # design gate templates
-tests/        verifier, spec, localtools, personas, isolation, memory, review, loop, server
+tests/        verifier, spec, localtools, loop, server, + 484 offline tests for the above
 ```
 
 ## Next steps

@@ -788,3 +788,80 @@ input[type="number"]:focus { outline: none; border-color: var(--accent); box-sha
 .queue-box { margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--hairline); }
 .queue-box h3 { margin: 0; font-size: .92rem; }
 .queue-box .rows li { padding: 7px 0; font-size: .86rem; }
+
+/* ============================================================
+   Premium polish v2 — richer depth, gradient accents, refined
+   glass & motion. Additive layer; overrides earlier rules.
+   ============================================================ */
+:root {
+  --shadow: 0 22px 60px rgba(31, 38, 75, 0.18), 0 2px 8px rgba(31, 38, 75, 0.06);
+  --shadow-lg: 0 32px 80px rgba(31, 38, 75, 0.22);
+  --grad-accent: linear-gradient(135deg, var(--accent), var(--accent-2));
+  --radius: 20px;
+}
+:root[data-theme="dark"], :root[data-theme="solid-dark"] {
+  --shadow: 0 24px 64px rgba(0, 0, 0, 0.5), 0 2px 10px rgba(0, 0, 0, 0.4);
+  --shadow-lg: 0 36px 90px rgba(0, 0, 0, 0.6);
+}
+
+/* Glass surfaces: a touch more saturation + a crisp top highlight */
+.card {
+  backdrop-filter: blur(calc(var(--card-blur) + 4px)) saturate(190%);
+  -webkit-backdrop-filter: blur(calc(var(--card-blur) + 4px)) saturate(190%);
+  border-color: var(--glass-border);
+  box-shadow: var(--shadow), var(--glass-hi);
+}
+.card:hover { box-shadow: var(--shadow-lg), var(--glass-hi); transform: translateY(-2px); }
+
+/* Brand mark — luminous app icon with an inner ring */
+.dot {
+  width: 30px; height: 30px; border-radius: 11px;
+  background:
+    radial-gradient(120% 120% at 30% 20%, rgba(255,255,255,0.55), transparent 50%),
+    linear-gradient(150deg, #5ac8fa 0%, var(--accent) 55%, var(--accent-2) 100%);
+  box-shadow: 0 4px 14px rgba(47, 107, 255, 0.45),
+              inset 0 0 0 1px rgba(255, 255, 255, 0.35);
+  position: relative;
+}
+.dot::after {
+  content: ""; position: absolute; inset: 7px; border-radius: 6px;
+  border: 1.5px solid rgba(255, 255, 255, 0.55); opacity: 0.7;
+}
+.brand h1 { font-weight: 700; letter-spacing: -0.02em; font-size: 1rem; }
+
+/* Tab rail — gradient active pill with a left accent bar + lift */
+.tab { border-radius: 12px; transition: background 0.18s ease, color 0.18s ease, box-shadow 0.18s ease; }
+.tab.active {
+  position: relative; color: var(--accent-ink);
+  background: var(--grad-accent);
+  box-shadow: 0 8px 20px rgba(47, 107, 255, 0.32);
+}
+.tab.active svg { fill: var(--accent-ink); opacity: 1; }
+.tab.active::before {
+  content: ""; position: absolute; left: -10px; top: 22%; bottom: 22%;
+  width: 3px; border-radius: 3px; background: var(--accent);
+}
+@media (max-width: 760px) { .tab.active::before { display: none; } }
+
+/* Primary buttons — gradient with a soft sheen sweep on hover */
+button.primary, .approval-actions .primary {
+  background: var(--grad-accent);
+  box-shadow: 0 10px 26px rgba(47, 107, 255, 0.34), inset 0 1px 0 rgba(255,255,255,0.25);
+  position: relative; overflow: hidden;
+}
+button.primary::after {
+  content: ""; position: absolute; inset: 0;
+  background: linear-gradient(120deg, transparent 30%, rgba(255,255,255,0.28) 50%, transparent 70%);
+  transform: translateX(-120%); transition: transform 0.55s ease;
+}
+button.primary:hover::after { transform: translateX(120%); }
+button.primary:hover { filter: brightness(1.05); box-shadow: 0 14px 34px rgba(47, 107, 255, 0.45); }
+
+/* Status pill — subtle glassy chip */
+.pill { background: var(--glass-strong); border-color: var(--glass-border); box-shadow: var(--shadow-sm); }
+
+/* Office HUD — premium glass card with gradient title */
+.office-brand {
+  background: var(--grad-accent); -webkit-background-clip: text; background-clip: text;
+  color: transparent; font-weight: 800; letter-spacing: 0.16em;
+}
