@@ -131,6 +131,39 @@
     }
   }
 
+  // --- voice input: dictate the spec / change into the composer (Web Speech API)
+  let recog = null, listening = false, micBase = "";
+  function setupVoice() {
+    const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+    const btn = $("#st-mic");
+    if (!SR || !btn) return;            // unsupported browser → leave the button hidden
+    btn.hidden = false;
+    recog = new SR();
+    recog.continuous = true; recog.interimResults = true; recog.lang = "en-US";
+    recog.onresult = (e) => {
+      let txt = "";
+      for (let i = 0; i < e.results.length; i++) txt += e.results[i][0].transcript;
+      const ta = $("#st-prompt");
+      ta.value = (micBase ? micBase + " " : "") + txt.trim();
+      ta.dispatchEvent(new Event("input"));
+    };
+    recog.onerror = () => stopVoice();
+    recog.onend = () => { if (listening) { try { recog.start(); } catch { stopVoice(); } } };
+    btn.addEventListener("click", toggleVoice);
+  }
+  function toggleVoice() { listening ? stopVoice() : startVoice(); }
+  function startVoice() {
+    if (!recog) return;
+    micBase = $("#st-prompt").value.trim();
+    try { recog.start(); listening = true; $("#st-mic").classList.add("active");
+          $("#st-mic").title = "Stop dictation"; } catch {}
+  }
+  function stopVoice() {
+    listening = false; $("#st-mic").classList.remove("active");
+    $("#st-mic").title = "Dictate (voice input)";
+    if (recog) { try { recog.stop(); } catch {} }
+  }
+
   function setStatus(state, text) {
     const e = $("#st-status"); e.dataset.state = state; e.textContent = text || state;
   }
@@ -431,7 +464,7 @@
       project = project || j.workspace.split("/").pop();
       selectLabel(project);
       $("#st-prompt").value = "";
-      clearRef(); clearTarget();
+      clearRef(); clearTarget(); stopVoice();
       stream(j.id); startPoll();
     } catch { setStatus("error", "request failed"); runningUI(false); }
   }
@@ -690,6 +723,7 @@
     $("#st-ref-file").addEventListener("change", onRefFile);
     $("#st-ref-clear").addEventListener("click", clearRef);
     $("#st-run-btn").addEventListener("click", toggleServer);
+    setupVoice();
     window.addEventListener("message", onPreviewMessage);
     $$('input[name="st-dev"]').forEach((r) => r.addEventListener("change", () => setDevice(r.value)));
     $("#st-prompt").addEventListener("keydown", (e) => {

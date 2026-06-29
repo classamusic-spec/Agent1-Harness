@@ -689,3 +689,16 @@ input[type="number"]:focus { outline: none; border-color: var(--accent); box-sha
 .ship-deploy-row .select-wrap.small { min-width: 180px; }
 #deploy-url { text-decoration: none; }
 #deploy-out { margin-top: 10px; max-height: 30vh; }
+
+/* Voice input mic button */
+.composer { position: relative; }
+.mic-btn { position: absolute; right: 10px; bottom: 10px; width: 34px; height: 34px;
+  border-radius: 50%; border: 1px solid var(--hairline-strong); background: var(--surface-solid);
+  cursor: pointer; font-size: 15px; line-height: 1; display: flex; align-items: center;
+  justify-content: center; opacity: .85; }
+.mic-btn:hover { opacity: 1; }
+.mic-btn.active { background: var(--accent); border-color: var(--accent); color: #fff;
+  animation: micpulse 1.2s ease-in-out infinite; }
+@keyframes micpulse { 0%,100% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--accent) 55%, transparent); }
+  50% { box-shadow: 0 0 0 7px transparent; } }
+@media (prefers-reduced-motion: reduce) { .mic-btn.active { animation: none; } }
