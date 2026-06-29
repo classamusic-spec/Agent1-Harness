@@ -808,6 +808,17 @@ def make_handler(console: Console):
                                           run_command=meta.get("run"))
                 from harness import stacks
                 return self._json({"stack": stacks.detect_stack(root), "files": files})
+            if path == "/api/deploy/providers":
+                from harness import deploy
+                return self._json({"providers": deploy.list_providers()})
+            if path == "/api/deploy/plan":
+                from harness import deploy
+                name = os.path.basename(q.get("dir", [""])[0])
+                root = self._ws_root(name)
+                if not os.path.isdir(root):
+                    return self._json({"error": "unknown workspace"}, 404)
+                provider = q.get("provider", ["fly"])[0]
+                return self._json(deploy.plan(provider, root, name or "app"))
             if path == "/api/ship/zip":
                 from harness import ship
                 name = os.path.basename(q.get("dir", [""])[0])
@@ -890,6 +901,17 @@ def make_handler(console: Console):
                                             run_command=meta.get("run"),
                                             overwrite=bool(body.get("overwrite")))
                 return self._json({"ok": True, "written": written})
+            if u.path == "/api/deploy":
+                from harness import deploy
+                name = os.path.basename(body.get("workspace") or "")
+                root = self._ws_root(name)
+                if not os.path.isdir(root):
+                    return self._json({"error": "unknown workspace"}, 404)
+                provider = str(body.get("provider") or "fly")
+                try:
+                    return self._json(deploy.run(provider, root, name or "app"))
+                except Exception as e:
+                    return self._json({"ok": False, "error": f"{type(e).__name__}: {e}"}, 500)
             if u.path == "/api/iterate":
                 if not body.get("workspace") or not body.get("instruction"):
                     return self._json({"error": "workspace and instruction are required"}, 400)

@@ -681,3 +681,11 @@ input[type="number"]:focus { outline: none; border-color: var(--accent); box-sha
 .linkish { background: none; border: 0; color: var(--accent); cursor: pointer;
   font: inherit; font-size: .78rem; padding: 0 0 0 6px; }
 .linkish:hover { text-decoration: underline; }
+
+/* Deploy section in the Ship dialog */
+.ship-deploy { margin: 6px 18px 16px; padding-top: 12px; border-top: 1px solid var(--hairline); }
+.ship-deploy strong { display: block; margin-bottom: 8px; }
+.ship-deploy-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.ship-deploy-row .select-wrap.small { min-width: 180px; }
+#deploy-url { text-decoration: none; }
+#deploy-out { margin-top: 10px; max-height: 30vh; }

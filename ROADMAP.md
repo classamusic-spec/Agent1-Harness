@@ -4,6 +4,12 @@ Where the agent is strong today, and the highest-leverage things to add next.
 Ordered by impact-to-effort.
 
 ## Today (done)
+- **One-click deploy** — push a packaged app to a host and get a live URL. Provider
+  adapters (Fly.io · Docker, Cloudflare Pages · static, Render · blueprint) generate
+  the host config (`fly.toml`/`render.yaml` + the Ship-it Dockerfile), run the
+  provider CLI if it's installed + authenticated, and return the deployed URL — or,
+  if the CLI is missing, the exact commands to run. `harness/deploy.py`, a Deploy
+  section in the Studio Ship dialog, `/api/deploy`.
 - **Mac quick-start** — `scripts/install-mac.sh` (one command: Python venv + harness
   + local engine; optional `--with-claude` / `--with-ollama`), `scripts/start-mac.sh`
   (launch + open the browser), and **`python -m harness.doctor`** which probes the

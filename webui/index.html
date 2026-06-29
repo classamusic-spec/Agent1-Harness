@@ -248,6 +248,18 @@
             <code class="ship-cmd">docker compose up --build</code>
           </div>
           <div id="ship-msg" class="ship-msg"></div>
+
+          <div class="ship-deploy">
+            <strong>Deploy → live URL</strong>
+            <div class="ship-deploy-row">
+              <div class="select-wrap small"><select id="deploy-provider"></select></div>
+              <button id="deploy-go" class="primary" type="button">Deploy</button>
+              <a id="deploy-url" class="ship-cmd" target="_blank" rel="noopener" hidden></a>
+            </div>
+            <p class="ship-sub" id="deploy-note">Pushes the packaged app to your host using its
+              CLI (authenticate once). No CLI yet? You'll get the exact commands to run.</p>
+            <pre class="ship-preview" id="deploy-out" hidden></pre>
+          </div>
         </dialog>
 
         <!-- BUILD -->

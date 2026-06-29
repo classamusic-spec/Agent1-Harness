@@ -584,6 +584,8 @@
     $("#ship-zip").href = `/api/ship/zip?dir=${encodeURIComponent(project)}`;
     $("#ship-zip").setAttribute("download", `${project}.zip`);
     if (typeof dlg.showModal === "function") dlg.showModal(); else dlg.setAttribute("open", "");
+    loadDeployProviders();
+    $("#deploy-out").hidden = true; $("#deploy-url").hidden = true;
     try {
       const r = await (await fetch(`/api/ship?dir=${encodeURIComponent(project)}`)).json();
       if (r.error) { $("#ship-preview").textContent = r.error; return; }
@@ -616,6 +618,44 @@
       loadFiles();
     } catch { $("#ship-msg").textContent = "failed to write files"; }
   }
+  let deployProviders = [];
+  async function loadDeployProviders() {
+    const sel = $("#deploy-provider");
+    if (deployProviders.length) return;
+    try {
+      const r = await (await fetch("/api/deploy/providers")).json();
+      deployProviders = r.providers || [];
+      sel.innerHTML = deployProviders.map((p) =>
+        `<option value="${p.id}">${p.label}${p.cli_present ? " ✓" : ""}</option>`).join("");
+    } catch {}
+  }
+  async function runDeploy() {
+    if (!project) return;
+    const provider = $("#deploy-provider").value;
+    const btn = $("#deploy-go"); const old = btn.textContent;
+    btn.disabled = true; btn.textContent = "Deploying…";
+    $("#deploy-out").hidden = false; $("#deploy-out").textContent = "Working… (running the provider CLI)";
+    $("#deploy-url").hidden = true;
+    try {
+      const r = await (await fetch("/api/deploy", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ workspace: project, provider }),
+      })).json();
+      if (r.ok && r.url) {
+        $("#deploy-url").href = r.url; $("#deploy-url").textContent = "🌐 " + r.url; $("#deploy-url").hidden = false;
+        $("#deploy-out").textContent = (r.log || "").slice(-1500) || ("Deployed → " + r.url);
+      } else if (r.ready === false) {
+        $("#deploy-out").textContent =
+          (r.reason || "CLI not found") + "\n\n" + (r.commands || []).join("\n") +
+          "\n\nThen your app will be live at: " + (r.url || "");
+        if (r.url) { $("#deploy-url").href = r.url; $("#deploy-url").textContent = "🌐 " + r.url + " (after deploy)"; $("#deploy-url").hidden = false; }
+      } else {
+        $("#deploy-out").textContent = (r.reason || r.error || "deploy failed") + "\n\n" + (r.log || "");
+      }
+      loadFiles();
+    } catch (e) { $("#deploy-out").textContent = "deploy request failed"; }
+    finally { btn.disabled = false; btn.textContent = old; }
+  }
   function closeShip() {
     const dlg = $("#ship-dialog");
     if (typeof dlg.close === "function") dlg.close(); else dlg.removeAttribute("open");
@@ -639,6 +679,7 @@
     $("#st-ship").addEventListener("click", openShip);
     $("#ship-close").addEventListener("click", closeShip);
     $("#ship-add").addEventListener("click", shipAdd);
+    $("#deploy-go").addEventListener("click", runDeploy);
     $("#st-mode-files").addEventListener("click", () => setMode("files"));
     $("#st-mode-diff").addEventListener("click", () => setMode("diff"));
     $("#st-from").addEventListener("change", showDiff);
