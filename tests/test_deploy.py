@@ -135,6 +135,47 @@ def test_run_action_without_cli_returns_command(tmp_path, monkeypatch):
     assert r["ok"] is False and r["ready"] is False and r["command"] == "fly logs"
 
 
+def test_preview_target_per_provider():
+    fly = deploy.preview_target("fly", "demo", "dark-mode", "abc123")
+    assert fly["app"] == "demo-pv-abc123" and fly["url"] == "https://demo-pv-abc123.fly.dev"
+    cf = deploy.preview_target("cloudflare", "demo", "Dark Mode!", "abc123")
+    assert cf["branch"] == "dark-mode" and cf["url"] == "https://dark-mode.demo.pages.dev"
+
+
+def test_preview_without_cli_returns_url_and_commands(tmp_path, monkeypatch):
+    (tmp_path / "index.html").write_text("<!doctype html><title>x</title>")
+    monkeypatch.setattr(deploy, "cli_available", lambda prov, which=None: False)
+    r = deploy.preview("cloudflare", str(tmp_path), "demo", label="feature-x", pid="zz99")
+    assert r["preview"] is True and r["ready"] is False
+    assert r["url"] == "https://feature-x.demo.pages.dev"
+    assert any("wrangler pages deploy" in c and "--branch feature-x" in c for c in r["commands"])
+    # not recorded — it hasn't actually deployed without the CLI
+    assert deploy.previews(str(tmp_path)) == []
+
+
+def test_preview_with_cli_runs_and_records(tmp_path, monkeypatch):
+    (tmp_path / "public").mkdir()
+    (tmp_path / "public" / "index.html").write_text("<x>")
+    monkeypatch.setattr(deploy, "cli_available", lambda prov, which=None: True)
+
+    class R:
+        def run(self, command, cwd, timeout, env=None):
+            return subprocess.CompletedProcess(command, 0,
+                                               stdout="https://feature-x.demo.pages.dev", stderr="")
+
+    r = deploy.preview("cloudflare", str(tmp_path), "demo", label="feature-x", runner=R(), pid="p1")
+    assert r["ok"] is True and r["url"] == "https://feature-x.demo.pages.dev"
+    assert any(p["id"] == "p1" for p in deploy.previews(str(tmp_path)))
+
+
+def test_destroy_preview_untracks(tmp_path, monkeypatch):
+    deploy._save_previews(str(tmp_path), [{"id": "p1", "app": "demo-pv-p1", "url": "u"}])
+    monkeypatch.setattr(deploy, "cli_available", lambda prov, which=None: False)
+    r = deploy.destroy_preview("fly", str(tmp_path), "demo", "p1")
+    assert "fly apps destroy demo-pv-p1" in r["command"]
+    assert deploy.previews(str(tmp_path)) == []   # removed from the list
+
+
 def test_settings_save_and_read(tmp_path):
     assert deploy.settings(str(tmp_path)) == {}
     deploy.save_settings(str(tmp_path), provider="fly", domain="app.x.com")

@@ -277,6 +277,11 @@
               <input id="deploy-domain" type="text" placeholder="app.yourdomain.com" class="domain-input" />
               <button id="deploy-domain-go" class="ghost" type="button">Add custom domain</button>
             </div>
+            <div class="ship-deploy-row" style="margin-top:8px">
+              <input id="preview-label" type="text" placeholder="preview label / branch (e.g. dark-mode)" class="domain-input" />
+              <button id="preview-go" class="ghost" type="button">Deploy preview ↗</button>
+            </div>
+            <ul class="deploy-history" id="preview-list"></ul>
             <p class="ship-sub" id="deploy-note">Pushes the packaged app to your host using its
               CLI (authenticate once). No CLI yet? You'll get the exact commands to run.</p>
             <pre class="ship-preview" id="deploy-out" hidden></pre>

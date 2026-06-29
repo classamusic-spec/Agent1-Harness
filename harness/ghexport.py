@@ -21,7 +21,7 @@ _GITIGNORE = "\n".join([
     ".env", ".env.*", "!.env.example",
     "node_modules/", "__pycache__/", "*.pyc",
     "*.db", "*.db-wal", "*.db-shm", "*.sqlite*",
-    ".deploys.json", ".deploy-settings.json",
+    ".deploys.json", ".deploy-settings.json", ".previews.json",
     ".studio/", ".venv/", "venv/", "dist/", "build/", ".DS_Store", "",
 ])
 _URL_RE = re.compile(r"https://github\.com/[^\s'\"]+")

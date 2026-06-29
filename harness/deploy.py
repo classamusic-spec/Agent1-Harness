@@ -285,6 +285,125 @@ def run_action(provider: str, action: str, workspace: str, name: str, *,
         return {"ok": False, "command": run_cmd, "reason": f"{type(e).__name__}: {e}"}
 
 
+_PREVIEWS_FILE = ".previews.json"
+
+
+def _short_id() -> str:
+    import secrets
+    return secrets.token_hex(3)
+
+
+def _branch(label: str) -> str:
+    b = "".join(c if (c.isalnum() or c in "-") else "-" for c in (label or "preview").lower())
+    return b.strip("-")[:28] or "preview"
+
+
+def preview_target(provider: str, name: str, label: str, pid: str) -> dict:
+    """The app name + URL + deploy command for a throwaway preview environment."""
+    s = slug(name)
+    if provider == "fly":
+        app = f"{s}-pv-{pid}"
+        return {"id": pid, "app": app, "url": f"https://{app}.fly.dev",
+                "commands": [f"fly apps create {app} --org personal 2>/dev/null || true",
+                             f"fly deploy --app {app} --now --ha=false"]}
+    if provider == "cloudflare":
+        br = _branch(label or pid)  # the publish dir is resolved against the workspace in preview()
+        return {"id": pid, "branch": br, "url": f"https://{br}.{s}.pages.dev",
+                "commands": [f"wrangler pages deploy . --project-name {s} --branch {br}"]}
+    if provider == "render":
+        return {"id": pid, "url": f"https://{s}-pr-{pid}.onrender.com",
+                "commands": [f"# Render preview environments are created from a PR/branch "
+                             f"(enable Preview Environments on the {s} service)."]}
+    return {"id": pid, "url": "", "commands": []}
+
+
+def previews(workspace: str) -> list[dict]:
+    try:
+        data = json.load(open(os.path.join(workspace, _PREVIEWS_FILE), encoding="utf-8"))
+        return data if isinstance(data, list) else []
+    except (OSError, json.JSONDecodeError):
+        return []
+
+
+def _save_previews(workspace: str, items: list[dict]) -> None:
+    try:
+        with open(os.path.join(workspace, _PREVIEWS_FILE), "w", encoding="utf-8") as fh:
+            json.dump(items[:25], fh, indent=2)
+    except OSError:
+        pass
+
+
+def preview(provider: str, workspace: str, name: str, *, label: str = "preview",
+            runner=None, pid: str | None = None) -> dict:
+    """Deploy a throwaway preview environment with its own URL. Records it so the UI
+    can list (and later destroy) it. Returns commands if the CLI isn't present."""
+    if provider not in PROVIDERS:
+        return {"ok": False, "reason": f"unknown provider: {provider}"}
+    pid = pid or _short_id()
+    tgt = preview_target(provider, name, label, pid)
+    # cloudflare publishes a real directory — resolve it against the workspace now.
+    if provider == "cloudflare":
+        pub = _public_dir(workspace)
+        tgt["commands"] = [f"wrangler pages deploy {pub} --project-name {slug(name)} "
+                           f"--branch {tgt['branch']}"]
+    if PROVIDERS[provider]["kind"] == "docker":
+        ship.write_export(workspace, name=name)
+
+    def _finish(ok, url, log=""):
+        entry = {"id": pid, "label": label, "url": url, "provider": provider}
+        import datetime
+        entry["ts"] = datetime.datetime.now().strftime("%Y-%m-%d %H:%M")
+        _save_previews(workspace, [entry] + previews(workspace))
+        return {"ok": ok, "preview": True, "id": pid, "url": url, "label": label,
+                "provider": provider, "commands": tgt["commands"], "log": log}
+
+    if not cli_available(provider):
+        return {"ok": False, "ready": False, "preview": True, "id": pid, "url": tgt["url"],
+                "label": label, "commands": tgt["commands"],
+                "reason": f"{PROVIDERS[provider]['cli']} CLI not found — run:"}
+    if runner is None:
+        from harness.sandbox import HostRunner
+        runner = HostRunner()
+    url, logs = tgt["url"], []
+    for cmd in tgt["commands"]:
+        if cmd.strip().startswith("#"):
+            continue
+        proc = runner.run(cmd, workspace, 1800)
+        out = (proc.stdout or "") + (proc.stderr or "")
+        logs.append(f"$ {cmd}\n{out}")
+        if proc.returncode != 0:
+            return {"ok": False, "ready": True, "preview": True, "id": pid, "url": tgt["url"],
+                    "reason": f"`{cmd}` exited {proc.returncode}", "log": "\n".join(logs)}
+        url = extract_url(provider, name, out) or url
+    return _finish(True, url, "\n".join(logs))
+
+
+def destroy_preview_command(provider: str, name: str, prev: dict) -> str:
+    s = slug(name)
+    if provider == "fly":
+        return f"fly apps destroy {prev.get('app') or s + '-pv-' + prev.get('id', '')} --yes"
+    if provider == "cloudflare":
+        return f"# delete the '{prev.get('branch') or prev.get('label')}' preview in the Pages dashboard"
+    return f"# remove the preview for {s} in the provider dashboard"
+
+
+def destroy_preview(provider: str, workspace: str, name: str, pid: str, *, runner=None) -> dict:
+    items = previews(workspace)
+    prev = next((p for p in items if p.get("id") == pid), {"id": pid})
+    cmd = destroy_preview_command(provider, name, prev)
+    _save_previews(workspace, [p for p in items if p.get("id") != pid])  # untrack
+    if cmd.strip().startswith("#") or not cli_available(provider):
+        return {"ok": False, "ready": cli_available(provider), "command": cmd,
+                "reason": "run to destroy:" if cli_available(provider) else
+                          f"{PROVIDERS[provider]['cli']} CLI not found — run:"}
+    if runner is None:
+        from harness.sandbox import HostRunner
+        runner = HostRunner()
+    proc = runner.run(cmd, workspace, 300)
+    return {"ok": proc.returncode == 0, "command": cmd,
+            "output": ((proc.stdout or "") + (proc.stderr or ""))[-2000:]}
+
+
 def _probe(url: str, timeout: float = 4.0) -> int:
     """GET a URL and return its HTTP status (0 if unreachable)."""
     import urllib.error

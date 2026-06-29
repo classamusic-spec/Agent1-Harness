@@ -894,6 +894,10 @@ def make_handler(console: Console):
                 from harness import deploy
                 root = self._ws_root(q.get("dir", [""])[0])
                 return self._json(deploy.settings(root))
+            if path == "/api/deploy/previews":
+                from harness import deploy
+                root = self._ws_root(q.get("dir", [""])[0])
+                return self._json({"previews": deploy.previews(root)})
             if path == "/api/deploy/plan":
                 from harness import deploy
                 name = os.path.basename(q.get("dir", [""])[0])
@@ -1044,6 +1048,24 @@ def make_handler(console: Console):
                     return self._json(deploy.run(provider, root, name or "app"))
                 except Exception as e:
                     return self._json({"ok": False, "error": f"{type(e).__name__}: {e}"}, 500)
+            if u.path == "/api/deploy/preview":
+                from harness import deploy
+                name = os.path.basename(body.get("workspace") or "")
+                root = self._ws_root(name)
+                if not os.path.isdir(root):
+                    return self._json({"error": "unknown workspace"}, 404)
+                return self._json(deploy.preview(
+                    str(body.get("provider") or "cloudflare"), root, name or "app",
+                    label=str(body.get("label") or "preview")))
+            if u.path == "/api/deploy/preview/destroy":
+                from harness import deploy
+                name = os.path.basename(body.get("workspace") or "")
+                root = self._ws_root(name)
+                if not os.path.isdir(root):
+                    return self._json({"error": "unknown workspace"}, 404)
+                return self._json(deploy.destroy_preview(
+                    str(body.get("provider") or "cloudflare"), root, name or "app",
+                    str(body.get("id") or "")))
             if u.path == "/api/deploy/secrets":
                 from harness import deploy
                 name = os.path.basename(body.get("workspace") or "")

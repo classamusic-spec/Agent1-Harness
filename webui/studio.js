@@ -652,6 +652,7 @@
     if (typeof dlg.showModal === "function") dlg.showModal(); else dlg.setAttribute("open", "");
     loadDeployProviders().then(loadDeploySettings);
     loadDeployHistory();
+    loadPreviews();
     $("#deploy-out").hidden = true; $("#deploy-url").hidden = true;
     try {
       const r = await (await fetch(`/api/ship?dir=${encodeURIComponent(project)}`)).json();
@@ -910,6 +911,52 @@
     } catch { $("#deploy-out").textContent = "secrets request failed"; }
   }
 
+  async function loadPreviews() {
+    const ul = $("#preview-list"); if (!ul) return; ul.innerHTML = "";
+    try {
+      const r = await (await fetch(`/api/deploy/previews?dir=${encodeURIComponent(project)}`)).json();
+      for (const p of (r.previews || [])) {
+        const li = document.createElement("li");
+        li.innerHTML = `<span>${p.ts || ""} · ${p.label || p.id}</span>` +
+          (p.url ? ` <a href="${p.url}" target="_blank" rel="noopener">${p.url}</a>` : "");
+        const x = document.createElement("button");
+        x.className = "ghost"; x.textContent = "✕";
+        x.title = "Destroy preview";
+        x.addEventListener("click", () => destroyPreview(p.id, p.provider));
+        li.appendChild(x);
+        ul.appendChild(li);
+      }
+    } catch {}
+  }
+  async function deployPreview() {
+    if (!project) return;
+    const provider = $("#deploy-provider").value;
+    const label = $("#preview-label").value.trim() || "preview";
+    $("#deploy-out").hidden = false; $("#deploy-out").textContent = "Deploying preview…";
+    try {
+      const r = await (await fetch("/api/deploy/preview", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ workspace: project, provider, label }),
+      })).json();
+      const lines = [];
+      if (r.url) lines.push("Preview URL: " + r.url + (r.ok ? " (live)" : " (after deploy)"));
+      if (!r.ok && r.reason) { lines.push(r.reason); lines.push((r.commands || []).join("\n")); }
+      if (r.log) lines.push(r.log.slice(-1200));
+      $("#deploy-out").textContent = lines.join("\n");
+      loadPreviews();
+    } catch { $("#deploy-out").textContent = "preview request failed"; }
+  }
+  async function destroyPreview(id, provider) {
+    if (!project) return;
+    try {
+      await fetch("/api/deploy/preview/destroy", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ workspace: project, provider, id }),
+      });
+      loadPreviews();
+    } catch {}
+  }
+
   async function addDomain() {
     if (!project) return;
     const domain = $("#deploy-domain").value.trim();
@@ -996,6 +1043,7 @@
     $("#deploy-rollback").addEventListener("click", () => deployAction("rollback"));
     $("#deploy-domain-go").addEventListener("click", addDomain);
     $("#deploy-secrets").addEventListener("click", pushSecrets);
+    $("#preview-go").addEventListener("click", deployPreview);
     $("#st-style").addEventListener("click", openProfile);
     $("#profile-close").addEventListener("click", closeProfile);
     $("#profile-save").addEventListener("click", saveProfile);
