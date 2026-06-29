@@ -55,6 +55,11 @@
   function engineParams() {
     const sel = $("#st-engine").value;
     if (sel === "claude-cli") return { engine: "claude-cli", model: "", base_url: null };
+    if (sel === "codex-cli") return { engine: "codex-cli", model: $("#st-model").value || "", base_url: null };
+    if (sel === "openai") {
+      return { engine: "openai", model: $("#st-model").value || "gpt-4o",
+               base_url: $("#st-baseurl").value || "https://api.openai.com/v1" };
+    }
     const p = PRESETS[sel] || PRESETS["local:custom"];
     return {
       engine: "local",
@@ -103,6 +108,10 @@
     const sel = $("#st-engine");
     if (rec.engine === "claude-cli") {
       sel.value = "claude-cli";
+    } else if (rec.engine === "codex-cli") {
+      sel.value = "codex-cli";
+    } else if (rec.engine === "openai") {
+      sel.value = "openai";
     } else if (rec.engine === "local" && state && state.local) {
       const base = state.local.base_url || "";
       sel.value = base.includes("1234") ? "local:lmstudio"
@@ -120,15 +129,25 @@
   function onEngineChange() {
     const sel = $("#st-engine").value;
     const local = sel.startsWith("local");
-    $("#st-local-fields").hidden = !local;
+    // OpenAI also exposes the model/base-url fields; codex/claude CLIs don't.
+    $("#st-local-fields").hidden = !(local || sel === "openai");
     if (local) {
       const p = PRESETS[sel] || PRESETS["local:custom"];
       $("#st-model").placeholder = p.model || "model id";
       $("#st-baseurl").placeholder = p.base_url;
       if (!$("#st-baseurl").value) $("#st-baseurl").value = p.base_url;
       detectLocalModels();  // populate from models already on the machine
+    } else if (sel === "openai") {
+      $("#st-model").placeholder = "gpt-4o";
+      $("#st-baseurl").value = "https://api.openai.com/v1";
+      $("#st-local-hint").textContent = "Uses your OPENAI_API_KEY on the server. Models: gpt-4o, gpt-4.1, o4-mini…";
+      $("#st-local-hint").hidden = false;
     } else {
       $("#st-local-hint").hidden = true;
+      if (sel === "codex-cli") {
+        $("#st-local-hint").textContent = "Uses your authenticated `codex` CLI (ChatGPT/Codex account). Run `codex login` once.";
+        $("#st-local-hint").hidden = false;
+      }
     }
   }
 

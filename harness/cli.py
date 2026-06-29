@@ -39,9 +39,11 @@ def _parse_args(argv: list[str]) -> argparse.Namespace:
                    help="Write a resumable checkpoint to this path each round")
     p.add_argument("--resume", default=None,
                    help="Resume a build from a checkpoint file (no spec needed)")
-    p.add_argument("--engine", "-e", choices=["anthropic", "local", "claude-cli"],
+    p.add_argument("--engine", "-e",
+                   choices=["anthropic", "openai", "local", "claude-cli", "codex-cli"],
                    default="anthropic",
-                   help="Model backend: anthropic (SDK), local (OpenAI-compatible), "
+                   help="Model backend: anthropic (SDK), openai (API), local (OpenAI-compatible), "
+                        "claude-cli (Claude Code), codex-cli (ChatGPT/Codex), "
                         "or claude-cli (drive the installed Claude Code CLI)")
     p.add_argument("--model", "-m", default=None,
                    help=f"Model id/name (anthropic default: {DEFAULT_MODEL}; required for local)")
@@ -161,9 +163,17 @@ def _engine_config(args) -> EngineConfig:
             api_key_env=args.api_key_env or "OPENAI_API_KEY",
             temperature=args.temperature,
         )
-    if args.engine == "claude-cli":
+    if args.engine == "openai":
         return EngineConfig(
-            provider="claude-cli",
+            provider="openai",
+            model=args.model or "gpt-4o",
+            base_url=args.base_url or "https://api.openai.com/v1",
+            api_key_env=args.api_key_env or "OPENAI_API_KEY",
+            temperature=args.temperature,
+        )
+    if args.engine in ("claude-cli", "codex-cli"):
+        return EngineConfig(
+            provider=args.engine,
             model=args.model or "",  # empty -> the CLI's default model
             temperature=args.temperature,
         )
@@ -184,16 +194,18 @@ def _check_only(spec) -> int:
 
 def _preflight(engine: EngineConfig) -> str | None:
     """Return an error message if the engine can't run, else None."""
-    if engine.provider == "anthropic":
+    if engine.provider in ("anthropic", "openai"):
         if not os.environ.get(engine.api_key_env):
             return (f"{engine.api_key_env} is not set. Export it, switch to --engine local, "
                     "or use --check-only.")
-    elif engine.provider == "claude-cli":
+    elif engine.provider in ("claude-cli", "codex-cli"):
         import shutil
-        binname = os.environ.get("CLAUDE_CLI_BIN", "claude")
+        default_bin = "claude" if engine.provider == "claude-cli" else "codex"
+        env_var = "CLAUDE_CLI_BIN" if engine.provider == "claude-cli" else "CODEX_CLI_BIN"
+        binname = os.environ.get(env_var, default_bin)
         if shutil.which(binname) is None:
-            return (f"the claude-cli engine needs the '{binname}' CLI on PATH "
-                    "(install Claude Code, or set $CLAUDE_CLI_BIN).")
+            return (f"the {engine.provider} engine needs the '{binname}' CLI on PATH "
+                    f"(install it and authenticate, or set ${env_var}).")
     else:  # local
         if not engine.model:
             return "the local engine requires --model (the name your server serves, e.g. qwen2.5-coder)."

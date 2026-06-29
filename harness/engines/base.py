@@ -45,12 +45,31 @@ def make_engine(spec: Spec, config: HarnessConfig, *, system_prompt_override: st
 
         return LocalEngine(spec, config, sys_prompt)
 
+    if provider == "openai":
+        # OpenAI's API is OpenAI-compatible — reuse the local engine pointed at it.
+        import dataclasses
+
+        from harness.engines.local_engine import LocalEngine
+
+        eng = config.engine
+        if not eng.base_url or "openai.com" not in eng.base_url:
+            eng = dataclasses.replace(eng, base_url="https://api.openai.com/v1")
+        # Default the key env to OpenAI's unless the caller set an OpenAI-specific one.
+        if eng.api_key_env in ("", "ANTHROPIC_API_KEY"):
+            eng = dataclasses.replace(eng, api_key_env="OPENAI_API_KEY")
+        return LocalEngine(spec, dataclasses.replace(config, engine=eng), sys_prompt)
+
     if provider in ("claude-cli", "claude-code"):
         from harness.engines.claude_cli_engine import ClaudeCLIEngine
 
         return ClaudeCLIEngine(spec, config, sys_prompt)
 
+    if provider in ("codex-cli", "codex"):
+        from harness.engines.codex_cli_engine import CodexCLIEngine
+
+        return CodexCLIEngine(spec, config, sys_prompt)
+
     raise ValueError(
         f"unknown engine provider: {provider!r} "
-        f"(expected 'anthropic', 'local', or 'claude-cli')"
+        f"(expected 'anthropic', 'openai', 'local', 'claude-cli', or 'codex-cli')"
     )

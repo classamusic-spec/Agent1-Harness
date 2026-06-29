@@ -399,6 +399,19 @@ Then in the **Studio** tab pick engine **“Claude Code (CLI)”** (it's the def
 or on the CLI: `--engine claude-cli --model sonnet`. No `ANTHROPIC_API_KEY` needed.
 (To use the API instead: `export ANTHROPIC_API_KEY=…` and pick **Claude**.)
 
+### Connect OpenAI — ChatGPT / Codex account, or an API key
+
+Two ways to plug in OpenAI:
+
+- **ChatGPT / Codex account (no API key)** — install OpenAI's `codex` CLI and sign in
+  once; the harness drives it like Claude Code:
+  ```bash
+  codex login            # sign in with your ChatGPT account
+  ```
+  Pick **“Codex CLI (ChatGPT account)”** in Studio, or `--engine codex-cli`.
+- **OpenAI API key** — `export OPENAI_API_KEY=…`, then pick **“OpenAI API”** in Studio
+  (model `gpt-4o` / `gpt-4.1` / `o4-mini`), or `--engine openai --model gpt-4o`.
+
 ### Connect a local LLM (fully offline — great on a Mac Studio)
 
 Apple-Silicon unified memory runs strong coder models locally. Use **Ollama** or

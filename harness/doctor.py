@@ -37,9 +37,18 @@ def detect_claude_cli(which=shutil.which) -> bool:
     return bool(which("claude"))
 
 
+def detect_codex_cli(which=shutil.which) -> bool:
+    return bool(which("codex"))
+
+
 def detect_anthropic_key(env=None) -> bool:
     env = os.environ if env is None else env
     return bool(env.get("ANTHROPIC_API_KEY"))
+
+
+def detect_openai_key(env=None) -> bool:
+    env = os.environ if env is None else env
+    return bool(env.get("OPENAI_API_KEY"))
 
 
 def _models_from(payload) -> list[str]:
@@ -84,7 +93,9 @@ def pick_coder_model(models: list[str]) -> str | None:
 def probe(which=shutil.which, env=None, get=_get_json) -> dict:
     return {
         "claude_cli": detect_claude_cli(which),
+        "codex_cli": detect_codex_cli(which),
         "anthropic_key": detect_anthropic_key(env),
+        "openai_key": detect_openai_key(env),
         "local": detect_local_server(get),
     }
 
@@ -94,9 +105,15 @@ def recommend(state: dict) -> dict | None:
     if state.get("claude_cli"):
         return {"engine": "claude-cli", "cmd": "--engine claude-cli --model sonnet",
                 "why": "your authenticated Claude Code CLI (no API key needed)"}
+    if state.get("codex_cli"):
+        return {"engine": "codex-cli", "cmd": "--engine codex-cli",
+                "why": "your authenticated Codex CLI / ChatGPT account (no API key needed)"}
     if state.get("anthropic_key"):
         return {"engine": "anthropic", "cmd": "--engine anthropic",
                 "why": "the Anthropic API via $ANTHROPIC_API_KEY"}
+    if state.get("openai_key"):
+        return {"engine": "openai", "cmd": "--engine openai --model gpt-4o",
+                "why": "the OpenAI API via $OPENAI_API_KEY"}
     local = state.get("local")
     if local:
         model = pick_coder_model(local["models"]) or "qwen2.5-coder"
@@ -112,8 +129,12 @@ def render(state: dict) -> str:
     lines = ["Agent1-Harness — engine check", ""]
     lines.append(f"  {mark(state['claude_cli'])} Claude Code (CLI)   "
                  + ("found" if state["claude_cli"] else "not found — install: npm i -g @anthropic-ai/claude-code"))
+    lines.append(f"  {mark(state.get('codex_cli'))} Codex CLI (ChatGPT) "
+                 + ("found" if state.get("codex_cli") else "not found — install OpenAI Codex, then `codex login`"))
     lines.append(f"  {mark(state['anthropic_key'])} Anthropic API key   "
                  + ("set" if state["anthropic_key"] else "not set — export ANTHROPIC_API_KEY=…"))
+    lines.append(f"  {mark(state.get('openai_key'))} OpenAI API key      "
+                 + ("set" if state.get("openai_key") else "not set — export OPENAI_API_KEY=…"))
     local = state.get("local")
     if local:
         models = ", ".join(local["models"][:6]) or "(no models loaded)"
