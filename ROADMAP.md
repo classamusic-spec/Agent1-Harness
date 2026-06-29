@@ -4,6 +4,16 @@ Where the agent is strong today, and the highest-leverage things to add next.
 Ordered by impact-to-effort.
 
 ## Today (done)
+- **Engine auto-select** — Studio picks the right engine on load from the doctor's
+  recommendation (Claude Code CLI, else a detected local server) with a "✓ Using …"
+  hint, so a fresh user never has to choose. `/api/doctor`.
+- **Menu-bar app** — a ✦ macOS menu-bar app (`scripts/menubar.py`, rumps) to
+  start/stop the console, open it, and run the doctor; `scripts/make-app.sh` builds
+  `Agent1-Harness.app` (drag to /Applications). Plus the double-click
+  `Agent1-Harness.command`. `--with-menubar` installs + builds it.
+- **Deploy status (live ✓)** — after a deploy, Studio polls the URL and flips the
+  link to "live ✓" once it responds. `harness/deploy.py` `check_live`,
+  `/api/deploy/status`.
 - **Streaming build view** — the Claude Code engine now streams (`stream-json`): the
   live log shows the agent's text and **each file edit / command as it happens**
   (`✎ Write index.html`, `$ npm test`) mid-turn, instead of one block at the end.

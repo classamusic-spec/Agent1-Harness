@@ -709,6 +709,7 @@
       if (r.ok && r.url) {
         $("#deploy-url").href = r.url; $("#deploy-url").textContent = "🌐 " + r.url; $("#deploy-url").hidden = false;
         $("#deploy-out").textContent = (r.log || "").slice(-1500) || ("Deployed → " + r.url);
+        pollDeployLive(r.url);
       } else if (r.ready === false) {
         $("#deploy-out").textContent =
           (r.reason || "CLI not found") + "\n\n" + (r.commands || []).join("\n") +
@@ -762,6 +763,20 @@
   function closeProfile() {
     const dlg = $("#profile-dialog");
     if (typeof dlg.close === "function") dlg.close(); else dlg.removeAttribute("open");
+  }
+
+  // Poll the deployed URL until it answers, then mark it live ✓.
+  async function pollDeployLive(url, attempts = 40) {
+    const el = $("#deploy-url");
+    el.textContent = "🌐 " + url + " — waiting for it to come up…";
+    for (let i = 0; i < attempts; i++) {
+      try {
+        const r = await (await fetch(`/api/deploy/status?url=${encodeURIComponent(url)}`)).json();
+        if (r.live) { el.textContent = "🌐 " + url + " — live ✓"; el.classList.add("live"); return; }
+      } catch {}
+      await new Promise((res) => setTimeout(res, 3000));
+    }
+    el.textContent = "🌐 " + url + " (not responding yet)";
   }
 
   function closeShip() {

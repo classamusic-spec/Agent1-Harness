@@ -845,6 +845,9 @@ def make_handler(console: Console):
             if path == "/api/deploy/providers":
                 from harness import deploy
                 return self._json({"providers": deploy.list_providers()})
+            if path == "/api/deploy/status":
+                from harness import deploy
+                return self._json(deploy.check_live(q.get("url", [""])[0]))
             if path == "/api/deploy/plan":
                 from harness import deploy
                 name = os.path.basename(q.get("dir", [""])[0])

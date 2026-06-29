@@ -105,6 +105,28 @@ def extract_url(provider: str, name: str, output: str) -> str:
     return m.group(0).rstrip("/.") if m else deployed_url(provider, name)
 
 
+def _probe(url: str, timeout: float = 4.0) -> int:
+    """GET a URL and return its HTTP status (0 if unreachable)."""
+    import urllib.error
+    import urllib.request
+    try:
+        req = urllib.request.Request(url, headers={"User-Agent": "agent1-harness"})
+        with urllib.request.urlopen(req, timeout=timeout) as r:
+            return getattr(r, "status", 200) or 200
+    except urllib.error.HTTPError as e:  # a response, just non-2xx
+        return e.code
+    except Exception:
+        return 0
+
+
+def check_live(url: str, probe=_probe) -> dict:
+    """Is a deployed URL serving yet? `live` when it answers with a non-5xx status."""
+    if not url:
+        return {"live": False, "status": 0, "url": url}
+    status = probe(url)
+    return {"live": bool(status and status < 500), "status": status, "url": url}
+
+
 def plan(provider: str, workspace: str, name: str, *, port: int = 8000) -> dict:
     """What a deploy would do — config + commands + URL — without running anything."""
     if provider not in PROVIDERS:

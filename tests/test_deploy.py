@@ -100,3 +100,15 @@ def test_run_reports_command_failure(tmp_path, monkeypatch):
 def test_list_providers_shape():
     provs = {p["id"] for p in deploy.list_providers()}
     assert {"fly", "cloudflare", "render"} <= provs
+
+
+def test_check_live_true_on_2xx_3xx():
+    assert deploy.check_live("https://x.fly.dev", probe=lambda u, **k: 200)["live"] is True
+    assert deploy.check_live("https://x.fly.dev", probe=lambda u, **k: 301)["live"] is True
+
+
+def test_check_live_false_on_5xx_or_unreachable():
+    assert deploy.check_live("https://x.fly.dev", probe=lambda u, **k: 502)["live"] is False
+    assert deploy.check_live("https://x.fly.dev", probe=lambda u, **k: 0)["live"] is False
+    out = deploy.check_live("", probe=lambda u, **k: 200)
+    assert out["live"] is False and out["status"] == 0
