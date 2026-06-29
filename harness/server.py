@@ -365,6 +365,21 @@ def _snapshot(workspace_dir: str, label: str, instruction: str = "") -> None:
         print(f"[version] snapshot skipped: {type(exc).__name__}: {exc}")
 
 
+def _git_commit(workspace_dir: str, message: str) -> None:
+    """Best-effort git commit after a green turn (free undo/history; never fails a build)."""
+    try:
+        from harness import autocommit
+        res = autocommit.commit_all(workspace_dir, message)
+        if res.get("sha"):
+            print(f"[git] committed {res['sha']} — {message}")
+        elif res.get("nochange"):
+            print("[git] no file changes to commit")
+        elif res.get("reason"):
+            print(f"[git] skipped: {res['reason']}")
+    except Exception as exc:  # auto-commit is a convenience, not a gate
+        print(f"[git] commit skipped: {type(exc).__name__}: {exc}")
+
+
 def run_tests(workspace_dir: str, checks: list | None = None) -> dict:
     """Run the verification suite for a workspace on demand (for the Run tests button)."""
     from harness.spec import Check
@@ -746,6 +761,7 @@ class Console:
         print(f"RESULT: {job.status.upper()} · {tokens} tokens")
         _snapshot(job.workspace, "Change", instruction)
         if result["ok"]:
+            _git_commit(job.workspace, f"Change: {instruction.splitlines()[0][:72]}")
             self._learn_profile(job.workspace)
         self._record_usage(job, kind, "iterate", engine=provider, model=model)
 
@@ -858,6 +874,7 @@ class Console:
         print(f"Telemetry: {result.tokens_used} tokens · {result.elapsed_seconds:.1f}s")
         _snapshot(job.workspace, "Initial build", spec.description)
         if result.ok:
+            _git_commit(job.workspace, f"Initial build: {spec.name}")
             self._learn_profile(job.workspace)
 
         # Visual-diff refinement: converge the look toward the reference image.
@@ -951,6 +968,11 @@ def make_handler(console: Console):
                 return self._json(modelinfo.list_models(base))
             if path == "/api/leaderboard":
                 return self._json(console.leaderboard)
+            if path == "/api/git-history":
+                from harness import autocommit
+                root = self._ws_root(q.get("dir", [""])[0])
+                return self._json({"managed": autocommit.manages(root),
+                                   "commits": autocommit.history(root)})
             if path == "/api/doctor":
                 from harness import doctor
                 state = doctor.probe()
@@ -1263,6 +1285,16 @@ def make_handler(console: Console):
             if u.path == "/api/leaderboard/run":
                 res = console.start_leaderboard(body)
                 return self._json(res, 409 if res.get("error") else 200)
+            if u.path == "/api/git-undo":
+                from harness import autocommit
+                root = self._ws_root(str(body.get("workspace") or body.get("dir") or ""))
+                res = autocommit.undo_last(root)
+                return self._json(res, 200 if res.get("ok") else 409)
+            if u.path == "/api/git-restore":
+                from harness import autocommit
+                root = self._ws_root(str(body.get("workspace") or body.get("dir") or ""))
+                res = autocommit.restore(root, str(body.get("sha") or ""))
+                return self._json(res, 200 if res.get("ok") else 409)
             if u.path == "/api/iterate":
                 if not body.get("workspace") or not body.get("instruction"):
                     return self._json({"error": "workspace and instruction are required"}, 400)

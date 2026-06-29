@@ -663,6 +663,26 @@
     } catch {}
   }
 
+  // Undo the last green change by reverting its git commit (free, non-destructive).
+  async function undoLastChange() {
+    if (!project) return;
+    const btn = $("#st-undo");
+    btn.disabled = true;
+    try {
+      const r = await (await fetch("/api/git-undo", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ workspace: project }),
+      })).json();
+      if (r.ok) {
+        $("#st-stat").textContent = "↩ reverted last change (" + (r.sha || "") + ")";
+        loadFiles(); reloadPreview();
+      } else {
+        $("#st-stat").textContent = "↩ " + (r.reason || r.error || "nothing to undo");
+      }
+    } catch { $("#st-stat").textContent = "↩ undo failed"; }
+    finally { btn.disabled = false; }
+  }
+
   // --- version history + diff ---------------------------------------------
   let versions = [];
   function setMode(mode) {
@@ -1176,6 +1196,7 @@
       if (v === NEW) resetToNew(); else setProject(v);
     });
     $("#st-refresh").addEventListener("click", () => { loadFiles(); reloadPreview(); });
+    $("#st-undo").addEventListener("click", undoLastChange);
     $("#st-reload").addEventListener("click", reloadPreview);
     $("#st-test").addEventListener("click", runTests);
     $("#st-pick").addEventListener("click", togglePick);
