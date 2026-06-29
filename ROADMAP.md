@@ -4,6 +4,12 @@ Where the agent is strong today, and the highest-leverage things to add next.
 Ordered by impact-to-effort.
 
 ## Today (done)
+- **Mac quick-start** — `scripts/install-mac.sh` (one command: Python venv + harness
+  + local engine; optional `--with-claude` / `--with-ollama`), `scripts/start-mac.sh`
+  (launch + open the browser), and **`python -m harness.doctor`** which probes the
+  machine and prints which engines are ready (Claude Code CLI / Anthropic key /
+  local Ollama·LM Studio with their models) and the exact command to use. README
+  "Running on a Mac" covers connecting Claude Code or a local LLM.
 - **Point & edit (inline element targeting)** — click an element in the live
   preview, then describe the change in plain language; the harness anchors the
   iterate to that exact element (selector + the markup you pointed at) so the

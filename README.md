@@ -357,13 +357,71 @@ See `checks/README.md` (needs Node + Chromium).
 - **Isolation** — builds land in an ephemeral dir or a throwaway git worktree; `git push` is blocked inside the sandbox.
 - **Reviewable output** — work is a diff you inspect; nothing is pushed.
 
+## Running on a Mac (Mac Studio / any Apple Silicon or Intel Mac)
+
+One command sets everything up in a local `.venv` and tells you exactly how to connect:
+
+```bash
+git clone <repo> && cd Agent1-Harness
+./scripts/install-mac.sh                 # Python venv + harness + local engine
+./scripts/start-mac.sh                   # opens http://127.0.0.1:8765 in your browser
+```
+
+Optional add-ons (skip if you already have them):
+
+```bash
+./scripts/install-mac.sh --with-claude   # also install the Claude Code CLI
+./scripts/install-mac.sh --with-ollama   # also install Ollama + pull qwen2.5-coder
+```
+
+At the end the installer runs **`python -m harness.doctor`**, which probes the
+machine and prints which engines are ready and the exact command to use. Run it
+anytime to see what's connected.
+
+### Connect Claude Code (easiest — no API key)
+
+If you have the authenticated `claude` CLI, the harness drives it directly:
+
+```bash
+npm install -g @anthropic-ai/claude-code   # once (or: ./scripts/install-mac.sh --with-claude)
+claude                                      # sign in once
+```
+
+Then in the **Studio** tab pick engine **“Claude Code (CLI)”** (it's the default),
+or on the CLI: `--engine claude-cli --model sonnet`. No `ANTHROPIC_API_KEY` needed.
+(To use the API instead: `export ANTHROPIC_API_KEY=…` and pick **Claude**.)
+
+### Connect a local LLM (fully offline — great on a Mac Studio)
+
+Apple-Silicon unified memory runs strong coder models locally. Use **Ollama** or
+**LM Studio** — anything OpenAI-compatible with **tool-calling** works:
+
+```bash
+brew install ollama && ollama serve        # (or ./scripts/install-mac.sh --with-ollama)
+ollama pull qwen2.5-coder                   # a solid tool-calling coder; 32B if you have the RAM
+```
+
+In **Studio** choose engine **“Local”** and set the model (e.g. `qwen2.5-coder`);
+the endpoint defaults to Ollama (`http://localhost:11434/v1`). LM Studio? use
+`http://localhost:1234/v1`. On the CLI:
+
+```bash
+appbuilder spec.yaml --workspace ./out \
+  --engine local --base-url http://localhost:11434/v1 --model qwen2.5-coder
+```
+
+`python -m harness.doctor` lists the models it can see so you know exactly what to type.
+
+> Want native builds too? A Mac can also build/verify **SwiftUI/iOS** (needs Xcode)
+> and **Expo/React Native** (needs Node) — toolchains the harness drives but doesn't bundle.
+
 ## Setup & tests
 
 ```bash
 pip install -e .            # Claude engine
 pip install -e ".[local]"   # + local-LLM engine (openai client)
 pip install -e ".[dev]"     # + tests
-pytest                      # 130 offline tests; no API key, no network
+pytest                      # offline test suite; no API key, no network
 ```
 
 The trust-critical pieces (verifier, spec, isolation, memory, review parsing,
