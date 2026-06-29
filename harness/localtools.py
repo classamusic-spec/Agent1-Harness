@@ -79,6 +79,23 @@ class ToolBox:
         Path(p).write_text(text.replace(old, new, 1))
         return f"edited {path}"
 
+    def apply_patch(self, path: str, patch: str) -> str:
+        """Apply a unified-diff patch to a file (surgical edit; cheaper than a rewrite)."""
+        from harness import patch as patchmod
+        p = self._resolve(path)
+        original = Path(p).read_text() if os.path.isfile(p) else ""
+        if not original and not patchmod.is_creation(patch):
+            raise ToolError(f"no such file: {path} (use write_file to create it)")
+        try:
+            updated = patchmod.apply_patch(original, patch)
+        except patchmod.PatchError as exc:
+            raise ToolError(f"{exc}. Re-send the hunk with correct surrounding context, "
+                            "or use write_file for a full rewrite.") from exc
+        os.makedirs(os.path.dirname(p), exist_ok=True)
+        Path(p).write_text(updated)
+        delta = len(updated.splitlines()) - len(original.splitlines())
+        return f"patched {path} ({'+' if delta >= 0 else ''}{delta} lines)"
+
     def list_dir(self, path: str = ".") -> str:
         p = self._resolve(path)
         if not os.path.isdir(p):
@@ -140,6 +157,8 @@ class ToolBox:
                 return self.write_file(args["path"], args["content"])
             if name == "edit_file":
                 return self.edit_file(args["path"], args["old"], args["new"])
+            if name == "apply_patch":
+                return self.apply_patch(args["path"], args.get("patch") or args.get("diff", ""))
             if name == "list_dir":
                 return self.list_dir(args.get("path", "."))
             if name == "search":
@@ -180,6 +199,13 @@ class ToolBox:
             fn("edit_file", "Replace a unique snippet in a file. `old` must occur exactly once.",
                {"path": s("relative path"), "old": s("exact text to replace"), "new": s("replacement text")},
                ["path", "old", "new"]),
+            fn("apply_patch", "Apply a unified-diff patch to an existing file — the cheapest "
+               "way to make a small change (send only the changed hunks, not the whole file). "
+               "Line numbers in @@ headers are ignored; hunks are located by their context "
+               "lines, so include a few unchanged lines around each edit.",
+               {"path": s("relative path"),
+                "patch": s("unified diff: '@@' hunks with ' ' context, '-' removed, '+' added lines")},
+               ["path", "patch"]),
             fn("list_dir", "List the contents of a directory.", {"path": s("relative path, default '.'")}, []),
             fn("search", "Regex search across files in the workspace.",
                {"pattern": s("regex"), "glob": s("glob filter, default **/*")}, ["pattern"]),

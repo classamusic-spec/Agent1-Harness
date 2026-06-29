@@ -43,6 +43,35 @@ def test_edit_missing_text(tmp_path):
         box.edit_file("f.txt", "zzz", "y")
 
 
+def test_apply_patch_surgical_edit(tmp_path):
+    box = _box(tmp_path)
+    box.write_file("app.py", "def main():\n    return 1\n")
+    diff = "@@ -1,2 +1,2 @@\n def main():\n-    return 1\n+    return 42\n"
+    out = box.apply_patch("app.py", diff)
+    assert "patched app.py" in out
+    assert box.read_file("app.py") == "def main():\n    return 42\n"
+
+
+def test_apply_patch_dispatch_accepts_diff_alias(tmp_path):
+    box = _box(tmp_path)
+    box.write_file("a.txt", "one\ntwo\n")
+    res = box.dispatch("apply_patch", {"path": "a.txt", "diff": "@@ @@\n one\n-two\n+three\n"})
+    assert "patched" in res and box.read_file("a.txt") == "one\nthree\n"
+
+
+def test_apply_patch_missing_file_errors(tmp_path):
+    box = _box(tmp_path)
+    res = box.dispatch("apply_patch", {"path": "nope.py", "patch": "@@ @@\n ctx\n-x\n+y\n"})
+    assert res.startswith("ERROR:") and "no such file" in res
+
+
+def test_apply_patch_bad_hunk_gives_actionable_error(tmp_path):
+    box = _box(tmp_path)
+    box.write_file("a.txt", "hello\n")
+    res = box.dispatch("apply_patch", {"path": "a.txt", "patch": "@@ @@\n absent\n-gone\n+new\n"})
+    assert res.startswith("ERROR:") and "write_file" in res  # suggests the fallback
+
+
 def test_search(tmp_path):
     box = _box(tmp_path)
     box.write_file("a.py", "import os\nDEBUG = True\n")

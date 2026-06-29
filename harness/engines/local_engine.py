@@ -40,6 +40,13 @@ class LocalEngine(Engine):
         self._config = config
         self._engine_cfg = config.engine
         self._toolbox = ToolBox(config.workspace, spec, runner=build_runner(config))
+        system_prompt = system_prompt + (
+            "\n\n## Editing existing files\n"
+            "To change a file that already exists, prefer `apply_patch` with a small "
+            "unified diff (only the changed hunks, with a few unchanged context lines "
+            "around each edit) instead of rewriting the whole file with `write_file`. "
+            "It's far cheaper and faster. Use `write_file` only for brand-new files or "
+            "a near-total rewrite, and `edit_file` for a single unique snippet.")
         self._tool_fallback = getattr(config, "tool_fallback", True)
         if self._tool_fallback:
             from harness import toolparse
