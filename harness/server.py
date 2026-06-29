@@ -671,7 +671,9 @@ class Console:
         print(f"[iterate] {provider} · {model or '(default)'} — applying change…")
         print(f"› {instruction}")
         try:
-            tokens, _text = asyncio.run(_run_engine_turn(engine, instruction))
+            from harness import speculative
+            with speculative.watch(job.workspace):
+                tokens, _text = asyncio.run(_run_engine_turn(engine, instruction))
         except Exception as exc:
             if job.cancelled:
                 job.status = "cancelled"
@@ -791,8 +793,10 @@ class Console:
             print(f"reference image: {os.path.basename(config.reference_image)}"
                   f"{' · vision=' + config.vision_model if config.vision_model else ' · direct (multimodal coder)'}")
         print(f"engine={provider} model={model or '(unset)'} kind={spec.kind}")
-        result = asyncio.run(build(spec, config, echo=True, approval=gate,
-                                   on_progress=on_progress, control=job.control))
+        from harness import speculative
+        with speculative.watch(job.workspace):
+            result = asyncio.run(build(spec, config, echo=True, approval=gate,
+                                       on_progress=on_progress, control=job.control))
         job.status = "passed" if result.ok else "failed"
         job.tokens, job.elapsed = result.tokens_used, result.elapsed_seconds
         print(f"RESULT: {job.status.upper()} ({result.stop_reason}) after {result.rounds} round(s)")
