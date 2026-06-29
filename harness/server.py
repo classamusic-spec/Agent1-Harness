@@ -458,6 +458,7 @@ class Console:
         self.runtime = RuntimeManager()  # the live dev server for full-stack preview
         self.profile_path = os.path.join(os.path.abspath(workspaces_dir), ".profile.json")
         self.templates_dir = os.path.join(os.path.abspath(workspaces_dir), ".templates")
+        self.usage_path = os.path.join(os.path.abspath(workspaces_dir), ".usage.jsonl")
 
     def design_profile(self) -> dict:
         from harness import profile
@@ -486,6 +487,15 @@ class Console:
             print(f"  → will be live at {res.get('url', '')}")
         else:
             print(f"deploy failed: {res.get('reason') or res.get('error') or 'unknown'}")
+
+    def _record_usage(self, job: "Job", kind: str, run_type: str) -> None:
+        from harness import usage
+        import datetime
+        usage.record(self.usage_path, {
+            "ts": datetime.datetime.now().strftime("%Y-%m-%d %H:%M"),
+            "name": os.path.basename(job.workspace), "kind": kind, "type": run_type,
+            "status": job.status, "tokens": int(job.tokens or 0),
+            "elapsed": round(float(job.elapsed or 0), 1)})
 
     def _learn_profile(self, workspace: str) -> None:
         """After a successful build/iterate, absorb the app's palette into the
@@ -558,6 +568,7 @@ class Console:
             self._lock.release()
 
     def _execute_iterate(self, job: Job, params: dict) -> None:
+        _iter_start = time.monotonic()
         instruction = str(params.get("instruction", "")).strip()
         if not instruction:
             job.status = "error"
@@ -630,10 +641,12 @@ class Console:
         for r in result["results"]:
             print(f"[{'PASS' if r['ok'] else 'FAIL'}] {r['name']}")
         job.status = "passed" if result["ok"] else "failed"
+        job.elapsed = round(time.monotonic() - _iter_start, 1)
         print(f"RESULT: {job.status.upper()} · {tokens} tokens")
         _snapshot(job.workspace, "Change", instruction)
         if result["ok"]:
             self._learn_profile(job.workspace)
+        self._record_usage(job, kind, "iterate")
 
     def _run(self, job: Job, params: dict) -> None:
         if not self._lock.acquire(blocking=False):
@@ -756,6 +769,8 @@ class Console:
         if result.ok and params.get("then_deploy"):
             self._ship_and_deploy(job, str(params.get("then_deploy")))
 
+        self._record_usage(job, spec.kind, "build")
+
 
 # --- HTTP layer -----------------------------------------------------------
 
@@ -794,6 +809,9 @@ def make_handler(console: Console):
                     return self._json({"error": str(e)}, 400)
             if path == "/api/artifacts":
                 return self._json({"artifacts": list_artifacts(console.workspaces_dir)})
+            if path == "/api/usage":
+                from harness import usage
+                return self._json(usage.summary(usage.load(console.usage_path)))
             if path == "/api/scaffolds":
                 return self._json({"scaffolds": scaffolds.list_scaffolds()})
             if path == "/api/profile":

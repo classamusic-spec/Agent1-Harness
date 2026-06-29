@@ -4,6 +4,13 @@ Where the agent is strong today, and the highest-leverage things to add next.
 Ordered by impact-to-effort.
 
 ## Today (done)
+- **Cost / usage dashboard** — every build & iterate appends to a usage log
+  (`.usage.jsonl`); the Gallery shows totals (builds, tokens, time, pass rate),
+  top projects, and a tokens-per-day sparkline. `harness/usage.py`, `/api/usage`.
+- **Deploy preview environments** — a throwaway URL per iteration/branch
+  (Cloudflare branch previews; Fly per-preview app; Render PR previews), tracked
+  per project and destroyable. `deploy.preview`/`destroy_preview`,
+  `/api/deploy/preview*`, a "Deploy preview" control + list in the deploy section.
 - **Per-project deploy settings** — each app remembers its provider, custom domain,
   and last URL (`.deploy-settings.json`); the deploy dialog preselects them on
   reopen. `deploy.settings`/`save_settings`, `/api/deploy/settings`.

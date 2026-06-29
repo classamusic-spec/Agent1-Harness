@@ -11,7 +11,7 @@ function showTab(name) {
   $$(".tab").forEach((t) => t.classList.toggle("active", t.dataset.tab === name));
   $$(".panel").forEach((p) => (p.hidden = p.id !== `panel-${name}`));
   if (location.hash !== "#" + name) history.replaceState(null, "", "#" + name);
-  if (name === "gallery") loadArtifacts();
+  if (name === "gallery") { loadArtifacts(); loadUsage(); }
   if (name === "workspace") pollWorkspace();
   if (name === "studio" && window.Studio) window.Studio.show();
   if (name === "office" && window.OfficeView) {
@@ -222,6 +222,40 @@ function resetSpecForm() {
   for (const id of ["s-name", "s-lang", "s-run", "s-desc", "s-constraints", "s-verify"]) $("#" + id).value = "";
   $("#s-scaffold").value = ""; $("#spec-heading").textContent = "New Spec";
   $("#spec-msg").textContent = "";
+}
+
+/* ---------- usage dashboard ---------- */
+function fmtNum(n) {
+  if (n >= 1e6) return (n / 1e6).toFixed(1) + "M";
+  if (n >= 1e3) return (n / 1e3).toFixed(1) + "k";
+  return String(n);
+}
+function fmtDur(s) {
+  s = Math.round(s || 0);
+  if (s >= 3600) return (s / 3600).toFixed(1) + "h";
+  if (s >= 60) return Math.round(s / 60) + "m";
+  return s + "s";
+}
+async function loadUsage() {
+  try {
+    const u = await (await fetch("/api/usage")).json();
+    const stats = [
+      ["Builds", u.runs || 0],
+      ["Tokens", fmtNum(u.tokens || 0)],
+      ["Time", fmtDur(u.seconds || 0)],
+      ["Passed", `${u.passed || 0}/${u.runs || 0}`],
+    ];
+    $("#usage-stats").innerHTML = stats.map(([k, v]) =>
+      `<div class="ustat"><div class="ustat-v">${v}</div><div class="ustat-k">${k}</div></div>`).join("");
+    $("#usage-sub").textContent = (u.projects && u.projects.length)
+      ? `top: ${u.projects.slice(0, 3).map((p) => `${p.name} (${fmtNum(p.tokens)})`).join(", ")}` : "";
+    // a tiny tokens-per-day sparkline
+    const days = u.by_day || [];
+    const max = Math.max(1, ...days.map((d) => d.tokens));
+    $("#usage-spark").innerHTML = days.length
+      ? days.map((d) => `<i style="height:${Math.max(4, Math.round(36 * d.tokens / max))}px" title="${d.day}: ${fmtNum(d.tokens)} tokens"></i>`).join("")
+      : '<span class="muted">No builds yet.</span>';
+  } catch {}
 }
 
 /* ---------- gallery ---------- */
