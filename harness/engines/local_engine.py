@@ -56,6 +56,7 @@ class LocalEngine(Engine):
         self._client = None  # created on __aenter__
         self._extra_body: dict = {}  # KV-cache reuse hints, set on __aenter__
         self._guard = None           # context guard, set on __aenter__
+        self._map_sent = False       # repo map prepended to the first turn only
         self.total_tokens = 0
         self.tok_per_sec = 0.0       # last streamed decode rate (live meter)
         # Attach a reference image to the first turn iff the coder is multimodal.
@@ -63,6 +64,19 @@ class LocalEngine(Engine):
             config.reference_image
             if config.coder_multimodal and config.reference_image else None
         )
+
+    def _with_repo_map(self, prompt: str) -> str:
+        """Prepend a compact repo map on the first turn so the model jumps straight to
+        the right file instead of re-reading the whole workspace."""
+        if self._map_sent or not getattr(self._config, "repo_map", True):
+            return prompt
+        self._map_sent = True
+        try:
+            from harness import repomap
+            mp = repomap.render(self._config.workspace)
+        except Exception:
+            mp = ""
+        return f"{mp}\n\n{prompt}" if mp else prompt
 
     def _user_message(self, prompt: str) -> dict:
         """Build the user turn, attaching the reference image once if the model can see."""
@@ -144,6 +158,7 @@ class LocalEngine(Engine):
 
     async def send(self, prompt: str, *, echo: bool = True) -> str:
         assert self._client is not None, "engine not entered"
+        prompt = self._with_repo_map(prompt)
         self._messages.append(self._user_message(prompt))
         schemas = self._toolbox.schemas()
         produced: list[str] = []

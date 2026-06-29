@@ -65,6 +65,9 @@ class HarnessConfig:
     auto_compact: bool = True
     context_reserve: int = 2048
     context_threshold: float = 0.8
+    # Repo map: prepend a compact symbol map of the workspace to the first turn so a
+    # local model jumps to the right file instead of re-reading everything.
+    repo_map: bool = True
     # Optional live token/sec callback, cb(tokens, rate, elapsed), driven by the
     # local engine's streamed deltas. The console uses it to show a live meter.
     meter_cb: object | None = field(default=None, repr=False, compare=False)

@@ -155,6 +155,26 @@ def test_stream_pulses_token_meter(tmp_path):
     assert eng.tok_per_sec >= 0.0                # decode rate recorded on the engine
 
 
+def test_repo_map_prepended_to_first_turn_only(tmp_path):
+    (tmp_path / "app.py").write_text("def existing():\n    return 1\n")
+    turns = [
+        [_chunk(content="ok one")],   # turn 1 (gets the map)
+    ]
+    spec = Spec(name="app", description="d", kind="frontend")
+    cfg = HarnessConfig(workspace=str(tmp_path),
+                        engine=EngineConfig(provider="local", model="glm-4.6"))
+    eng = LocalEngine(spec, cfg, "sys")
+    eng._client = _FakeClient(turns)
+    eng._toolbox = types.SimpleNamespace(schemas=lambda: [], dispatch=lambda n, a: "x")
+    asyncio.run(eng.send("add a feature", echo=False))
+    first_user = eng._messages[1]["content"]
+    assert "Repo map" in first_user and "app.py" in first_user and "def existing" in first_user
+    # second call must NOT re-inject the map
+    eng._client = _FakeClient([[_chunk(content="ok two")]])
+    asyncio.run(eng.send("another change", echo=False))
+    assert "Repo map" not in eng._messages[-2]["content"]
+
+
 def test_buffered_fallback_when_stream_disabled(tmp_path):
     import dataclasses
     tools_called = []
