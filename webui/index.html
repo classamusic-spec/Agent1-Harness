@@ -161,6 +161,11 @@
               <label class="toggle ref-toggle"><input type="checkbox" id="st-visualcheck" /> <span>Visual-match loop (needs a vision model)</span></label>
             </div>
 
+            <label class="toggle ref-toggle" id="st-deploy-after-row">
+              <input type="checkbox" id="st-deploy-after" />
+              <span>🚀 Deploy when it passes →</span>
+              <span class="select-wrap small"><select id="st-deploy-provider"></select></span>
+            </label>
             <button id="st-send" class="primary">Generate app</button>
             <p class="hint" id="st-hint">Claude Code (your authenticated CLI) builds it, then verifies it. Then chat to iterate.</p>
 

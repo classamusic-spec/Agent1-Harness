@@ -411,6 +411,7 @@ class Job:
         self.deadline = None
         self.control = BuildControl()
         self.engine = None      # live engine (set during iterate) so cancel can kill it
+        self.deploy_url = ""    # set by one-shot build→ship→deploy
         self.cancelled = False
 
     def log(self, text: str) -> None:
@@ -460,6 +461,30 @@ class Console:
     def design_profile(self) -> dict:
         from harness import profile
         return profile.load(self.profile_path)
+
+    def _ship_and_deploy(self, job: "Job", provider: str) -> None:
+        """After a green build: package (Ship it) and deploy to `provider`, into the
+        same job log. Sets job.deploy_url so the UI can surface the live link."""
+        from harness import deploy, ship
+        name = os.path.basename(job.workspace)
+        print(f"\n======== ship → deploy ({provider}) ========")
+        written = ship.write_export(job.workspace, name=name)
+        print("ship: wrote " + (", ".join(written) if written else "(all present)"))
+        try:
+            res = deploy.run(provider, job.workspace, name or "app")
+        except Exception as exc:
+            print(f"deploy error: {type(exc).__name__}: {exc}")
+            return
+        job.deploy_url = res.get("url") or ""
+        if res.get("ok"):
+            print(f"deploy: live at {res['url']}")
+        elif res.get("ready") is False:
+            print(f"deploy: {res.get('reason', 'CLI not found')}")
+            for c in res.get("commands", []):
+                print("  " + c)
+            print(f"  → will be live at {res.get('url', '')}")
+        else:
+            print(f"deploy failed: {res.get('reason') or res.get('error') or 'unknown'}")
 
     def _learn_profile(self, workspace: str) -> None:
         """After a successful build/iterate, absorb the app's palette into the
@@ -726,6 +751,10 @@ class Console:
                 _snapshot(job.workspace, "Visual match", "matched reference image")
                 print(f"Visual refinement: {vr} repair round(s), {vt} tokens")
 
+        # One-shot: build → ship → deploy, in the same job/log.
+        if result.ok and params.get("then_deploy"):
+            self._ship_and_deploy(job, str(params.get("then_deploy")))
+
 
 # --- HTTP layer -----------------------------------------------------------
 
@@ -805,6 +834,7 @@ def make_handler(console: Console):
                                    "elapsed": round(j.elapsed, 1) if j else 0.0,
                                    "token_budget": j.token_budget if j else None,
                                    "deadline": j.deadline if j else None,
+                                   "deploy_url": getattr(j, "deploy_url", "") if j else "",
                                    "busy": console.busy()})
             if path == "/api/workspace":
                 root = self._ws_root(q.get("dir", [""])[0])

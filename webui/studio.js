@@ -486,6 +486,7 @@
                scaffold: ($("#st-scaffold").value || null), plan: $("#st-plan").checked,
                multi: $("#st-multi").checked, security_scan: $("#st-security").checked,
                run_command: runCmd, ...eng, ...ref };
+      if ($("#st-deploy-after").checked) body.then_deploy = $("#st-deploy-provider").value;
     }
     try {
       const j = await (await fetch(url, {
@@ -685,15 +686,20 @@
     } catch { $("#ship-msg").textContent = "failed to write files"; }
   }
   let deployProviders = [];
+  function fillProviderSelect(sel) {
+    if (!sel) return;
+    sel.innerHTML = deployProviders.map((p) =>
+      `<option value="${p.id}">${p.label}${p.cli_present ? " ✓" : ""}</option>`).join("");
+  }
   async function loadDeployProviders() {
-    const sel = $("#deploy-provider");
-    if (deployProviders.length) return;
-    try {
-      const r = await (await fetch("/api/deploy/providers")).json();
-      deployProviders = r.providers || [];
-      sel.innerHTML = deployProviders.map((p) =>
-        `<option value="${p.id}">${p.label}${p.cli_present ? " ✓" : ""}</option>`).join("");
-    } catch {}
+    if (!deployProviders.length) {
+      try {
+        const r = await (await fetch("/api/deploy/providers")).json();
+        deployProviders = r.providers || [];
+      } catch {}
+    }
+    fillProviderSelect($("#deploy-provider"));
+    fillProviderSelect($("#st-deploy-provider"));
   }
   async function runDeploy() {
     if (!project) return;
@@ -860,6 +866,7 @@
     applyRecommendedEngine();
     onEngineChange();
     loadScaffolds();
+    loadDeployProviders();
     startHotReload();
     const names = await populateProjects();
     // Deep-link support: /?tab=studio&proj=<name>&dev=mobile

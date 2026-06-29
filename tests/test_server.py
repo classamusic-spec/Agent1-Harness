@@ -134,3 +134,31 @@ def test_console_check_only_job(tmp_path):
     assert job.done.wait(timeout=30)
     assert job.status in ("passed", "failed")  # ran end-to-end
     assert any("RESULT" in line for line in job.lines)
+
+
+def test_ship_and_deploy_sets_deploy_url(tmp_path, monkeypatch):
+    from harness import deploy as dep
+    from harness import server as srv
+    from harness import ship as shp
+    ws = tmp_path / "app"; ws.mkdir(); (ws / "index.html").write_text("<x>")
+    monkeypatch.setattr(shp, "write_export", lambda w, **k: ["Dockerfile"])
+    monkeypatch.setattr(dep, "run", lambda prov, w, n, **k: {"ok": True, "url": "https://app.fly.dev"})
+    c = srv.Console(str(tmp_path), str(tmp_path))
+    job = srv.Job("j1", str(ws))
+    c._ship_and_deploy(job, "fly")
+    assert job.deploy_url == "https://app.fly.dev"
+
+
+def test_ship_and_deploy_handles_missing_cli(tmp_path, monkeypatch):
+    from harness import deploy as dep
+    from harness import server as srv
+    from harness import ship as shp
+    ws = tmp_path / "app"; ws.mkdir()
+    monkeypatch.setattr(shp, "write_export", lambda w, **k: [])
+    monkeypatch.setattr(dep, "run", lambda prov, w, n, **k: {
+        "ok": False, "ready": False, "reason": "fly CLI not found", "commands": ["fly deploy"],
+        "url": "https://app.fly.dev"})
+    c = srv.Console(str(tmp_path), str(tmp_path))
+    job = srv.Job("j2", str(ws))
+    c._ship_and_deploy(job, "fly")
+    assert job.deploy_url == "https://app.fly.dev"  # would-be URL still surfaced
