@@ -134,7 +134,7 @@ function makeAgent(suitColor = 0x1b2740) {
 
 function makeChair() {
   const g = new THREE.Group();
-  const seatMat = mat({ color: 0x141d2c, roughness: 0.6, metalness: 0.3 });
+  const seatMat = mat({ color: 0x26344f, roughness: 0.6, metalness: 0.3 });
   const seat = new THREE.Mesh(new THREE.BoxGeometry(0.6, 0.1, 0.56), seatMat);
   seat.position.y = 0.52;
   const back = new THREE.Mesh(new THREE.BoxGeometry(0.6, 0.7, 0.1), seatMat);
@@ -146,15 +146,15 @@ function makeChair() {
 }
 
 // A workstation: desk, chair, agent, one or two code monitors, a mug.
-function makeWorkstation({ monitors = 2, suit = 0x1b2740, deskColor = 0x111c2b } = {}) {
+function makeWorkstation({ monitors = 2, suit = 0x2c4163, deskColor = 0x243650 } = {}) {
   const g = new THREE.Group();
-  const desk = new THREE.Mesh(new THREE.BoxGeometry(2.9, 0.16, 1.35), mat({ color: deskColor, roughness: 0.5, metalness: 0.45 }));
+  const desk = new THREE.Mesh(new THREE.BoxGeometry(2.9, 0.16, 1.35), mat({ color: deskColor, roughness: 0.5, metalness: 0.4 }));
   desk.position.y = 0.84;
   // desk edge light
-  const edge = new THREE.Mesh(new THREE.BoxGeometry(2.9, 0.02, 0.02), mat({ color: 0x07101c, emissive: 0x1b3a66, emissiveIntensity: 0.8 }));
+  const edge = new THREE.Mesh(new THREE.BoxGeometry(2.9, 0.02, 0.02), mat({ color: 0x07101c, emissive: 0x3a6c9a, emissiveIntensity: 1.0 }));
   edge.position.set(0, 0.76, 0.66);
   for (const dx of [-1.25, 1.25]) {
-    const leg = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.84, 1.1), mat({ color: 0x0b131e, metalness: 0.6, roughness: 0.4 }));
+    const leg = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.84, 1.1), mat({ color: 0x1a2640, metalness: 0.6, roughness: 0.4 }));
     leg.position.set(dx, 0.42, 0); g.add(leg);
   }
   g.add(desk, edge);
@@ -192,7 +192,7 @@ function makeWorkstation({ monitors = 2, suit = 0x1b2740, deskColor = 0x111c2b }
 // A GPU server rack: cabinet, glowing cards, spinning fans.
 function makeRig() {
   const g = new THREE.Group();
-  const cabinet = new THREE.Mesh(new THREE.BoxGeometry(1.05, 2.0, 0.85), mat({ color: 0x0c1622, roughness: 0.5, metalness: 0.7 }));
+  const cabinet = new THREE.Mesh(new THREE.BoxGeometry(1.05, 2.0, 0.85), mat({ color: 0x1c2c46, roughness: 0.5, metalness: 0.6 }));
   cabinet.position.y = 1.0;
   g.add(cabinet);
   const cards = [], fans = [];
@@ -263,7 +263,7 @@ function init(canvas) {
   renderer.outputColorSpace = THREE.SRGBColorSpace;
 
   const scene = new THREE.Scene();
-  scene.fog = new THREE.FogExp2(0x05080f, 0.04);
+  scene.fog = new THREE.FogExp2(0x0d1626, 0.022);
 
   const camera = new THREE.PerspectiveCamera(50, 1, 0.1, 120);
   camera.position.set(8.2, 5.6, 9.6);
@@ -272,25 +272,27 @@ function init(canvas) {
   const root = new THREE.Group();
   scene.add(root);
 
-  // ── lighting: cool ambient + warm key + cyan accent + side rim + front fill ──
-  scene.add(new THREE.AmbientLight(0x33507a, 0.85));
-  const key = new THREE.DirectionalLight(0xbfe6ff, 0.8); key.position.set(5, 9, 6); scene.add(key);
-  const warm = new THREE.DirectionalLight(0xffd9a8, 0.45); warm.position.set(-7, 5, 3); scene.add(warm);
-  // soft fill from the camera side so the crew & desks aren't silhouettes
-  const fill = new THREE.PointLight(0xcfe2ff, 0.9, 26); fill.position.set(4, 4.5, 8); scene.add(fill);
+  // ── lighting: bright sky/ground hemi + ambient + warm key + accents + fills ──
+  scene.add(new THREE.HemisphereLight(0xdfeaff, 0x2a3550, 1.15)); // soft global daylight
+  scene.add(new THREE.AmbientLight(0x6f86b0, 1.0));
+  const key = new THREE.DirectionalLight(0xe9f4ff, 1.25); key.position.set(5, 9, 6); scene.add(key);
+  const warm = new THREE.DirectionalLight(0xffe6c2, 0.7); warm.position.set(-7, 5, 3); scene.add(warm);
+  // soft fills from the camera side so the crew & desks read clearly
+  const fill = new THREE.PointLight(0xd8e8ff, 1.4, 34); fill.position.set(4, 4.5, 8); scene.add(fill);
+  const fill2 = new THREE.PointLight(0xcfe0ff, 1.0, 30); fill2.position.set(-4, 4, 7); scene.add(fill2);
   const accent = new THREE.PointLight(0x2ee6ff, 1.5, 22); accent.position.set(0, 2.6, -0.4); scene.add(accent);
   const rigLight = new THREE.PointLight(0x2ee6ff, 0.9, 18); rigLight.position.set(-6, 2.4, -1.5); scene.add(rigLight);
 
   // ── floor + neon grid + soft rug ──
-  const floor = new THREE.Mesh(new THREE.PlaneGeometry(46, 46), mat({ color: 0x070c15, roughness: 0.9, metalness: 0.1 }));
+  const floor = new THREE.Mesh(new THREE.PlaneGeometry(46, 46), mat({ color: 0x1a2740, roughness: 0.82, metalness: 0.12 }));
   floor.rotation.x = -Math.PI / 2; root.add(floor);
-  const grid = new THREE.GridHelper(46, 46, 0x2ee6ff, 0x12304a);
-  grid.material.transparent = true; grid.material.opacity = 0.3; root.add(grid);
-  const rug = new THREE.Mesh(new THREE.CircleGeometry(3.6, 40), mat({ color: 0x0d1a2b, roughness: 0.95 }));
+  const grid = new THREE.GridHelper(46, 46, 0x5fd0ff, 0x2a4a6a);
+  grid.material.transparent = true; grid.material.opacity = 0.35; root.add(grid);
+  const rug = new THREE.Mesh(new THREE.CircleGeometry(3.6, 40), mat({ color: 0x223451, roughness: 0.92 }));
   rug.rotation.x = -Math.PI / 2; rug.position.y = 0.01; root.add(rug);
 
   // ── back + side walls with neon strips ──
-  const wallMat = mat({ color: 0x070b12, roughness: 0.95, metalness: 0.05 });
+  const wallMat = mat({ color: 0x18223a, roughness: 0.9, metalness: 0.06 });
   const backWall = new THREE.Mesh(new THREE.PlaneGeometry(46, 10), wallMat);
   backWall.position.set(0, 5, -9); root.add(backWall);
   const sideWall = new THREE.Mesh(new THREE.PlaneGeometry(46, 10), wallMat);
@@ -312,10 +314,10 @@ function init(canvas) {
   // ── workstations (a small crew) ──
   const screens = [], agents = [];
   const stations = [
-    { pos: [0, 0, 0.2], rot: 0, opts: { monitors: 2, suit: 0x1b2740 } },          // hero, faces camera-ish
-    { pos: [3.6, 0, 1.4], rot: -0.7, opts: { monitors: 2, suit: 0x243a2c } },
-    { pos: [2.0, 0, 3.6], rot: -1.15, opts: { monitors: 1, suit: 0x3a2438 } },
-    { pos: [-2.4, 0, 2.6], rot: 0.7, opts: { monitors: 1, suit: 0x2a2440 } },
+    { pos: [0, 0, 0.2], rot: 0, opts: { monitors: 2, suit: 0x33507e } },          // hero, faces camera-ish
+    { pos: [3.6, 0, 1.4], rot: -0.7, opts: { monitors: 2, suit: 0x3a6450 } },
+    { pos: [2.0, 0, 3.6], rot: -1.15, opts: { monitors: 1, suit: 0x6a4060 } },
+    { pos: [-2.4, 0, 2.6], rot: 0.7, opts: { monitors: 1, suit: 0x4a4070 } },
   ];
   let hero = null;
   for (const st of stations) {
