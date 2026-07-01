@@ -392,8 +392,10 @@ function resize() {
 function animate() {
   if (!R) return;
   R.raf = requestAnimationFrame(animate);
-  const t = R.clock.getElapsedTime();
+  // One getDelta() per frame — getElapsedTime() would consume the delta
+  // internally and leave dt ≈ 0 (freezing the code-scroll on the monitors).
   const dt = Math.min(R.clock.getDelta(), 0.05);
+  const t = R.clock.elapsedTime;
   R.frame++;
   const building = R.mode === "building";
   const speed = building ? 9 : 1.2;

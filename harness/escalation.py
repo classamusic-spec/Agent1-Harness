@@ -55,7 +55,16 @@ def with_auto_fallback(config: HarnessConfig, *, echo: bool = False,
         return config
     if probe_fn is None:
         from harness import doctor
-        probe_fn = doctor.probe
+
+        def probe_fn():
+            # choose_fallback only needs CLIs + keys — skip doctor.probe()'s
+            # local-server HTTP sweep (up to ~6s of timeouts at build start).
+            return {
+                "claude_cli": doctor.detect_claude_cli(),
+                "codex_cli": doctor.detect_codex_cli(),
+                "anthropic_key": doctor.detect_anthropic_key(),
+                "openai_key": doctor.detect_openai_key(),
+            }
     try:
         probe = probe_fn()
     except Exception:

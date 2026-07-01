@@ -33,3 +33,26 @@ def test_spec_roundtrip():
     s2 = parse_spec(spec_to_dict(s))
     assert s2.name == "app" and s2.kind == "frontend"
     assert s2.checks[0].command == "true" and s2.checks[0].timeout == 30
+
+
+def test_config_with_meter_cb_still_checkpoints(tmp_path):
+    """A runtime callback on the config (the console's live tok/s meter) must not
+    poison checkpoint serialization — that silently breaks Resume."""
+    import json
+    c = HarnessConfig(workspace="/w", engine=EngineConfig(provider="local", model="m"))
+    c.meter_cb = lambda tok, rate, el: None
+    d = config_to_dict(c)
+    json.dumps(d)                       # must be serializable
+    assert "meter_cb" not in d
+    c2 = config_from_dict(d)
+    assert c2.meter_cb is None          # callbacks never come back from disk
+    # end-to-end through the checkpoint file
+    path = str(tmp_path / "cp.json")
+    save_checkpoint(path, Checkpoint(spec={}, config=d, workspace="/w"))
+    assert load_checkpoint(path).config.get("engine", {}).get("model") == "m"
+
+
+def test_config_from_dict_tolerates_stale_meter_cb_key():
+    d = config_to_dict(HarnessConfig(workspace="/w"))
+    d["meter_cb"] = None                # a stale key from an old checkpoint
+    assert config_from_dict(d).workspace == "/w"

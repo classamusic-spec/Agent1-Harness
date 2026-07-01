@@ -1213,7 +1213,7 @@
   function wire() {
     $("#st-engine").addEventListener("change", onEngineChange);
     $("#st-detect").addEventListener("click", detectLocalModels);
-    $("#st-pick").addEventListener("click", openModelPicker);
+    $("#st-model-pick").addEventListener("click", openModelPicker);
     $("#st-bench").addEventListener("click", runBenchmark);
     $("#st-test-conn").addEventListener("click", testConnection);
     $("#st-scaffold").addEventListener("change", onScaffoldChange);

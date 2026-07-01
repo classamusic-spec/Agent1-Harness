@@ -232,12 +232,18 @@ class HarnessConfig:
 
 
 def config_to_dict(config: HarnessConfig) -> dict:
-    """Serialize a HarnessConfig (incl. nested EngineConfig) to a plain dict."""
-    return dataclasses.asdict(config)
+    """Serialize a HarnessConfig (incl. nested EngineConfig) to a plain dict.
+
+    Runtime-only callbacks (meter_cb) are dropped — they aren't state and would
+    make the checkpoint JSON unserializable, silently breaking resume."""
+    d = dataclasses.asdict(config)
+    d.pop("meter_cb", None)
+    return d
 
 
 def config_from_dict(data: dict) -> HarnessConfig:
     """Rebuild a HarnessConfig from config_to_dict output."""
     d = dict(data)
+    d.pop("meter_cb", None)  # never resurrect a callback from disk
     engine = EngineConfig(**d.pop("engine", {}))
     return HarnessConfig(engine=engine, **d)

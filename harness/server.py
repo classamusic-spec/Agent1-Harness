@@ -519,6 +519,9 @@ class Console:
         """Kick off a background benchmark of local models. Returns the initial state."""
         if self.leaderboard["status"] == "running":
             return {"error": "a benchmark is already running"}
+        if self.busy():
+            return {"error": "a build is running — benchmark when it finishes "
+                             "(they'd fight over the model server)"}
         base_url = str(params.get("base_url") or "").strip()
         if not base_url:
             return {"error": "base_url is required"}

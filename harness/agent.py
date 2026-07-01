@@ -417,7 +417,10 @@ async def build(
         def _elapsed() -> float:
             return base_elapsed + (time.monotonic() - start)
 
+        cp_warned = False
+
         def _write_cp(status: str, stop_reason: str = "") -> None:
+            nonlocal cp_warned
             if not config.checkpoint_path:
                 return
             try:
@@ -428,8 +431,14 @@ async def build(
                     rounds=len(progress), escalations=escalations,
                     tokens_used=_tokens(), elapsed_seconds=round(_elapsed(), 2),
                     sessions=sessions, progress=list(progress)))
-            except Exception:
-                pass
+            except Exception as exc:
+                # Never fail the build over a checkpoint, but say so once — a
+                # silent failure here means Resume quietly stops working.
+                if not cp_warned:
+                    cp_warned = True
+                    if echo:
+                        print(f"[checkpoint] write failed ({type(exc).__name__}: {exc}) "
+                              "— this build won't be resumable", flush=True)
 
         design_brief = await _resolve_design(run_config, ws, echo)
 
