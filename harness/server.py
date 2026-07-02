@@ -735,6 +735,7 @@ class Console:
     def _execute_iterate(self, job: Job, params: dict) -> None:
         _iter_start = time.monotonic()
         instruction = str(params.get("instruction", "")).strip()
+        raw_instruction = instruction  # user's words, for the conversation log
         if not instruction:
             job.status = "error"
             print("error: instruction is required")
@@ -795,6 +796,13 @@ class Console:
         if note:
             instruction = f"{instruction}\n\n## House style (honor it)\n{note}"
 
+        # Conversation memory: the model sees what was asked before and how it went,
+        # so each change builds on the last instead of starting cold.
+        from harness import chatlog
+        convo = chatlog.render(job.workspace)
+        if convo:
+            instruction = f"{instruction}\n\n{convo}"
+
         from harness.engines.base import make_engine
         engine = make_engine(spec, config)
         job.engine = engine  # so a Stop/cancel can kill the in-flight turn
@@ -821,6 +829,9 @@ class Console:
         job.status = "passed" if result["ok"] else "failed"
         job.elapsed = round(time.monotonic() - _iter_start, 1)
         print(f"RESULT: {job.status.upper()} · {tokens} tokens")
+        failed = ", ".join(r["name"] for r in result["results"] if not r["ok"])
+        chatlog.record_change(job.workspace, raw_instruction, job.status,
+                              detail=f"failing: {failed}" if failed else "")
         _snapshot(job.workspace, "Change", instruction)
         if result["ok"]:
             msg = f"Change: {instruction.splitlines()[0][:72]}"
@@ -1045,6 +1056,10 @@ def make_handler(console: Console):
                 return self._json(console.leaderboard)
             if path == "/api/session":
                 return self._json({"session": console.load_session()})
+            if path == "/api/chat":
+                from harness import chatlog
+                root = self._ws_root(q.get("dir", [""])[0])
+                return self._json({"turns": chatlog.history(root, limit=50)})
             if path == "/api/git-history":
                 from harness import autocommit
                 root = self._ws_root(q.get("dir", [""])[0])
