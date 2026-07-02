@@ -51,14 +51,17 @@ def _node_checks(ws: str) -> list[Check]:
     deps = {**(pkg.get("dependencies") or {}), **(pkg.get("devDependencies") or {})}
     if "build" in scripts:
         out.append(Check(name="build", command="npm run build", timeout=900))
+    # typecheck / lint / tests are independent of one another — run them
+    # concurrently after the serial install/build barrier.
     if _has(ws, "tsconfig.json") or "typescript" in deps:
-        out.append(Check(name="typecheck", command="npx --no-install tsc --noEmit", timeout=600))
+        out.append(Check(name="typecheck", command="npx --no-install tsc --noEmit",
+                         timeout=600, parallel=True))
     if _has(ws, ".eslintrc", ".eslintrc.json", ".eslintrc.cjs", "eslint.config.js") or "eslint" in deps:
         out.append(Check(name="lint", command="npx --no-install eslint .", timeout=600,
-                         allow_failure=True))
+                         allow_failure=True, parallel=True))
     test = scripts.get("test", "")
     if test and "no test specified" not in test:
-        out.append(Check(name="tests", command="npm test", timeout=900))
+        out.append(Check(name="tests", command="npm test", timeout=900, parallel=True))
     return out
 
 
@@ -71,9 +74,9 @@ def _python_checks(ws: str) -> list[Check]:
         for f in (os.listdir(ws) if os.path.isdir(ws) else [])
     )
     if has_tests:
-        out.append(Check(name="tests", command="pytest -q", timeout=600))
+        out.append(Check(name="tests", command="pytest -q", timeout=600, parallel=True))
     out.append(Check(name="compiles", command="python -m compileall -q .", timeout=120,
-                     allow_failure=True))
+                     allow_failure=True, parallel=True))
     return out
 
 

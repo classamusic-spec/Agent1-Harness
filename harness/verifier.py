@@ -39,6 +39,9 @@ class Check:
     # When True, the check needs the app running: the harness starts the dev
     # server, substitutes $APP_URL in the command, runs it, then stops the server.
     needs_server: bool = False
+    # When True, this check may run concurrently with adjacent parallel checks
+    # (e.g. typecheck + lint + tests after install/build). Serial by default.
+    parallel: bool = False
 
 
 @dataclass
@@ -150,35 +153,48 @@ def run_check(check: Check, runner=None, env: dict | None = None) -> CheckResult
     )
 
 
+def _batches(checks: list[Check]) -> list[list[Check]]:
+    """Split into execution batches: serial checks run alone; consecutive
+    `parallel=True` checks share a batch and run concurrently."""
+    out: list[list[Check]] = []
+    for check in checks:
+        if check.parallel and out and all(c.parallel for c in out[-1]):
+            out[-1].append(check)
+        else:
+            out.append([check])
+    return out
+
+
 def run_suite(checks: list[Check], stop_on_failure: bool = True, runner=None,
               env: dict | None = None) -> VerificationReport:
-    """Run all checks in order.
+    """Run all checks in order, running adjacent `parallel` checks concurrently.
 
-    With `stop_on_failure` (the default), the first hard failure stops the run
-    and the remaining checks are recorded as skipped — there is no point running
-    tests if the build is broken.
+    Serial semantics are unchanged: order is preserved in the report, and with
+    `stop_on_failure` (the default) a hard failure stops the run — later checks
+    are recorded as skipped (a batch already in flight finishes first).
     """
     report = VerificationReport()
     halted = False
-    for check in checks:
+    for batch in _batches(checks):
         if halted:
-            report.results.append(
-                CheckResult(
-                    name=check.name,
-                    command=check.command,
-                    returncode=0,
-                    stdout="",
-                    stderr="",
-                    ok=False,
-                    skipped=True,
-                    error="skipped after an earlier failure",
-                )
-            )
+            for check in batch:
+                report.results.append(CheckResult(
+                    name=check.name, command=check.command, returncode=0,
+                    stdout="", stderr="", ok=False, skipped=True,
+                    error="skipped after an earlier failure"))
             continue
 
-        result = run_check(check, runner=runner, env=env)
-        report.results.append(result)
-        if not result.ok and not check.allow_failure and stop_on_failure:
-            halted = True
+        if len(batch) == 1:
+            results = [run_check(batch[0], runner=runner, env=env)]
+        else:
+            from concurrent.futures import ThreadPoolExecutor
+            with ThreadPoolExecutor(max_workers=len(batch)) as pool:
+                results = list(pool.map(
+                    lambda c: run_check(c, runner=runner, env=env), batch))
+
+        for check, result in zip(batch, results):
+            report.results.append(result)
+            if not result.ok and not check.allow_failure and stop_on_failure:
+                halted = True
 
     return report

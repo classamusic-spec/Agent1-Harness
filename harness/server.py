@@ -271,7 +271,7 @@ _WEB_KINDS = {"frontend", "fullstack", "web", "ui", "react", "react-native", "mo
 
 def _check_to_dict(c) -> dict:
     return {"name": c.name, "command": c.command, "needs_server": c.needs_server,
-            "allow_failure": c.allow_failure}
+            "allow_failure": c.allow_failure, "parallel": c.parallel}
 
 
 def _default_checks(kind: str, workspace: str | None = None) -> list[dict]:
@@ -388,7 +388,8 @@ def run_tests(workspace_dir: str, checks: list | None = None) -> dict:
         checks = meta.get("checks") or _default_checks(meta.get("kind", "frontend"), workspace_dir)
     suite = [Check(name=c["name"], command=c["command"], cwd=workspace_dir,
                    needs_server=bool(c.get("needs_server")),
-                   allow_failure=bool(c.get("allow_failure"))) for c in checks]
+                   allow_failure=bool(c.get("allow_failure")),
+                   parallel=bool(c.get("parallel"))) for c in checks]
     if not suite:
         return {"ok": True, "results": [], "note": "no checks defined"}
     if any(c.needs_server for c in suite):

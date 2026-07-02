@@ -67,6 +67,7 @@ def parse_spec(data: dict, *, cwd: str | None = None) -> Spec:
                 timeout=int(raw.get("timeout", 600)),
                 allow_failure=bool(raw.get("allow_failure", False)),
                 needs_server=bool(raw.get("needs_server", False)),
+                parallel=bool(raw.get("parallel", False)),
             )
         )
 
@@ -98,7 +99,8 @@ def spec_to_dict(spec: Spec) -> dict:
         "scaffold": spec.scaffold,
         "verification": [
             {"name": c.name, "command": c.command, "timeout": c.timeout,
-             "allow_failure": c.allow_failure, "needs_server": c.needs_server}
+             "allow_failure": c.allow_failure, "needs_server": c.needs_server,
+             "parallel": c.parallel}
             for c in spec.checks
         ],
     }
