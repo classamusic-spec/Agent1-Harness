@@ -71,6 +71,9 @@ class HarnessConfig:
     # Auto-install: when a verify/runtime failure is just a missing package, install
     # it directly instead of spending an LLM repair round on it.
     auto_install: bool = True
+    # Suppress connect-time chatter (warm-up / context-window notes) — set for
+    # auxiliary engines like the reviewer panel that should run quietly.
+    connect_quiet: bool = False
     # Optional live token/sec callback, cb(tokens, rate, elapsed), driven by the
     # local engine's streamed deltas. The console uses it to show a live meter.
     meter_cb: object | None = field(default=None, repr=False, compare=False)

@@ -83,7 +83,8 @@ def _default_builder(spec: Spec, config: HarnessConfig) -> Engine:
 
 
 def _default_reviewer(spec: Spec, config: HarnessConfig) -> Engine:
-    rconfig = dataclasses.replace(config, engine=config.reviewer_engine())
+    rconfig = dataclasses.replace(config, engine=config.reviewer_engine(),
+                                  connect_quiet=True)  # reviewers run quietly
     return make_engine(spec, rconfig, system_prompt_override=reviewer_system())
 
 

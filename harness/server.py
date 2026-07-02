@@ -763,8 +763,8 @@ class Console:
                 fb = repomap.focus_block(job.workspace, hint)
                 if fb:
                     instruction = instruction + "\n\n" + fb
-            except Exception:
-                pass
+            except Exception as exc:
+                print(f"[focus] skipped ({type(exc).__name__}: {exc})")
 
         meta = studio_meta(job.workspace)
         kind = params.get("kind") or meta.get("kind") or "frontend"
@@ -1441,8 +1441,8 @@ def make_handler(console: Console):
                     if eng is not None and hasattr(eng, "terminate"):
                         try:
                             eng.terminate()  # kill the in-flight CLI turn immediately
-                        except Exception:
-                            pass
+                        except Exception as exc:
+                            job.log(f"[control] terminate failed: {type(exc).__name__}: {exc}")
                 else:
                     return self._json({"error": "action must be pause|cancel"}, 400)
                 job.log(f"[control] {action} requested")

@@ -116,13 +116,14 @@ class LocalEngine(Engine):
         self._extra_body = warmup.request_extra(
             cfg.base_url, self._config.workspace,
             getattr(self._config, "local_keep_alive", "30m"))
+        quiet = getattr(self._config, "connect_quiet", False)
         if getattr(self._config, "local_warmup", True):
             info = await asyncio.to_thread(
                 warmup.warm, cfg.base_url, cfg.model,
                 api_key=cfg.resolved_api_key(),
                 keep_alive=getattr(self._config, "local_keep_alive", "30m"),
                 workspace=self._config.workspace)
-            if info.get("ok"):
+            if info.get("ok") and not quiet:
                 print(f"  ⏱ {info['note']}", flush=True)
 
         # Context guard: learn the model's window (config override → server metadata)
@@ -137,7 +138,8 @@ class LocalEngine(Engine):
                     limit,
                     reserve=getattr(self._config, "context_reserve", 2048),
                     threshold=getattr(self._config, "context_threshold", 0.8))
-                print(f"  ⌹ context window: {limit:,} tokens (auto-compact on)", flush=True)
+                if not quiet:
+                    print(f"  ⌹ context window: {limit:,} tokens (auto-compact on)", flush=True)
         return self
 
     def _detect_context_length(self):
@@ -275,34 +277,43 @@ class LocalEngine(Engine):
         parts: list[str] = []
         tool_acc: dict[int, dict] = {}
         printed_tool = set()
-        async for chunk in stream:
-            usage = getattr(chunk, "usage", None)
-            if usage is not None:
-                self.total_tokens += getattr(usage, "total_tokens", 0) or 0
-            if not chunk.choices:
-                continue
-            delta = chunk.choices[0].delta
-            piece = getattr(delta, "content", None)
-            if piece:
-                parts.append(piece)
-                meter.add_text(piece)
-                if echo:
-                    print(piece, end="", flush=True)
-                _pulse()
-            for tcd in (getattr(delta, "tool_calls", None) or []):
-                acc = tool_acc.setdefault(tcd.index, {"id": "", "name": "", "arguments": ""})
-                if getattr(tcd, "id", None):
-                    acc["id"] = tcd.id
-                fn = getattr(tcd, "function", None)
-                if fn:
-                    if getattr(fn, "name", None):
-                        acc["name"] += fn.name
-                    if getattr(fn, "arguments", None):
-                        acc["arguments"] += fn.arguments
-                        meter.add_text(fn.arguments)
-                if echo and acc["name"] and tcd.index not in printed_tool:
-                    printed_tool.add(tcd.index)
-                    print(f"\n  ✎ {acc['name']}", flush=True)
+        try:
+            async for chunk in stream:
+                usage = getattr(chunk, "usage", None)
+                if usage is not None:
+                    self.total_tokens += getattr(usage, "total_tokens", 0) or 0
+                if not chunk.choices:
+                    continue
+                delta = chunk.choices[0].delta
+                piece = getattr(delta, "content", None)
+                if piece:
+                    parts.append(piece)
+                    meter.add_text(piece)
+                    if echo:
+                        print(piece, end="", flush=True)
+                    _pulse()
+                for tcd in (getattr(delta, "tool_calls", None) or []):
+                    acc = tool_acc.setdefault(tcd.index, {"id": "", "name": "", "arguments": ""})
+                    if getattr(tcd, "id", None):
+                        acc["id"] = tcd.id
+                    fn = getattr(tcd, "function", None)
+                    if fn:
+                        if getattr(fn, "name", None):
+                            acc["name"] += fn.name
+                        if getattr(fn, "arguments", None):
+                            acc["arguments"] += fn.arguments
+                            meter.add_text(fn.arguments)
+                    if echo and acc["name"] and tcd.index not in printed_tool:
+                        printed_tool.add(tcd.index)
+                        print(f"\n  ✎ {acc['name']}", flush=True)
+        except Exception as exc:
+            # The server dropped the stream mid-turn (local servers do this under
+            # load). The history is untouched, so retry the whole turn buffered
+            # instead of failing the build. Partial streamed text may print twice.
+            if echo:
+                print(f"\n  ↻ stream dropped ({type(exc).__name__}) — retrying buffered",
+                      flush=True)
+            return await self._buffered_turn(schemas, echo)
         # Final throughput readout for the turn (and reconcile with exact usage).
         self.tok_per_sec = round(meter.rate(), 1)
         if meter.tokens:
