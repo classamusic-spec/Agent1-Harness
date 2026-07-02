@@ -1057,6 +1057,10 @@ def make_handler(console: Console):
                 return self._json(console.leaderboard)
             if path == "/api/session":
                 return self._json({"session": console.load_session()})
+            if path == "/api/report":
+                from harness import timeline
+                root = self._ws_root(q.get("dir", [""])[0])
+                return self._json({"report": timeline.load(root)})
             if path == "/api/chat":
                 from harness import chatlog
                 root = self._ws_root(q.get("dir", [""])[0])

@@ -75,6 +75,7 @@ class BuildResult:
     transcript: list[str] = field(default_factory=list)
     milestones: list = field(default_factory=list)  # per-milestone outcomes (planned builds)
     roles: list = field(default_factory=list)  # per-role outcomes (multi-agent builds)
+    timeline: list = field(default_factory=list)  # structured per-round events (timeline.py)
 
 
 def _default_builder(spec: Spec, config: HarnessConfig) -> Engine:
@@ -384,6 +385,8 @@ async def build(
                     print(f"[approval] plan rejected: {dec.message}", flush=True)
                 return BuildResult(False, 0, "plan-rejected", workspace=ws)
 
+        from harness.timeline import Timeline
+        tl = Timeline()
         lessons_text = store.render(spec.kind, spec.language) if store else ""
         transcript: list[str] = []
         progress: list[int] = []
@@ -458,9 +461,13 @@ async def build(
                 learned = await _finalize(store, spec, config, builder, report=report,
                                           findings=findings, echo=echo)
                 _write_cp("completed" if ok else "failed", reason)
+                tl.finish(ok, reason, _tokens(), _elapsed())
+                tl.write(ws)
+                if echo:
+                    print(f"[timeline] {tl.summary()}", flush=True)
                 return BuildResult(ok, len(progress), reason, report, verdict, ws,
                                    learned, escalations, _tokens(), _elapsed(),
-                                   progress, transcript)
+                                   progress, transcript, timeline=tl.events)
 
             async def accept(reason, *, report=None, verdict=None):
                 """Final human sign-off. Returns a BuildResult to stop, or None to
@@ -501,6 +508,7 @@ async def build(
                     spec.checks, ws, run_command=run_config.run_command or spec.run,
                     runner=runner, stop_on_failure=config.stop_on_failure)
                 progress.append(len(report.failures))
+                tl.round(len(progress), [r.name for r in report.failures], _tokens())
                 if on_progress:
                     on_progress({"tokens": _tokens(), "elapsed": _elapsed(), "round": len(progress)})
                 _write_cp("running")
@@ -523,6 +531,8 @@ async def build(
                         inst = autoinstall.run(report.to_feedback(), ws, runner=runner,
                                                already=installed_deps)
                         if inst.get("ran"):
+                            tl.event("auto-install", packages=inst.get("packages", []),
+                                     ok=bool(inst.get("ok")))
                             if echo:
                                 status = "ok" if inst.get("ok") else f"failed ({inst.get('returncode')})"
                                 print(_banner(f"auto-install: {inst['command']} — {status}"), flush=True)
@@ -536,9 +546,10 @@ async def build(
                     if stall >= config.stall_limit:
                         if escalations < config.max_escalations:
                             escalations += 1
+                            from harness import escalation as _esc
+                            target = _esc.describe(run_config.fixer_engine())
+                            tl.event("escalation", target=target)
                             if echo:
-                                from harness import escalation as _esc
-                                target = _esc.describe(run_config.fixer_engine())
                                 print(_banner(f"escalation {escalations}/{config.max_escalations}: "
                                               f"handing off to {target}"), flush=True)
                             diff, delta = _diff(), failure_delta(prev_report, report)
@@ -563,6 +574,7 @@ async def build(
 
                     verify_repairs -= 1
                     n = config.max_repairs - verify_repairs
+                    tl.event("repair", n=n)
                     diff, delta = _diff(), failure_delta(prev_report, report)
                     transcript.append(await builder.send(
                         repair_prompt(report, n, config.max_repairs, diff=diff, delta=delta), echo=echo))
@@ -580,6 +592,7 @@ async def build(
                         print(_banner(f"security scan (round {len(progress)})"), flush=True)
                         print(secmod.to_report(findings), flush=True)
                     if blockers:
+                        tl.event("security", blockers=len(blockers))
                         if security_repairs <= 0:
                             return await finish(False, "security-blocked", report=first_report)
                         if _expired(start, config.deadline_seconds):
@@ -608,6 +621,7 @@ async def build(
                 verdict, rtokens = await run_panel(
                     lambda: reviewer_factory(spec, run_config), focuses, echo=echo, diff=review_diff)
                 extra_tokens += rtokens
+                tl.event("review", approved=bool(verdict.approved))
                 if echo:
                     print(f"review approved={verdict.approved} | {verdict.summary}", flush=True)
 
